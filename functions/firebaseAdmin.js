@@ -1,4 +1,4 @@
-//backend/firebaseAdmin.js
+//functions/firebaseAdmin.js
 require('dotenv').config();
 const admin = require('firebase-admin');
 const plaidClient = require('./plaidConfig'); // Import the Plaid client

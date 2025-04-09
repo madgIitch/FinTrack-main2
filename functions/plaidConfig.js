@@ -1,4 +1,4 @@
-// backend/plaidConfig.js
+// functions/plaidConfig.js
 const { Configuration, PlaidApi, PlaidEnvironments } = require("plaid");
 require('dotenv').config();
 
