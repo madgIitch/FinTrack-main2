@@ -156,11 +156,11 @@
       });
     }
   }
-})({"fXIhR":[function(require,module,exports,__globalThis) {
+})({"01xIC":[function(require,module,exports,__globalThis) {
 var global = arguments[3];
 var HMR_HOST = null;
 var HMR_PORT = null;
-var HMR_SERVER_PORT = 1234;
+var HMR_SERVER_PORT = 8080;
 var HMR_SECURE = false;
 var HMR_ENV_HASH = "439701173a9199ea";
 var HMR_USE_SSE = false;
@@ -728,6 +728,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
     } else console.log('sidebar.js One or more elements (logoHome, sidebar, closeSidebarBtn, logoutLink) are missing.');
 });
 
-},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi"}]},["fXIhR","7XxzW"], "7XxzW", "parcelRequire94c2")
+},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi"}]},["01xIC","7XxzW"], "7XxzW", "parcelRequire94c2")
 
 //# sourceMappingURL=home.659d772f.js.map

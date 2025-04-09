@@ -1,7 +1,6 @@
-//functions/firebaseAdmin.js
 require('dotenv').config();
 const admin = require('firebase-admin');
-const plaidClient = require('./plaidConfig'); // Import the Plaid client
+const plaidClient = require('./plaidConfig'); // Importa el cliente Plaid
 
 const serviceAccount = require('./serviceAccountKey.json');
 
@@ -12,4 +11,4 @@ admin.initializeApp({
 const db = admin.firestore();
 const authAdmin = admin.auth();
 
-module.exports = { admin, db, authAdmin, plaidClient }; // Export plaidClient
+module.exports = { admin, db, authAdmin, plaidClient };

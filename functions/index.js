@@ -1,19 +1,30 @@
-require('dotenv').config();
+// functions/index.js
 const functions = require('firebase-functions');
 const express = require('express');
 const cors = require('cors');
-const plaidRoutes = require('./plaidRoutes');  // Importar las rutas de Plaid
+const plaidRoutes = require('./plaidRoutes');
 
-// Configuramos la app de Express
 const app = express();
 
-// Usamos CORS para permitir peticiones desde el frontend
-app.use(cors({ origin: 'https://fintrack-1bced.web.app' }));
-app.use(express.json());  // Para manejar JSON en el cuerpo de la solicitud
+// Configuración de CORS: Para pruebas se permite cualquier origen.
+const corsOptions = {
+  origin: '*', // En producción puedes restringirlo a 'https://fintrack-1bced.web.app'
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type'],
+};
 
-// Usamos las rutas de Plaid
-app.use('/api/plaid', plaidRoutes);
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+app.use(express.json());
 
-// Exponemos las funciones a Firebase Functions
+// Montamos las rutas bajo "/plaid" (no "/api/plaid" para evitar duplicación)
+app.use('/plaid', plaidRoutes);
+
+// Middleware de manejo de errores que añade los encabezados CORS en caso de error
+app.use((err, req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.status(err.status || 500).json({ error: err.message });
+});
+
+// No se usa app.listen() ya que Firebase Functions gestiona el puerto automáticamente.
 exports.api = functions.https.onRequest(app);
-

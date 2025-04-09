@@ -156,11 +156,11 @@
       });
     }
   }
-})({"iLESf":[function(require,module,exports,__globalThis) {
+})({"jZHlk":[function(require,module,exports,__globalThis) {
 var global = arguments[3];
 var HMR_HOST = null;
 var HMR_PORT = null;
-var HMR_SERVER_PORT = 1234;
+var HMR_SERVER_PORT = 8080;
 var HMR_SECURE = false;
 var HMR_ENV_HASH = "439701173a9199ea";
 var HMR_USE_SSE = false;
@@ -674,30 +674,26 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const linkedAccountsMessage = document.getElementById('linked-accounts-message');
     const accountsListContainer = document.getElementById('linked-accounts-list');
     let accountsLoaded = false;
-    // Establecer la URL de la API según el entorno
-    const apiUrl1 = window.location.hostname === 'localhost' ? 'http://localhost:3071' : 'https://us-central1-fintrack-1bced.cloudfunctions.net';
+    const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3071' : 'https://us-central1-fintrack-1bced.cloudfunctions.net';
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
         if (!user || accountsLoaded) return;
         accountsLoaded = true;
         try {
             const userDoc = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', user.uid));
-            if (!userDoc.exists()) {
-                console.log("No se encontr\xf3 el documento del usuario.");
-                return;
-            }
+            if (!userDoc.exists()) return;
             const userData = userDoc.data();
             console.log("Datos del usuario desde Firestore:", userData);
             nombreSpan.textContent = userData.firstName || 'Sin nombre';
             apellidosSpan.textContent = userData.lastName || 'Sin apellidos';
             emailSpan.textContent = user.email || 'Sin email';
-            const accounts = userDoc.data().plaid?.accounts || [];
+            const accounts = userData.plaid?.accounts || [];
             if (accounts.length === 0) {
                 linkedAccountsMessage.style.display = 'block';
                 linkedAccountsMessage.textContent = 'No hay cuentas vinculadas actualmente.';
-            } else linkedAccountsMessage.style.display = 'none'; // Ocultar el mensaje si hay cuentas
-            // Cargar detalles de las cuentas
+                return;
+            } else linkedAccountsMessage.style.display = 'none';
             for (const [index, account] of accounts.entries())try {
-                const res = await fetch(`${apiUrl1}/api/plaid/get_account_details`, {
+                const res = await fetch(`${apiUrl}/api/plaid/get_account_details`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -706,9 +702,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
                         accessToken: account.accessToken
                     })
                 });
-                if (!res.ok) throw new Error("Error en la respuesta de la API");
+                if (!res.ok) throw new Error('Error en la respuesta de la API');
                 const details = await res.json();
-                const accountDetails = details.accounts[0] || {};
+                const accountDetails = details.accounts?.[0] || {};
                 const institutionDetails = details.institution || {};
                 const li = document.createElement('li');
                 li.classList.add('linked-account');
@@ -720,35 +716,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 accountsListContainer.appendChild(li);
             } catch (err) {
                 console.error(`Error al procesar la cuenta ${index + 1}:`, err);
-                // Mostrar cuentas guardadas en caso de error
-                const guardadas = userDoc.data().plaid?.accountsGuardadas || [];
-                accountsListContainer.innerHTML = '';
-                if (guardadas.length > 0) {
-                    const offlineMsg = document.createElement('p');
-                    offlineMsg.style.fontStyle = 'italic';
-                    offlineMsg.style.color = '#777';
-                    offlineMsg.textContent = "Mostrando datos guardados debido a un problema de conexi\xf3n.";
-                    accountsListContainer.appendChild(offlineMsg);
-                    guardadas.forEach((acc, idx)=>{
-                        const li = document.createElement('li');
-                        li.classList.add('linked-account');
-                        li.innerHTML = `
-                <strong>Cuenta ${idx + 1}</strong><br>
-                Banco: ${acc.institutionName}<br>
-                Nombre de la cuenta: ${acc.accountName}<br>
-              `;
-                        accountsListContainer.appendChild(li);
-                    });
-                } else {
-                    linkedAccountsMessage.style.display = 'block';
-                    linkedAccountsMessage.textContent = 'No hay cuentas bancarias disponibles.';
-                }
             }
         } catch (err) {
             console.error("Error general al cargar las cuentas:", err);
         }
     });
-    // Manejador de eventos para el botón de vinculación de cuentas
     if (connectBankButton) connectBankButton.addEventListener('click', ()=>{
         if (plaidLinkHandler) plaidLinkHandler.open();
         else alert("Plaid Link no est\xe1 listo.");
@@ -763,6 +735,7 @@ function initializePlaidLink(linkToken) {
             console.log('Plaid onSuccess - Public token:', public_token);
             console.log('Plaid onSuccess - Metadata:', metadata);
             try {
+                const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3071' : 'https://us-central1-fintrack-1bced.cloudfunctions.net';
                 const res = await fetch(`${apiUrl}/api/plaid/exchange_public_token`, {
                     method: 'POST',
                     headers: {
@@ -773,12 +746,12 @@ function initializePlaidLink(linkToken) {
                         userId: (0, _firebaseJs.auth).currentUser.uid
                     })
                 });
-                if (res.ok) {
-                    alert("Cuenta bancaria vinculada con \xe9xito.");
-                    location.reload(); // Recargar la página para actualizar la lista de cuentas
-                } else {
+                if (!res.ok) {
                     const errorData = await res.json();
                     alert(`Error al vincular cuenta: ${errorData.message || 'Desconocido'}`);
+                } else {
+                    alert("Cuenta bancaria vinculada con \xe9xito.");
+                    location.reload();
                 }
             } catch (err) {
                 console.error('Error al vincular cuenta:', err);
@@ -794,6 +767,6 @@ function initializePlaidLink(linkToken) {
     });
 }
 
-},{"../js/firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1"}]},["iLESf","4EjQc"], "4EjQc", "parcelRequire94c2")
+},{"../js/firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1"}]},["jZHlk","4EjQc"], "4EjQc", "parcelRequire94c2")
 
 //# sourceMappingURL=profile.cbbe9c0b.js.map
