@@ -666,23 +666,77 @@ var _firebaseJs = require("../js/firebase.js");
 var _auth = require("firebase/auth");
 var _firestore = require("firebase/firestore");
 document.addEventListener('DOMContentLoaded', ()=>{
-    console.log('profile.js loaded');
+    console.log('[DEBUG] profile.js loaded');
     const nombreSpan = document.getElementById('profile-nombre');
     const apellidosSpan = document.getElementById('profile-apellidos');
     const emailSpan = document.getElementById('profile-email');
     const connectBankButton = document.getElementById('link-bank-button');
     const linkedAccountsMessage = document.getElementById('linked-accounts-message');
     const accountsListContainer = document.getElementById('linked-accounts-list');
+    console.log('[DEBUG] connectBankButton:', connectBankButton);
     let accountsLoaded = false;
+    // Definir la URL de la API según el entorno
     const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3071' : 'https://us-central1-fintrack-1bced.cloudfunctions.net';
+    console.log('[DEBUG] apiUrl es:', apiUrl);
+    // Función para obtener el link token e inicializar Plaid Link
+    async function fetchAndInitializePlaidLink() {
+        console.log('[DEBUG] => fetchAndInitializePlaidLink() invocada');
+        try {
+            // Verifica si hay usuario autenticado
+            if (!(0, _firebaseJs.auth).currentUser) {
+                console.error('[ERROR] No hay un usuario autenticado en auth.currentUser');
+                return false;
+            }
+            console.log('[DEBUG] Usuario actual (uid):', (0, _firebaseJs.auth).currentUser.uid);
+            // Llamada al endpoint create_link_token
+            const createLinkTokenUrl = `${apiUrl}/api/plaid/create_link_token`;
+            console.log('[DEBUG] Llamando a:', createLinkTokenUrl);
+            const res = await fetch(createLinkTokenUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId: (0, _firebaseJs.auth).currentUser.uid
+                })
+            });
+            console.log('[DEBUG] Status de create_link_token:', res.status);
+            if (!res.ok) {
+                const errorData = await res.json().catch(()=>{});
+                console.error('[ERROR] create_link_token errorData:', errorData);
+                return false;
+            }
+            const data = await res.json();
+            console.log('[DEBUG] Recibido (data):', data);
+            if (!data.link_token) {
+                console.error("[ERROR] No se encontr\xf3 link_token en la respuesta de /create_link_token");
+                return false;
+            }
+            // Inicializa Plaid Link
+            initializePlaidLink(data.link_token);
+            console.log('[DEBUG] Plaid Link se ha inicializado satisfactoriamente.');
+            return true;
+        } catch (error) {
+            console.error("[ERROR] Excepci\xf3n en fetchAndInitializePlaidLink():", error);
+            return false;
+        }
+    }
+    // Observador de estado de autenticación
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
-        if (!user || accountsLoaded) return;
+        if (!user || accountsLoaded) {
+            console.log('[DEBUG] onAuthStateChanged => usuario null o cuentas ya cargadas:', user, accountsLoaded);
+            return;
+        }
         accountsLoaded = true;
         try {
             const userDoc = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', user.uid));
-            if (!userDoc.exists()) return;
+            if (!userDoc.exists()) {
+                console.error("[ERROR] No se encontr\xf3 documento de usuario en Firestore");
+                return;
+            }
             const userData = userDoc.data();
-            console.log("Datos del usuario desde Firestore:", userData);
+            console.log('[DEBUG] Datos del usuario desde Firestore:', userData);
+            // Asignar nombre, apellidos, email
             nombreSpan.textContent = userData.firstName || 'Sin nombre';
             apellidosSpan.textContent = userData.lastName || 'Sin apellidos';
             emailSpan.textContent = user.email || 'Sin email';
@@ -692,7 +746,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 linkedAccountsMessage.textContent = 'No hay cuentas vinculadas actualmente.';
                 return;
             } else linkedAccountsMessage.style.display = 'none';
+            // Iterar sobre las cuentas
             for (const [index, account] of accounts.entries())try {
+                console.log(`[DEBUG] Llamando get_account_details para la cuenta #${index + 1}`);
                 const res = await fetch(`${apiUrl}/api/plaid/get_account_details`, {
                     method: 'POST',
                     headers: {
@@ -702,7 +758,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
                         accessToken: account.accessToken
                     })
                 });
-                if (!res.ok) throw new Error('Error en la respuesta de la API');
+                if (!res.ok) throw new Error('[ERROR] Respuesta de la API no OK');
                 const details = await res.json();
                 const accountDetails = details.accounts?.[0] || {};
                 const institutionDetails = details.institution || {};
@@ -715,27 +771,41 @@ document.addEventListener('DOMContentLoaded', ()=>{
           `;
                 accountsListContainer.appendChild(li);
             } catch (err) {
-                console.error(`Error al procesar la cuenta ${index + 1}:`, err);
+                console.error(`[ERROR] Al procesar la cuenta #${index + 1}:`, err);
             }
         } catch (err) {
-            console.error("Error general al cargar las cuentas:", err);
+            console.error('[ERROR] Error general al cargar cuentas:', err);
         }
     });
-    if (connectBankButton) connectBankButton.addEventListener('click', ()=>{
-        if (plaidLinkHandler) plaidLinkHandler.open();
-        else alert("Plaid Link no est\xe1 listo.");
+    // Evento para el botón "link-bank-button"
+    if (connectBankButton) connectBankButton.addEventListener('click', async ()=>{
+        console.log("[DEBUG] Bot\xf3n link-bank-button clickeado. Revisando si plaidLinkHandler es null...");
+        if (!plaidLinkHandler) {
+            console.log('[DEBUG] plaidLinkHandler es null, intentando inicializar...');
+            const initialized = await fetchAndInitializePlaidLink();
+            console.log('[DEBUG] fetchAndInitializePlaidLink =>', initialized);
+            if (!initialized) {
+                alert("No se pudo iniciar Plaid Link. Revisa la consola para m\xe1s detalles.");
+                return;
+            }
+        }
+        console.log('[DEBUG] Abriendo Plaid Link...');
+        plaidLinkHandler.open();
     });
+    else console.warn('[WARN] No se encontr\xf3 el bot\xf3n con ID "link-bank-button" en la p\xe1gina.');
 });
+// Variable global de Plaid Link
 let plaidLinkHandler = null;
 function initializePlaidLink(linkToken) {
-    console.log('Initializing Plaid Link with token:', linkToken);
+    console.log('[DEBUG] initializePlaidLink() => linkToken recibido:', linkToken);
     plaidLinkHandler = Plaid.create({
         token: linkToken,
         onSuccess: async (public_token, metadata)=>{
-            console.log('Plaid onSuccess - Public token:', public_token);
-            console.log('Plaid onSuccess - Metadata:', metadata);
+            console.log('[DEBUG] Plaid onSuccess - Public token:', public_token);
+            console.log('[DEBUG] Plaid onSuccess - Metadata:', metadata);
             try {
                 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3071' : 'https://us-central1-fintrack-1bced.cloudfunctions.net';
+                console.log('[DEBUG] Haciendo POST a exchange_public_token en:', `${apiUrl}/api/plaid/exchange_public_token`);
                 const res = await fetch(`${apiUrl}/api/plaid/exchange_public_token`, {
                     method: 'POST',
                     headers: {
@@ -746,6 +816,7 @@ function initializePlaidLink(linkToken) {
                         userId: (0, _firebaseJs.auth).currentUser.uid
                     })
                 });
+                console.log('[DEBUG] Respuesta exchange_public_token => status:', res.status);
                 if (!res.ok) {
                     const errorData = await res.json();
                     alert(`Error al vincular cuenta: ${errorData.message || 'Desconocido'}`);
@@ -754,17 +825,18 @@ function initializePlaidLink(linkToken) {
                     location.reload();
                 }
             } catch (err) {
-                console.error('Error al vincular cuenta:', err);
+                console.error('[ERROR] onSuccess => exchange_public_token:', err);
                 alert('Error al vincular la cuenta bancaria.');
             }
         },
         onExit: (err, metadata)=>{
-            console.log('Plaid Link exit', err, metadata);
+            console.log('[DEBUG] onExit de Plaid Link =>', err, metadata);
         },
         onEvent: (eventName, metadata)=>{
-            console.log('Plaid Link event', eventName, metadata);
+            console.log('[DEBUG] onEvent de Plaid Link =>', eventName, metadata);
         }
     });
+    console.log('[DEBUG] plaidLinkHandler inicializado:', plaidLinkHandler);
 }
 
 },{"../js/firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1"}]},["jZHlk","4EjQc"], "4EjQc", "parcelRequire94c2")
