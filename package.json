@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "firebase": "^11.5.0"
+  },
+  "devDependencies": {
+    "@parcel/packager-raw-url": "^2.14.2",
+    "@parcel/transformer-webmanifest": "^2.14.2",
+    "buffer": "^6.0.3",
+    "parcel": "^2.14.2"
+  }
+}

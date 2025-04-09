@@ -1,0 +1,143 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+
+.background-container {
+  z-index: 1;
+  background: linear-gradient(#e0e0e0, #f4f4f4);
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+.logo-container {
+  z-index: 2;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 20px 0;
+  display: flex;
+  position: fixed;
+  top: 10%;
+  left: 0;
+}
+
+.logo {
+  width: 80px;
+  height: auto;
+}
+
+.register-container {
+  text-align: left;
+  z-index: 2;
+  width: 90%;
+  max-width: 380px;
+  margin-top: 200px;
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+}
+
+.register-container h2 {
+  color: #333;
+  margin-bottom: 20px;
+  font-size: 1em;
+}
+
+.input-field {
+  background-color: #252525;
+  border-radius: 4px;
+  align-items: center;
+  height: 50px;
+  margin-top: auto;
+  margin-bottom: 20px;
+  padding: 10px 15px;
+  display: flex;
+}
+
+.input-field input {
+  color: #fff;
+  background: none;
+  border: none;
+  outline: none;
+  width: 100%;
+  padding: 8px;
+  font-size: 16px;
+}
+
+.input-field input::placeholder {
+  color: #b0b0b0;
+  font-size: 16px;
+}
+
+.password-field {
+  position: relative;
+}
+
+.password-field .material-icons {
+  color: #b0b0b0;
+  cursor: pointer;
+  font-size: 24px;
+  position: absolute;
+  top: 50%;
+  right: 15px;
+  transform: translateY(-50%);
+}
+
+.btn-custom {
+  color: #fff;
+  text-transform: none;
+  cursor: pointer;
+  text-align: center;
+  box-sizing: border-box;
+  background-color: #252525;
+  border: none;
+  border-radius: 30px;
+  width: 100%;
+  margin-top: 15px;
+  padding: 15px;
+  font-size: 18px;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.btn-custom:hover {
+  background-color: #1b1b1b;
+}
+
+.btn-custom + .btn-custom {
+  margin-top: 15px;
+}
+
+.step {
+  display: none;
+}
+
+.step.active {
+  display: block;
+}
+
+.alert {
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.progress-container {
+  background-color: #ddd;
+  border-radius: 5px;
+  width: 100%;
+  height: 8px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  background-color: #007bff;
+  width: 0%;
+  height: 100%;
+  transition: width .3s ease-in-out;
+}
+/*# sourceMappingURL=register.0a052b6a.css.map */

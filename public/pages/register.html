@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><script type="module" src="/FinTrack-main.227cf0ee.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Usuario</title>
+    <link rel="stylesheet" href="/register.0a052b6a.css">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body>
+    <div class="background-container"></div>
+    <div class="logo-container">
+        <img src="/logoFintonic.89fddae4.svg" alt="Logo Fintonic" class="logo">
+    </div>
+
+    <div class="register-container">
+        <form id="register-form">
+            <!-- Barra de Progreso -->
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+
+            <div id="step-1" class="step active">
+                <h2>Introduce tu nombre y apellidos</h2>
+                <div class="input-field">
+                    <input type="text" id="nombre" name="nombre" placeholder="Nombre" required="">
+                </div>
+                <div class="input-field">
+                    <input type="text" id="apellidos" name="apellidos" placeholder="Apellidos" required="">
+                </div>
+                <button type="button" class="btn-custom next-step" data-next="step-2">Siguiente</button>
+            </div>
+
+            <div id="step-2" class="step">
+                <h2>Introduce tu correo electrónico</h2>
+                <div class="input-field">
+                    <input type="email" id="email" name="email" placeholder="Correo electrónico" required="">
+                </div>
+                <div id="email-exists-alert" class="alert" style="color: red; margin-top: 10px; display: none">
+                    Este correo electrónico ya está en uso. <a href="/index.html">Iniciar sesión</a>
+                </div>
+                <button type="button" class="btn-custom next-step" data-next="step-4" id="check-email">Siguiente</button>
+            </div>
+
+            <div id="step-4" class="step">
+                <h2>Introduce tu contraseña</h2>
+                <div class="input-field password-field">
+                    <input type="password" id="password" name="password" placeholder="Contraseña" required="">
+                    <i class="material-icons visibility-icon">visibility</i>
+                </div>
+
+                <div class="input-field password-field">
+                    <input type="password" id="confirm-password" name="confirm-password" placeholder="Confirmar Contraseña" required="">
+                    <i class="material-icons visibility-icon">visibility</i>
+                </div>
+                <button type="submit" class="btn-custom" id="finalizar-registro">Finalizar Registro</button>
+            </div>
+        </form>
+    </div>
+
+    <script type="module" src="/register.a3879fcd.js"></script>
+</body>
+</html>

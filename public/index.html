@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinTrack</title>
+  <link rel="stylesheet" href="/FinTrack-main.558d9a0b.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <script type="module" src="/FinTrack-main.227cf0ee.js"></script><script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script type="module" src="/FinTrack-main.fd8a3a4c.js"></script>
+</head>
+<body>
+  <div class="background-container"></div>
+
+  <div class="logo-container">
+    <img src="/logoFintonic.89fddae4.svg" alt="Logo Fintonic" class="logo">
+  </div>
+
+  <div class="login-container">
+    <!-- Formulario de inicio de sesión -->
+    <form id="login-form">
+      <div class="input-field">
+        <input type="email" id="email" name="email" placeholder="Correo electrónico" required="">
+      </div>
+  
+      <div class="input-field password-field">
+        <input type="password" id="password" name="password" placeholder="Contraseña" required="">
+        <i class="material-icons">visibility</i>
+      </div>
+  
+      <button type="submit" class="btn-custom" id="login-button">Iniciar sesión</button>
+    </form>
+  
+    <!-- Botón de registro -->
+    <a href="/pages/register.html" id="register-link" class="btn-custom">Registro</a>
+  
+    <!-- Botón de recuperación de contraseña -->
+    <a href="#" id="show-reset-form" class="btn-custom">¿Olvidaste tu contraseña?</a>
+  </div>
+  
+  <!-- Formulario de recuperación de contraseña (inicialmente oculto) -->
+  <form id="reset-form" style="display: none">
+    <div class="input-field">
+      <input type="email" id="reset-email" name="reset-email" placeholder="Correo electrónico" required="">
+    </div>
+    <button type="submit" class="btn-custom">Enviar instrucciones</button>
+    <a href="#" id="back-to-login" class="btn-custom">Volver al inicio de sesión</a>
+  </form>
+  
+</body>
+</html>

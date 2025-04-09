@@ -1,0 +1,128 @@
+body {
+  color: #333;
+  background: linear-gradient(#e0e0e0, #f4f4f4);
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+
+.container {
+  z-index: 2;
+  flex-direction: column;
+  min-height: 100vh;
+  display: flex;
+  position: relative;
+}
+
+.header {
+  background-color: #0000;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  display: flex;
+}
+
+.header-left {
+  align-items: center;
+  display: flex;
+}
+
+.logo-icon {
+  color: #fff;
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  width: 40px;
+  height: 40px;
+  margin-right: 15px;
+  font-size: 20px;
+  display: flex;
+}
+
+.welcome-message {
+  margin: 0;
+  font-size: 1.2em;
+}
+
+.header-right {
+  align-items: center;
+  display: flex;
+}
+
+.notification-button {
+  color: #252525;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  padding: 8px;
+}
+
+.notification-button .material-icons {
+  font-size: 24px;
+}
+
+.content {
+  flex-direction: column;
+  flex-grow: 1;
+  align-items: center;
+  gap: 20px;
+  margin-top: 60px;
+  padding: 20px;
+  display: flex;
+}
+
+.card {
+  background-color: #fff;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 400px;
+  padding: 20px;
+  box-shadow: 0 2px 4px #0000001a;
+}
+
+.card h2 {
+  color: #555;
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.1em;
+}
+
+.balance p.current-balance {
+  color: #252525;
+  margin-bottom: 0;
+  font-size: 1.8em;
+  font-weight: bold;
+}
+
+.bottom-nav {
+  z-index: 3;
+  background-color: #f4f4f4;
+  border-top: 1px solid #e0e0e0;
+  justify-content: space-around;
+  align-items: center;
+  width: 100%;
+  padding: 10px 0;
+  display: flex;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+}
+
+.bottom-nav a {
+  color: #777;
+  flex-direction: column;
+  align-items: center;
+  font-size: .8em;
+  text-decoration: none;
+  display: flex;
+}
+
+.bottom-nav a.active {
+  color: #252525;
+}
+
+.bottom-nav a .material-icons {
+  margin-bottom: 5px;
+  font-size: 24px;
+}
+/*# sourceMappingURL=home.c779873a.css.map */

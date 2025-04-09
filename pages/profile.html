@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Perfil de Usuario</title>
+  <link rel="stylesheet" href="../css/profile.css" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link rel="manifest" href="../manifest.json" />
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+  <script type="module" src="../js/profile.js"></script>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <img src="../img/logoFintonic.svg" alt="Logo Fintonic" class="logo-icon-img" />
+        <h1 class="welcome-message">Perfil</h1>
+      </div>
+      <div class="header-right">
+        <button class="notification-button">
+          <i class="material-icons">notifications</i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="content">
+      <!-- Información personal -->
+      <div class="card">
+        <h2>Información Personal</h2>
+        <div id="profile-info">
+          <p><strong>Nombre:</strong> <span id="profile-nombre">Cargando...</span></p>
+          <p><strong>Apellidos:</strong> <span id="profile-apellidos">Cargando...</span></p>
+          <p><strong>Email:</strong> <span id="profile-email">Cargando...</span></p>
+        </div>
+      </div>
+
+      <!-- Cuentas bancarias -->
+      <h2 style="width: 90%; max-width: 500px;">Cuentas Bancarias Vinculadas</h2>
+      <p id="linked-accounts-message" style="width: 90%; max-width: 500px;">No hay cuentas bancarias vinculadas actualmente.</p>
+      <div id="linked-accounts-list" style="width: 90%; max-width: 500px;"></div>
+      <button id="link-bank-button" class="btn-custom" style="width: 90%; max-width: 500px;">Vincular Cuenta Bancaria</button>
+
+    </main>
+
+    <!-- Barra de navegación inferior -->
+    <nav class="bottom-nav">
+      <a href="home.html">
+        <i class="material-icons">home</i>
+        <span>Inicio</span>
+      </a>
+      <a href="profile.html" class="active">
+        <i class="material-icons">person</i>
+        <span>Perfil</span>
+      </a>
+      <a href="#">
+        <i class="material-icons">settings</i>
+        <span>Ajustes</span>
+      </a>
+    </nav>
+  </div>
+</body>
+</html>
