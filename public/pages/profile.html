@@ -37,11 +37,40 @@
         </div>
       </div>
 
-      <!-- Cuentas bancarias -->
+      <!-- Cuentas Bancarias -->
       <h2 style="width: 90%; max-width: 500px">Cuentas Bancarias Vinculadas</h2>
-      <p id="linked-accounts-message" style="width: 90%; max-width: 500px">No hay cuentas bancarias vinculadas actualmente.</p>
-      <div id="linked-accounts-list" style="width: 90%; max-width: 500px"></div>
-      <button id="link-bank-button" class="btn-custom" style="width: 90%; max-width: 500px">Vincular Cuenta Bancaria</button>
+      <p id="linked-accounts-message" style="width: 90%; max-width: 500px">
+        No hay cuentas bancarias vinculadas actualmente.
+      </p>
+
+      <!-- Envoltorio principal del slider -->
+      <div class="slider-wrapper">
+        <!-- Flecha Izquierda -->
+        <button class="slider-arrow left-arrow" id="slider-prev">
+          <span class="material-icons">navigate_before</span>
+        </button>
+
+        <!-- Contenedor principal del slider (oculta overflow) -->
+        <div class="accounts-slider-container">
+          <!-- Este div debe tener la clase "accounts-slider" y el ID "linked-accounts-list" -->
+          <div class="accounts-slider" id="linked-accounts-list">
+            <!-- Aquí se inyectan las cuentas (slides) mediante JS -->
+          </div>
+        </div>
+
+        <!-- Flecha Derecha -->
+        <button class="slider-arrow right-arrow" id="slider-next">
+          <span class="material-icons">navigate_next</span>
+        </button>
+      </div>
+
+      <!-- Indicadores (puntitos) -->
+      <div class="slider-dots" id="slider-dots"></div>
+
+      <!-- Botón para vincular cuenta -->
+      <button id="link-bank-button" class="btn-custom" style="width: 90%; max-width: 500px">
+        Vincular Cuenta Bancaria
+      </button>
 
     </main>
 

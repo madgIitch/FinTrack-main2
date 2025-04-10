@@ -666,29 +666,28 @@ var _firebaseJs = require("../js/firebase.js");
 var _auth = require("firebase/auth");
 var _firestore = require("firebase/firestore");
 document.addEventListener('DOMContentLoaded', ()=>{
-    console.log('[DEBUG] profile.js loaded');
+    console.log('%c[DEBUG] profile.js loaded', 'color: green; font-weight: bold;');
     const nombreSpan = document.getElementById('profile-nombre');
     const apellidosSpan = document.getElementById('profile-apellidos');
     const emailSpan = document.getElementById('profile-email');
     const connectBankButton = document.getElementById('link-bank-button');
     const linkedAccountsMessage = document.getElementById('linked-accounts-message');
     const accountsListContainer = document.getElementById('linked-accounts-list');
-    console.log('[DEBUG] connectBankButton:', connectBankButton);
     let accountsLoaded = false;
     // Definir la URL de la API según el entorno
     const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3071' : 'https://us-central1-fintrack-1bced.cloudfunctions.net';
     console.log('[DEBUG] apiUrl es:', apiUrl);
-    // Función para obtener el link token e inicializar Plaid Link
+    // ===========================
+    // Función: fetchAndInitializePlaidLink
+    // ===========================
     async function fetchAndInitializePlaidLink() {
         console.log('[DEBUG] => fetchAndInitializePlaidLink() invocada');
         try {
-            // Verifica si hay usuario autenticado
             if (!(0, _firebaseJs.auth).currentUser) {
                 console.error('[ERROR] No hay un usuario autenticado en auth.currentUser');
                 return false;
             }
             console.log('[DEBUG] Usuario actual (uid):', (0, _firebaseJs.auth).currentUser.uid);
-            // Llamada al endpoint create_link_token
             const createLinkTokenUrl = `${apiUrl}/api/plaid/create_link_token`;
             console.log('[DEBUG] Llamando a:', createLinkTokenUrl);
             const res = await fetch(createLinkTokenUrl, {
@@ -707,9 +706,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 return false;
             }
             const data = await res.json();
-            console.log('[DEBUG] Recibido (data):', data);
+            console.log('[DEBUG] Recibido (data) de /create_link_token:', data);
             if (!data.link_token) {
-                console.error("[ERROR] No se encontr\xf3 link_token en la respuesta de /create_link_token");
+                console.error("[ERROR] No se encontr\xf3 link_token en la respuesta");
                 return false;
             }
             // Inicializa Plaid Link
@@ -721,13 +720,17 @@ document.addEventListener('DOMContentLoaded', ()=>{
             return false;
         }
     }
+    // ===========================
     // Observador de estado de autenticación
+    // ===========================
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
+        console.log('[DEBUG] onAuthStateChanged => user:', user, ' accountsLoaded:', accountsLoaded);
         if (!user || accountsLoaded) {
-            console.log('[DEBUG] onAuthStateChanged => usuario null o cuentas ya cargadas:', user, accountsLoaded);
+            console.log('[DEBUG] No user o cuentas ya cargadas, saliendo...');
             return;
         }
         accountsLoaded = true;
+        console.log('[DEBUG] onAuthStateChanged => proceed to load accounts');
         try {
             const userDoc = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', user.uid));
             if (!userDoc.exists()) {
@@ -741,14 +744,15 @@ document.addEventListener('DOMContentLoaded', ()=>{
             apellidosSpan.textContent = userData.lastName || 'Sin apellidos';
             emailSpan.textContent = user.email || 'Sin email';
             const accounts = userData.plaid?.accounts || [];
+            console.log(`[DEBUG] Cuentas encontradas: ${accounts.length}`);
             if (accounts.length === 0) {
                 linkedAccountsMessage.style.display = 'block';
                 linkedAccountsMessage.textContent = 'No hay cuentas vinculadas actualmente.';
                 return;
             } else linkedAccountsMessage.style.display = 'none';
-            // Iterar sobre las cuentas
+            // Iterar sobre las cuentas para generar cada slide
             for (const [index, account] of accounts.entries())try {
-                console.log(`[DEBUG] Llamando get_account_details para la cuenta #${index + 1}`);
+                console.log(`[DEBUG] get_account_details para cuenta #${index + 1}`);
                 const res = await fetch(`${apiUrl}/api/plaid/get_account_details`, {
                     method: 'POST',
                     headers: {
@@ -762,24 +766,33 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 const details = await res.json();
                 const accountDetails = details.accounts?.[0] || {};
                 const institutionDetails = details.institution || {};
-                const li = document.createElement('li');
-                li.classList.add('linked-account');
-                li.innerHTML = `
-            <strong>Cuenta ${index + 1}</strong><br>
-            Banco: ${institutionDetails.name || 'Desconocido'}<br>
-            Nombre de la cuenta: ${accountDetails.name || 'No especificado'}<br>
+                // Crear la slide para la cuenta
+                const accountDiv = document.createElement('div');
+                accountDiv.classList.add('linked-account');
+                accountDiv.innerHTML = `
+            <p><strong>Cuenta ${index + 1}</strong></p>
+            <p>Banco: ${institutionDetails.name || 'Desconocido'}</p>
+            <p>Nombre de la cuenta: ${accountDetails.name || 'No especificado'}</p>
           `;
-                accountsListContainer.appendChild(li);
+                // Inserción en el slider
+                accountsListContainer.appendChild(accountDiv);
+                console.log("[DEBUG] Cuenta a\xf1adida al slider:", accountDiv);
             } catch (err) {
                 console.error(`[ERROR] Al procesar la cuenta #${index + 1}:`, err);
             }
+             // Fin for
+            // Antes de llamar initSlider() mostramos un log:
+            console.log('[DEBUG] Todas las cuentas inyectadas, llamando initSlider()...');
+            initSlider();
         } catch (err) {
             console.error('[ERROR] Error general al cargar cuentas:', err);
         }
     });
+    // ===========================
     // Evento para el botón "link-bank-button"
+    // ===========================
     if (connectBankButton) connectBankButton.addEventListener('click', async ()=>{
-        console.log("[DEBUG] Bot\xf3n link-bank-button clickeado. Revisando si plaidLinkHandler es null...");
+        console.log("[DEBUG] Bot\xf3n link-bank-button clickeado...");
         if (!plaidLinkHandler) {
             console.log('[DEBUG] plaidLinkHandler es null, intentando inicializar...');
             const initialized = await fetchAndInitializePlaidLink();
@@ -794,18 +807,19 @@ document.addEventListener('DOMContentLoaded', ()=>{
     });
     else console.warn('[WARN] No se encontr\xf3 el bot\xf3n con ID "link-bank-button" en la p\xe1gina.');
 });
-// Variable global de Plaid Link
+// ===========================
 let plaidLinkHandler = null;
-function initializePlaidLink(linkToken) {
-    console.log('[DEBUG] initializePlaidLink() => linkToken recibido:', linkToken);
+// ===========================
+/* Función para inicializar Plaid Link */ function initializePlaidLink(linkToken) {
+    console.log('[DEBUG] initializePlaidLink() => linkToken:', linkToken);
     plaidLinkHandler = Plaid.create({
         token: linkToken,
         onSuccess: async (public_token, metadata)=>{
-            console.log('[DEBUG] Plaid onSuccess - Public token:', public_token);
-            console.log('[DEBUG] Plaid onSuccess - Metadata:', metadata);
+            console.log('[DEBUG] Plaid onSuccess => public_token:', public_token);
+            console.log('[DEBUG] Plaid onSuccess => metadata:', metadata);
             try {
                 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3071' : 'https://us-central1-fintrack-1bced.cloudfunctions.net';
-                console.log('[DEBUG] Haciendo POST a exchange_public_token en:', `${apiUrl}/api/plaid/exchange_public_token`);
+                console.log('[DEBUG] POST a /exchange_public_token =>', `${apiUrl}/api/plaid/exchange_public_token`);
                 const res = await fetch(`${apiUrl}/api/plaid/exchange_public_token`, {
                     method: 'POST',
                     headers: {
@@ -830,13 +844,81 @@ function initializePlaidLink(linkToken) {
             }
         },
         onExit: (err, metadata)=>{
-            console.log('[DEBUG] onExit de Plaid Link =>', err, metadata);
+            console.log('[DEBUG] onExit =>', err, metadata);
         },
         onEvent: (eventName, metadata)=>{
-            console.log('[DEBUG] onEvent de Plaid Link =>', eventName, metadata);
+            console.log('[DEBUG] onEvent =>', eventName, metadata);
         }
     });
     console.log('[DEBUG] plaidLinkHandler inicializado:', plaidLinkHandler);
+}
+/*****************************************************
+ * Carrusel con Flechas y Puntitos
+ *****************************************************/ function initSlider() {
+    console.log('[DEBUG] initSlider() => iniciando');
+    const slider = document.querySelector('.accounts-slider');
+    if (!slider) {
+        console.warn("[WARN] No se encontr\xf3 el contenedor .accounts-slider");
+        return;
+    }
+    const slides = slider.querySelectorAll('.linked-account');
+    const prevBtn = document.getElementById('slider-prev');
+    const nextBtn = document.getElementById('slider-next');
+    const dotsContainer = document.getElementById('slider-dots');
+    console.log(`[DEBUG] initSlider => slides encontrados: ${slides.length}`);
+    console.log('[DEBUG] initSlider => prevBtn:', !!prevBtn, ' nextBtn:', !!nextBtn, ' dotsContainer:', !!dotsContainer);
+    if (slides.length === 0) {
+        console.log('[DEBUG] No hay slides en .linked-account, saliendo...');
+        return;
+    }
+    let currentIndex = 0;
+    // Crear puntitos para la paginación
+    function createDots() {
+        console.log('[DEBUG] createDots => generando', slides.length, 'puntitos');
+        dotsContainer.innerHTML = '';
+        for(let i = 0; i < slides.length; i++){
+            const dot = document.createElement('div');
+            dot.classList.add('slider-dot');
+            if (i === 0) dot.classList.add('active');
+            dot.addEventListener('click', ()=>{
+                console.log(`[DEBUG] Dot #${i} clickeado`);
+                goToSlide(i);
+            });
+            dotsContainer.appendChild(dot);
+        }
+    }
+    // Actualizar el "active" en los puntitos
+    function updateDots(index) {
+        console.log(`[DEBUG] updateDots => nuevo index: ${index}`);
+        const dots = dotsContainer.querySelectorAll('.slider-dot');
+        dots.forEach((dot, i)=>{
+            dot.classList.toggle('active', i === index);
+        });
+    }
+    // Función para ir a una slide en particular
+    function goToSlide(index) {
+        console.log('[DEBUG] goToSlide => index solicitado:', index);
+        if (index < 0) index = slides.length - 1;
+        if (index >= slides.length) index = 0;
+        currentIndex = index;
+        const translateXValue = `${100 * index}`;
+        console.log('[DEBUG] goToSlide => translateXValue:', translateXValue);
+        slider.style.transform = `translateX(-${translateXValue}%)`;
+        updateDots(index);
+    }
+    // Asignar los listeners a las flechas
+    if (prevBtn) prevBtn.addEventListener('click', ()=>{
+        console.log('[DEBUG] prevBtn => clickeado');
+        goToSlide(currentIndex - 1);
+    });
+    if (nextBtn) nextBtn.addEventListener('click', ()=>{
+        console.log('[DEBUG] nextBtn => clickeado');
+        goToSlide(currentIndex + 1);
+    });
+    // Inicializamos el carrusel
+    createDots();
+    goToSlide(0);
+    console.log('[DEBUG] initSlider => completado');
 }
 
 },{"../js/firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1"}]},["jZHlk","4EjQc"], "4EjQc", "parcelRequire94c2")
