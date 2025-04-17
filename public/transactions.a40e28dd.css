@@ -1,7 +1,69 @@
+body {
+  color: #333;
+  background: linear-gradient(#e0e0e0, #f4f4f4);
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+
+.container {
+  z-index: 2;
+  flex-direction: column;
+  min-height: 100vh;
+  display: flex;
+  position: relative;
+}
+
+.header {
+  background-color: #0000;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  display: flex;
+}
+
+.header-left {
+  align-items: center;
+  display: flex;
+}
+
+.logo-icon {
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  width: 40px;
+  height: 40px;
+  margin-right: 15px;
+  display: flex;
+}
+
+.welcome-message {
+  margin: 0;
+  font-size: 1.2em;
+}
+
+.header-right {
+  align-items: center;
+  display: flex;
+}
+
+.notification-button {
+  color: #252525;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  padding: 8px;
+}
+
+.notification-button .material-icons {
+  font-size: 24px;
+}
+
 #transactions-section {
   width: 90%;
   max-width: 600px;
   margin: 0 auto 20px;
+  padding-bottom: 60px;
 }
 
 .offline-indicator {
@@ -33,28 +95,39 @@
 .transaction-item {
   background: #fff;
   border-radius: 6px;
+  grid-template: "account amount"
+                 "desc amount"
+                 "date date"
+                 / 1fr auto;
+  gap: 4px 12px;
   margin-bottom: 8px;
   padding: 12px;
-  position: relative;
+  display: grid;
   box-shadow: 0 1px 3px #0000001a;
+}
+
+.transaction-item .account-label {
+  color: #555;
+  margin-bottom: 4px;
+  font-size: .85em;
+  display: block;
+}
+
+.transaction-item .desc {
+  grid-area: desc;
+  font-weight: 500;
 }
 
 .transaction-item .date {
   color: #666;
+  grid-area: date;
   font-size: .85em;
 }
 
-.transaction-item .desc {
-  margin: 4px 0;
-  font-weight: 500;
-}
-
 .transaction-item .amount {
+  grid-area: amount;
+  place-self: center end;
   font-weight: bold;
-  position: absolute;
-  top: 50%;
-  right: 12px;
-  transform: translateY(-50%);
 }
 
 .transaction-item .amount.debit {
@@ -63,69 +136,6 @@
 
 .transaction-item .amount.credit {
   color: #43a047;
-}
-
-body {
-  color: #333;
-  background: linear-gradient(#e0e0e0, #f4f4f4);
-  margin: 0;
-  font-family: Arial, sans-serif;
-}
-
-.container {
-  z-index: 2;
-  flex-direction: column;
-  min-height: 100vh;
-  display: flex;
-  position: relative;
-}
-
-.header {
-  background-color: #0000;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px;
-  display: flex;
-}
-
-.header-left {
-  align-items: center;
-  display: flex;
-}
-
-.logo-icon {
-  color: #fff;
-  border-radius: 50%;
-  justify-content: center;
-  align-items: center;
-  width: 40px;
-  height: 40px;
-  margin-right: 15px;
-  font-size: 20px;
-  display: flex;
-}
-
-.welcome-message {
-  margin: 0;
-  font-size: 1.2em;
-}
-
-.header-right {
-  align-items: center;
-  display: flex;
-}
-
-.notification-button {
-  color: #252525;
-  cursor: pointer;
-  background: none;
-  border: none;
-  border-radius: 50%;
-  padding: 8px;
-}
-
-.notification-button .material-icons {
-  font-size: 24px;
 }
 
 .content {
@@ -191,5 +201,16 @@ body {
 .bottom-nav a .material-icons {
   margin-bottom: 5px;
   font-size: 24px;
+}
+
+@media (width <= 360px) {
+  .transaction-item {
+    display: block;
+  }
+
+  .transaction-item .amount {
+    margin-top: 6px;
+    position: static;
+  }
 }
 /*# sourceMappingURL=transactions.a40e28dd.css.map */

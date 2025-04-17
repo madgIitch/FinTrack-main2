@@ -131,21 +131,16 @@ router.post('/get_transactions', async (req, res) => {
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
 
   try {
-    // 1) Retrieve all access tokens for the user
+    // 1) Recupera tokens del usuario...
     const userDoc = await db.collection('users').doc(userId).get();
-    if (!userDoc.exists) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
-    }
-    const accounts = userDoc.data().plaid?.accounts || [];
-    if (accounts.length === 0) {
-      return res.json({ transactions: [] });
-    }
+    const accounts = userDoc.exists ? userDoc.data().plaid?.accounts || [] : [];
+    if (accounts.length === 0) return res.json({ transactions: [] });
 
-    // 2) Date range – default to last 30 days
+    // 2) Rango de fechas por defecto...
     const start = startDate || new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
     const end   = endDate   || new Date().toISOString().slice(0,10);
 
-    // 3) Fetch transactions from each access token
+    // 3) Trae transacciones de cada access_token
     let allTxs = [];
     for (const { accessToken } of accounts) {
       const txRes = await plaidClient.transactionsGet({
@@ -157,12 +152,13 @@ router.post('/get_transactions', async (req, res) => {
       allTxs = allTxs.concat(txRes.data.transactions);
     }
 
-    // 4) Sort by date descending
+    // 4) Ordena por fecha descendente
     allTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    // 5) Clean up the payload
+    // 5) Limpia payload **incluyendo account_id**
     const cleaned = allTxs.map(tx => ({
       id:          tx.transaction_id,
+      account_id:  tx.account_id,            // ← Aquí
       date:        tx.date,
       description: tx.name,
       category:    (tx.category && tx.category[0]) || 'Sin categoría',
@@ -175,5 +171,6 @@ router.post('/get_transactions', async (req, res) => {
     res.status(500).json({ error: err.message || 'Error obteniendo transacciones' });
   }
 });
+
 
 module.exports = router;
