@@ -1,96 +1,173 @@
 import { auth } from './firebase.js';
-import { doc, getDoc, getFirestore, collection, getDocs } from 'firebase/firestore';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { app } from './firebase.js';
+import { onAuthStateChanged } from 'firebase/auth';
+import { openDB } from 'idb';  // <-- ahora importamos openDB directamente
 
-console.log('home.js loaded');
+// ----------------------------------------------------------------
+// Configuración de la API Cloud Function
+// ----------------------------------------------------------------
+const apiUrl =
+  window.location.hostname === 'localhost'
+    ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
+    : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('home.js DOMContentLoaded');
-    const userNameSpan = document.getElementById('user-name');
-    const logoHome = document.querySelector('.logo-icon');
-    const sidebar = document.getElementById('sidebar');
-    const closeSidebarBtn = document.getElementById('close-sidebar');
-    const logoutLink = document.getElementById('logout-link');
+// ----------------------------------------------------------------
+// Constantes de IndexedDB
+// ----------------------------------------------------------------
+const DB_NAME = 'fintrack-cache';
+const STORE_NAME = 'transactions';
+const DB_VERSION = 1;
 
-    const updateWelcomeMessage = (firstName, lastName) => {
-        userNameSpan.textContent = `${firstName} ${lastName}`.trim();
-    };
+// ----------------------------------------------------------------
+// Inicializa o actualiza la base de datos
+// ----------------------------------------------------------------
+async function initDB() {
+  return openDB(DB_NAME, DB_VERSION, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      }
+    },
+  });
+}
 
-    const cachedFirstName = localStorage.getItem('firstName');
-    const cachedLastName = localStorage.getItem('lastName');
+// ----------------------------------------------------------------
+// Guarda transacciones en caché
+// ----------------------------------------------------------------
+async function cacheTransactions(db, txs) {
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  for (const t of txs) {
+    await tx.store.put(t);
+  }
+  await tx.done;
+}
 
-    if (cachedFirstName && cachedLastName) {
-        console.log('Nombre encontrado en localStorage (carga inicial):', cachedFirstName, cachedLastName);
-        updateWelcomeMessage(cachedFirstName, cachedLastName);
-    }
+// ----------------------------------------------------------------
+// Lee todas las transacciones de la caché
+// ----------------------------------------------------------------
+async function readCachedTransactions(db) {
+  return db.getAll(STORE_NAME);
+}
 
-    // Función para obtener las cuentas bancarias vinculadas
-    const getLinkedAccountsFn = async (userId) => {
-        const db = getFirestore(app);
-        const accountsRef = collection(db, 'users', userId, 'linkedAccounts');
-        try {
-            const snapshot = await getDocs(accountsRef);
-            const linkedAccounts = snapshot.docs.map(doc => doc.data());
-            console.log('Cuentas bancarias vinculadas:', linkedAccounts);
-            // Aquí puedes renderizar las cuentas en el DOM si lo deseas
-        } catch (error) {
-            console.error('Error al obtener las cuentas vinculadas:', error);
-        }
-    };
+// ----------------------------------------------------------------
+// Agrupa transacciones por categoría
+// ----------------------------------------------------------------
+function groupByCategory(txs) {
+  return txs.reduce((groups, tx) => {
+    const cat = tx.category || 'Sin categoría';
+    ;(groups[cat] = groups[cat] || []).push(tx);
+    return groups;
+  }, {});
+}
 
-    onAuthStateChanged(auth, async (user) => {
-        console.log('home.js onAuthStateChanged triggered');
-        if (user) {
-            const userId = user.uid;
-            const db = getFirestore(app);
-            const userDocRef = doc(db, 'users', userId);
+// ----------------------------------------------------------------
+// Renderiza las transacciones en el DOM
+// ----------------------------------------------------------------
+function renderTransactions(groups) {
+  const list = document.getElementById('transactions-list');
+  list.innerHTML = '';
 
-            try {
-                const docSnap = await getDoc(userDocRef);
-                if (docSnap.exists()) {
-                    const userData = docSnap.data();
-                    const firstName = userData.firstName || '';
-                    const lastName = userData.lastName || '';
-                    updateWelcomeMessage(firstName, lastName);
-                    localStorage.setItem('firstName', firstName);
-                    localStorage.setItem('lastName', lastName);
+  for (const [cat, txs] of Object.entries(groups)) {
+    const section = document.createElement('div');
+    section.className = 'category-group';
+    section.innerHTML = `<h3>${cat}</h3>`;
 
-                    // Llamamos a la función para obtener cuentas bancarias vinculadas
-                    await getLinkedAccountsFn(userId);
-                } else {
-                    userNameSpan.textContent = 'Usuario - Datos no encontrados';
-                    localStorage.removeItem('firstName');
-                    localStorage.removeItem('lastName');
-                }
-            } catch (error) {
-                console.error("Error al obtener los datos del usuario:", error);
-                userNameSpan.textContent = 'Usuario - Error al cargar';
-            }
-        } else {
-            userNameSpan.textContent = 'No autenticado';
-            localStorage.removeItem('firstName');
-            localStorage.removeItem('lastName');
-        }
+    txs.forEach((tx) => {
+      const item = document.createElement('div');
+      item.className = 'transaction-item';
+      item.innerHTML = `
+        <span class="date">${new Date(tx.date).toLocaleDateString()}</span>
+        <div class="desc">${tx.description}</div>
+        <span class="amount ${tx.amount < 0 ? 'debit' : 'credit'}">
+          ${tx.amount < 0 ? '−' : '+'}${Math.abs(tx.amount).toFixed(2)} €
+        </span>
+      `;
+      section.appendChild(item);
     });
 
-    if (logoHome && sidebar && closeSidebarBtn && logoutLink) {
-        closeSidebarBtn.addEventListener('click', () => {
-            sidebar.classList.remove('open');
-        });
+    list.appendChild(section);
+  }
+}
 
-        logoutLink.addEventListener('click', (event) => {
-            event.preventDefault();
-            signOut(auth)
-                .then(() => {
-                    localStorage.removeItem('firstName');
-                    localStorage.removeItem('lastName');
-                    window.location.href = "../index.html";
-                })
-                .catch((error) => {
-                    console.error("Error al cerrar sesión:", error);
-                    alert("Error al cerrar sesión. Inténtalo de nuevo.");
-                });
-        });
-    }
+// ----------------------------------------------------------------
+// Mostrar/ocultar indicadores de estado
+// ----------------------------------------------------------------
+function showOffline(msg) {
+  const ind = document.getElementById('offline-indicator');
+  ind.textContent = msg || 'Estás sin conexión. Mostrando datos en caché.';
+  ind.hidden = false;
+}
+function hideOffline() {
+  document.getElementById('offline-indicator').hidden = true;
+}
+function showLoading() {
+  document.getElementById('transactions-loading').hidden = false;
+}
+function hideLoading() {
+  document.getElementById('transactions-loading').hidden = true;
+}
+
+// ----------------------------------------------------------------
+// Llama al endpoint de tu función para traer transacciones de Plaid
+// ----------------------------------------------------------------
+async function fetchTransactionsFromPlaid(userId) {
+  const res = await fetch(`${apiUrl}/plaid/get_transactions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId }),
+  });
+  if (!res.ok) throw new Error('Error al obtener transacciones desde Plaid');
+  const { transactions } = await res.json();
+  return transactions;
+}
+
+// ----------------------------------------------------------------
+// Flujo principal: caché → render → fetch online → actualizar cache+UI
+// ----------------------------------------------------------------
+async function loadTransactions(userId) {
+  const db = await initDB();
+
+  // 1) Mostrar de la caché
+  const cached = await readCachedTransactions(db);
+  if (cached.length) {
+    renderTransactions(groupByCategory(cached));
+  }
+
+  // 2) Si OFFLINE
+  if (!navigator.onLine) {
+    showOffline();
+    hideLoading();
+    return;
+  }
+
+  // 3) En línea: fetch → render → cache
+  hideOffline();
+  showLoading();
+  try {
+    const txs = await fetchTransactionsFromPlaid(userId);
+    renderTransactions(groupByCategory(txs));
+    await cacheTransactions(db, txs);
+  } catch (err) {
+    console.error(err);
+    showOffline('No se pudieron actualizar datos, mostrando caché.');
+  } finally {
+    hideLoading();
+  }
+}
+
+// ----------------------------------------------------------------
+// Cuando el usuario esté autenticado, arrancamos todo
+// ----------------------------------------------------------------
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    loadTransactions(user.uid);
+  } else {
+    window.location.href = '../index.html';
+  }
+});
+
+// ----------------------------------------------------------------
+// Si volvemos online, recargamos
+// ----------------------------------------------------------------
+window.addEventListener('online', () => {
+  if (auth.currentUser) loadTransactions(auth.currentUser.uid);
 });

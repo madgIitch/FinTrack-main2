@@ -1,136 +1,178 @@
+// functions/plaidRoutes.js
+
+require('dotenv').config();
 const express = require('express');
+const { admin, db } = require('./firebaseAdmin'); 
 const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
-const { admin, db } = require('./firebaseAdmin');
 
 const router = express.Router();
 
-console.log('--- Plaid Routes ---');
-console.log('PLAID_CLIENT_ID:', process.env.PLAID_CLIENT_ID);
-console.log('PLAID_SECRET:', process.env.PLAID_SECRET);
-console.log('PLAID_ENV:', process.env.PLAID_ENV);
-
-// Middleware CORS local (refuerzo)
+// ── CORS Middleware ─────────────────────────────────────────────────────────────
 router.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
   next();
 });
 
-// Endpoint de prueba para verificar que el router está activo
-router.get('/ping', (req, res) => {
+// ── Plaid Client Initialization ────────────────────────────────────────────────
+const envName = process.env.PLAID_ENV || 'sandbox';
+const plaidEnv = PlaidEnvironments[envName] || PlaidEnvironments.sandbox;
+
+const plaidConfig = new Configuration({
+  basePath: plaidEnv,
+  baseOptions: {
+    headers: {
+      'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
+      'PLAID-SECRET':    process.env.PLAID_SECRET,
+      'Plaid-Version':   '2020-09-14'
+    }
+  }
+});
+
+const plaidClient = new PlaidApi(plaidConfig);
+
+// ── Health Check ───────────────────────────────────────────────────────────────
+router.get('/ping', (_req, res) => {
   res.json({ message: 'pong' });
 });
 
-// Determinar el entorno de Plaid
-const plaidEnvName = process.env.PLAID_ENV || 'sandbox';
-const plaidEnvironment = PlaidEnvironments[plaidEnvName] || PlaidEnvironments.sandbox;
-console.log('Entorno Plaid:', plaidEnvName);
-
-let plaidClient;
-try {
-  const configuration = new Configuration({
-    basePath: plaidEnvironment,
-    baseOptions: {
-      headers: {
-        'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
-        'PLAID-SECRET': process.env.PLAID_SECRET,
-        'Plaid-Version': '2020-09-14'
-      }
-    }
-  });
-  plaidClient = new PlaidApi(configuration);
-  console.log('Plaid API client inicializado correctamente con el entorno:', plaidEnvironment);
-} catch (error) {
-  console.error('Error al inicializar Plaid API client:', error);
-}
-
-// Endpoint para crear el link token
+// ── Create Link Token ──────────────────────────────────────────────────────────
 router.post('/create_link_token', async (req, res) => {
   const { userId } = req.body;
-  console.log(`Solicitud a /create_link_token para el usuario: ${userId}`);
-  if (!plaidClient) {
-    return res.status(500).json({ error: 'Cliente de Plaid no inicializado.' });
-  }
+  if (!userId) return res.status(400).json({ error: 'Falta userId' });
+
   try {
-    const tokenResponse = await plaidClient.linkTokenCreate({
+    const createResponse = await plaidClient.linkTokenCreate({
       user: { client_user_id: userId },
       client_name: 'FinTrack',
       products: ['auth', 'transactions'],
       country_codes: ['US', 'ES'],
       language: 'es'
     });
-    console.log(`Link token generado correctamente para ${userId}`);
-    res.json({ link_token: tokenResponse.data.link_token });
-  } catch (error) {
-    console.error('Error creando link token:', error);
-    res.status(500).json({ error: error.message || 'Error creando link token' });
+    res.json({ link_token: createResponse.data.link_token });
+  } catch (err) {
+    console.error('Error creating link token:', err);
+    res.status(500).json({ error: err.message || 'Error creando link token' });
   }
 });
 
-// Endpoint para intercambiar public token por access token y almacenarlo en Firestore
+// ── Exchange Public Token ──────────────────────────────────────────────────────
 router.post('/exchange_public_token', async (req, res) => {
   const { public_token, userId } = req.body;
-  console.log(`Solicitud a /exchange_public_token para el usuario: ${userId}`);
-  if (!plaidClient) {
-    return res.status(500).json({ error: 'Cliente de Plaid no inicializado.' });
+  if (!public_token || !userId) {
+    return res.status(400).json({ error: 'Falta public_token o userId' });
   }
-  try {
-    const tokenResponse = await plaidClient.itemPublicTokenExchange({ public_token });
-    const accessToken = tokenResponse.data.access_token;
-    const itemId = tokenResponse.data.item_id;
-    console.log(`Access token obtenido para ${userId}: ${accessToken}`);
-    console.log(`Item ID obtenido para ${userId}: ${itemId}`);
 
+  try {
+    const exchangeResponse = await plaidClient.itemPublicTokenExchange({ public_token });
+    const accessToken = exchangeResponse.data.access_token;
+    const itemId      = exchangeResponse.data.item_id;
+
+    // Save to Firestore under users/{userId}.plaid.accounts array
     const userRef = db.collection('users').doc(userId);
     const userDoc = await userRef.get();
+
     let accounts = [];
     if (userDoc.exists) {
-      const userData = userDoc.data();
-      if (userData.plaid && Array.isArray(userData.plaid.accounts)) {
-        accounts = userData.plaid.accounts;
+      const data = userDoc.data();
+      if (data.plaid?.accounts) {
+        accounts = data.plaid.accounts;
       }
     }
+
     accounts.push({
       accessToken,
       itemId,
       createdAt: admin.firestore.Timestamp.now()
     });
+
     await userRef.set({ plaid: { accounts } }, { merge: true });
-    console.log(`Cuenta Plaid añadida para el usuario ${userId}`);
     res.json({ success: true });
-  } catch (error) {
-    console.error('Error en exchange_public_token:', error);
-    res.status(500).json({ error: error.message || 'Error intercambiando public token' });
+  } catch (err) {
+    console.error('Error exchanging public token:', err);
+    res.status(500).json({ error: err.message || 'Error intercambiando public token' });
   }
 });
 
-// Endpoint para obtener detalles de la cuenta bancaria
+// ── Get Account Details ────────────────────────────────────────────────────────
 router.post('/get_account_details', async (req, res) => {
   const { accessToken } = req.body;
-  console.log('Solicitud a /get_account_details');
-  if (!plaidClient) {
-    return res.status(500).json({ error: 'Cliente de Plaid no inicializado.' });
-  }
+  if (!accessToken) return res.status(400).json({ error: 'Falta accessToken' });
+
   try {
+    // Fetch accounts and institution
     const accountsResponse = await plaidClient.accountsGet({ access_token: accessToken });
-    const itemResponse = await plaidClient.itemGet({ access_token: accessToken });
-    const institution_id = itemResponse.data.item.institution_id;
-    let institutionDetails = null;
-    if (institution_id) {
-      const institutionResponse = await plaidClient.institutionsGetById({
-        institution_id,
+    const itemResponse     = await plaidClient.itemGet({ access_token: accessToken });
+    const institutionId    = itemResponse.data.item.institution_id;
+
+    let institution = null;
+    if (institutionId) {
+      const instRes = await plaidClient.institutionsGetById({
+        institution_id: institutionId,
         country_codes: ['US', 'ES']
       });
-      institutionDetails = institutionResponse.data.institution;
+      institution = instRes.data.institution;
     }
+
     res.json({
-      accounts: accountsResponse.data.accounts,
-      institution: institutionDetails
+      accounts:    accountsResponse.data.accounts,
+      institution: institution
     });
-  } catch (error) {
-    console.error('Error obteniendo detalles de cuenta:', error);
-    res.status(500).json({ error: error.message || 'Error al obtener detalles de cuenta' });
+  } catch (err) {
+    console.error('Error getting account details:', err);
+    res.status(500).json({ error: err.message || 'Error al obtener detalles de cuenta' });
+  }
+});
+
+// ── Get Transactions ───────────────────────────────────────────────────────────
+router.post('/get_transactions', async (req, res) => {
+  const { userId, startDate, endDate } = req.body;
+  if (!userId) return res.status(400).json({ error: 'Falta userId' });
+
+  try {
+    // 1) Retrieve all access tokens for the user
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    const accounts = userDoc.data().plaid?.accounts || [];
+    if (accounts.length === 0) {
+      return res.json({ transactions: [] });
+    }
+
+    // 2) Date range – default to last 30 days
+    const start = startDate || new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
+    const end   = endDate   || new Date().toISOString().slice(0,10);
+
+    // 3) Fetch transactions from each access token
+    let allTxs = [];
+    for (const { accessToken } of accounts) {
+      const txRes = await plaidClient.transactionsGet({
+        access_token: accessToken,
+        start_date:   start,
+        end_date:     end,
+        options: { count: 500, offset: 0 }
+      });
+      allTxs = allTxs.concat(txRes.data.transactions);
+    }
+
+    // 4) Sort by date descending
+    allTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // 5) Clean up the payload
+    const cleaned = allTxs.map(tx => ({
+      id:          tx.transaction_id,
+      date:        tx.date,
+      description: tx.name,
+      category:    (tx.category && tx.category[0]) || 'Sin categoría',
+      amount:      tx.amount
+    }));
+
+    res.json({ transactions: cleaned });
+  } catch (err) {
+    console.error('Error in get_transactions:', err);
+    res.status(500).json({ error: err.message || 'Error obteniendo transacciones' });
   }
 });
 

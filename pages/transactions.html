@@ -6,16 +6,18 @@
   <title>FinTrack – Transacciones</title>
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <link rel="manifest" href="../manifest.json">
-  <link rel="stylesheet" href="../css/sidebar.css">
   <link rel="stylesheet" href="../css/transactions.css">
+  <link rel="stylesheet" href="../css/sidebar.css">
   <link rel="stylesheet" href="../css/responsive.css">
-  <!-- idb para IndexedDB -->
+  <!-- idb para IndexedDB (IIFE) -->
   <script src="https://unpkg.com/idb/build/iife/index-min.js"></script>
+  <!-- Tus módulos -->
   <script type="module" src="../js/transactions.js"></script>
   <script type="module" src="../js/sidebar.js"></script>
 </head>
 <body>
   <div class="container">
+    <!-- === HEADER === -->
     <header class="header">
       <div class="header-left">
         <img src="../img/logoFintonic.svg" class="logo-icon" alt="Logo">
@@ -28,23 +30,33 @@
       </div>
     </header>
 
+    <!-- === MAIN CONTENT === -->
     <main class="content">
+      <!-- Aquí mostramos las transacciones -->
       <section id="transactions-section">
         <h2>Mis Transacciones</h2>
+
+        <!-- Indicador offline -->
         <div id="offline-indicator" class="offline-indicator" hidden>
           Estás sin conexión. Mostrando datos en caché.
         </div>
+
+        <!-- Loading -->
         <div id="transactions-loading" class="loading">Cargando transacciones…</div>
-        <div id="transactions-list"><!-- Se rellenará con JS --></div>
+
+        <!-- Donde se inyectan las transacciones agrupadas -->
+        <div id="transactions-list"></div>
       </section>
     </main>
 
+    <!-- === NAV INFERIOR === -->
     <nav class="bottom-nav">
       <a href="home.html" class="nav-item"><i class="material-icons">home</i><span>Home</span></a>
       <a href="transactions.html" class="nav-item active"><i class="material-icons">swap_horiz</i><span>Transactions</span></a>
       <a href="analisys.html" class="nav-item"><i class="material-icons">pie_chart</i><span>Analysis</span></a>
     </nav>
 
+    <!-- === SIDEBAR === -->
     <aside id="sidebar" class="sidebar">
       <button class="close-btn" id="close-sidebar">&times;</button>
       <h2>Menú</h2>

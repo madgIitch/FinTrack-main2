@@ -1,58 +1,70 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FinTrack - Inicio</title>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="manifest" href="/manifest.webmanifest">
-    <link rel="stylesheet" href="/home.c779873a.css">
-    <link rel="stylesheet" href="/home.8129f27b.css"> 
-    <link rel="stylesheet" href="/FinTrack-main.406065e9.css">
-    <script type="module" src="/FinTrack-main.227cf0ee.js"></script><script type="module" src="/home.a4cb3a81.js"></script>
-    <script type="module" src="/home.659d772f.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FinTrack – Transacciones</title>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/transactions.a40e28dd.css">
+  <link rel="stylesheet" href="/home.8129f27b.css">
+  <link rel="stylesheet" href="/FinTrack-main.406065e9.css">
+  <!-- idb para IndexedDB (IIFE) -->
+  <script type="module" src="/FinTrack-main.64dd720e.js"></script><script src="https://unpkg.com/idb/build/iife/index-min.js"></script>
+  <!-- Tus módulos -->
+  <script type="module" src="/transactions.0e22dfc7.js"></script>
+  <script type="module" src="/home.659d772f.js"></script>
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <div class="header-left">
-                <img src="/logoFintonic.89fddae4.svg" alt="Logo Fintonic" class="logo-icon" id="logo-home">
-            </div>
-            <h1 class="welcome-message">Bienvenido, <span id="user-name"></span></h1>            
-            <div class="header-right">
-                <button class="notification-button">
-                    <i class="material-icons">notifications</i>
-                </button>
-            </div>
-        </header>
+  <div class="container">
+    <!-- === HEADER === -->
+    <header class="header">
+      <div class="header-left">
+        <img src="/logoFintonic.89fddae4.svg" class="logo-icon" alt="Logo">
+      </div>
+      <h1 class="welcome-message">Bienvenido, <span id="user-name"></span></h1>
+      <div class="header-right">
+        <button class="notification-button">
+          <i class="material-icons">notifications</i>
+        </button>
+      </div>
+    </header>
 
-        <main class="content">
-            </main>
+    <!-- === MAIN CONTENT === -->
+    <main class="content">
+      <!-- Aquí mostramos las transacciones -->
+      <section id="transactions-section">
+        <h2>Mis Transacciones</h2>
 
-        <nav class="bottom-nav">
-            <a href="/pages/home.html" class="nav-item ">
-                <i class="material-icons">home</i>
-                <span>Home</span>
-            </a>
-            <a href="/pages/transactions.html" class="nav-item active">
-                <i class="material-icons">swap_horiz</i>
-                <span>Transactions</span>
-            </a>
-            <a href="/pages/analisys.html" class="nav-item">
-                <i class="material-icons">pie_chart</i>
-                <span>Analisys</span>
-            </a>
-            
-        </nav>
+        <!-- Indicador offline -->
+        <div id="offline-indicator" class="offline-indicator" hidden="">
+          Estás sin conexión. Mostrando datos en caché.
+        </div>
 
-        <aside id="sidebar" class="sidebar">
-            <button class="close-btn" id="close-sidebar">&times;</button>
-            <h2>Menú</h2>
-            <ul>
-                <li><a href="/pages/profile.html" class="btn-custom sidebar-btn">Perfil</a></li>
-                <li><a href="#" class="btn-custom sidebar-btn" id="logout-link">Cerrar Sesión</a></li>
-            </ul>
-        </aside>
-    </div>
+        <!-- Loading -->
+        <div id="transactions-loading" class="loading">Cargando transacciones…</div>
+
+        <!-- Donde se inyectan las transacciones agrupadas -->
+        <div id="transactions-list"></div>
+      </section>
+    </main>
+
+    <!-- === NAV INFERIOR === -->
+    <nav class="bottom-nav">
+      <a href="/pages/home.html" class="nav-item"><i class="material-icons">home</i><span>Home</span></a>
+      <a href="/pages/transactions.html" class="nav-item active"><i class="material-icons">swap_horiz</i><span>Transactions</span></a>
+      <a href="/pages/analisys.html" class="nav-item"><i class="material-icons">pie_chart</i><span>Analysis</span></a>
+    </nav>
+
+    <!-- === SIDEBAR === -->
+    <aside id="sidebar" class="sidebar">
+      <button class="close-btn" id="close-sidebar">&times;</button>
+      <h2>Menú</h2>
+      <ul>
+        <li><a href="/pages/profile.html" class="btn-custom sidebar-btn">Perfil</a></li>
+        <li><a href="#" class="btn-custom sidebar-btn" id="logout-link">Cerrar Sesión</a></li>
+      </ul>
+    </aside>
+  </div>
 </body>
 </html>
