@@ -1,14 +1,11 @@
-require('dotenv').config();
+// functions/firebaseAdmin.js
 const admin = require('firebase-admin');
-const plaidClient = require('./plaidConfig'); // Importa el cliente Plaid
 
-const serviceAccount = require('./serviceAccountKey.json');
+// No pasamos nada: usa las credenciales de servicio que GCP inyecta
+admin.initializeApp();
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
-
+// Exporta sólo lo que necesites
 const db = admin.firestore();
 const authAdmin = admin.auth();
 
-module.exports = { admin, db, authAdmin, plaidClient };
+module.exports = { admin, db, authAdmin };

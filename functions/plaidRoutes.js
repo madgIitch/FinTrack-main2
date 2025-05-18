@@ -1,3 +1,5 @@
+// functions/plaidRoutes.js
+
 require('dotenv').config();
 const express = require('express');
 const { admin, db } = require('./firebaseAdmin'); 
@@ -15,6 +17,7 @@ router.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 
@@ -32,7 +35,6 @@ const plaidConfig = new Configuration({
     }
   }
 });
-
 const plaidClient = new PlaidApi(plaidConfig);
 
 // ── Health Check ───────────────────────────────────────────────────────────────
@@ -41,6 +43,7 @@ router.get('/ping', (_req, res) => {
 });
 
 // ── Create Link Token ──────────────────────────────────────────────────────────
+// Soporta creación normal y modo “update” si recibe accessToken
 router.post('/create_link_token', async (req, res) => {
   const { userId, accessToken: updateToken } = req.body;
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
@@ -53,13 +56,14 @@ router.post('/create_link_token', async (req, res) => {
       country_codes: ['US', 'ES'],
       language: 'es'
     };
-    // Si viene updateToken, activamos modo "update"
-    if (updateToken) params.access_token = updateToken;
-
+    if (updateToken) {
+      params.access_token = updateToken;
+      console.log(`Modo update: re-autenticando accessToken=${updateToken}`);
+    }
     const createResponse = await plaidClient.linkTokenCreate(params);
     res.json({ link_token: createResponse.data.link_token });
   } catch (err) {
-    console.error('Error creating link token:', err);
+    console.error('Error creating link token:', err.response?.data || err, '\n', err.stack);
     res.status(500).json({ error: err.message || 'Error creando link token' });
   }
 });
@@ -76,7 +80,7 @@ router.post('/exchange_public_token', async (req, res) => {
     const accessToken = exchangeResponse.data.access_token;
     const itemId      = exchangeResponse.data.item_id;
 
-    // Save to Firestore under users/{userId}.plaid.accounts array
+    // Guardar en Firestore
     const userRef = db.collection('users').doc(userId);
     const userDoc = await userRef.get();
 
@@ -97,7 +101,7 @@ router.post('/exchange_public_token', async (req, res) => {
     await userRef.set({ plaid: { accounts } }, { merge: true });
     res.json({ success: true });
   } catch (err) {
-    console.error('Error exchanging public token:', err);
+    console.error('Error exchanging public token:', err.response?.data || err, '\n', err.stack);
     res.status(500).json({ error: err.message || 'Error intercambiando public token' });
   }
 });
@@ -108,7 +112,6 @@ router.post('/get_account_details', async (req, res) => {
   if (!accessToken) return res.status(400).json({ error: 'Falta accessToken' });
 
   try {
-    // Fetch accounts and institution
     const accountsResponse = await plaidClient.accountsGet({ access_token: accessToken });
     const itemResponse     = await plaidClient.itemGet({ access_token: accessToken });
     const institutionId    = itemResponse.data.item.institution_id;
@@ -127,8 +130,7 @@ router.post('/get_account_details', async (req, res) => {
       institution: institution
     });
   } catch (err) {
-    console.error('Error getting account details:', err);
-    // Si Plaid indica login necesario, devolvemos payload controlado
+    console.error('Error getting account details:', err.response?.data || err, '\n', err.stack);
     const code = err.response?.data?.error_code;
     if (code === 'ITEM_LOGIN_REQUIRED') {
       return res.json({
@@ -147,34 +149,28 @@ router.post('/get_transactions', async (req, res) => {
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
 
   try {
-    // 1) Recupera tokens del usuario...
     const userDoc = await db.collection('users').doc(userId).get();
     const accounts = userDoc.exists ? userDoc.data().plaid?.accounts || [] : [];
     if (accounts.length === 0) return res.json({ transactions: [] });
 
-    // 2) Rango de fechas por defecto...
     const start = startDate || new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
     const end   = endDate   || new Date().toISOString().slice(0,10);
 
-    // 3) Trae transacciones de cada access_token
     let allTxs = [];
     for (const { accessToken } of accounts) {
       const txRes = await plaidClient.transactionsGet({
         access_token: accessToken,
         start_date:   start,
         end_date:     end,
-        options: { count: 500, offset: 0 }
+        options:      { count: 500, offset: 0 }
       });
       allTxs = allTxs.concat(txRes.data.transactions);
     }
 
-    // 4) Ordena por fecha descendente
     allTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    // 5) Limpia payload **incluyendo account_id**
     const cleaned = allTxs.map(tx => ({
       id:          tx.transaction_id,
-      account_id:  tx.account_id,            // ← Aquí
+      account_id:  tx.account_id,
       date:        tx.date,
       description: tx.name,
       category:    (tx.category && tx.category[0]) || 'Sin categoría',
@@ -183,7 +179,7 @@ router.post('/get_transactions', async (req, res) => {
 
     res.json({ transactions: cleaned });
   } catch (err) {
-    console.error('Error in get_transactions:', err);
+    console.error('Error in get_transactions:', err.response?.data || err, '\n', err.stack);
     res.status(500).json({ error: err.message || 'Error obteniendo transacciones' });
   }
 });
