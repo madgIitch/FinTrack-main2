@@ -2,243 +2,225 @@
    Global
 ======================== */
 body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: linear-gradient(to bottom, #e0e0e0, #f4f4f4);
-    color: #333;
-  }
-  
-  .container {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    position: relative;
-    z-index: 2;
-  }
-  
-  /* ========================
-     Cabecera
-  ======================== */
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px;
-    background-color: transparent;
-  }
-  .header-left {
-    display: flex;
-    align-items: center;
-  }
-  .logo-icon-img {
-    width: 40px;
-    height: auto;
-    margin-right: 15px;
-  }
-  .welcome-message {
-    font-size: 1.2em;
-    margin: 0;
-  }
-  .header-right {
-    display: flex;
-    align-items: center;
-  }
-  .notification-button {
-    background: none;
-    border: none;
-    color: #252525;
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 50%;
-  }
-  .notification-button .material-icons {
-    font-size: 24px;
-  }
-  
-  /* ========================
-     Contenido Principal
-  ======================== */
-  /* Reducimos el margin-top para subir todo */
-  .content {
-    flex-grow: 1;
-    padding: 20px;
-    margin-top: 20px;  /* Antes estaba 60px o más */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-  }
-  
-  .card {
-    background-color: white;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    width: 90%;
-    max-width: 500px;
-    margin-bottom: 20px;
-  }
-  .card h2 {
-    margin-top: 0;
-    margin-bottom: 15px;
-    font-size: 1.2em;
-    color: #555;
-  }
-  .card p {
-    margin-bottom: 10px;
-    color: #444;
-  }
-  .card p strong {
-    font-weight: bold;
-    color: #333;
-    margin-right: 5px;
-  }
-  
-  /* ========================
-     Barra de Navegación Inferior
-  ======================== */
-  .bottom-nav {
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    background-color: #f4f4f4;
-    border-top: 1px solid #e0e0e0;
-    padding: 10px 0;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    z-index: 3;
-  }
-  .bottom-nav a {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    color: #777;
-    text-decoration: none;
-    font-size: 0.8em;
-  }
-  .bottom-nav a.active {
-    color: #252525;
-  }
-  .bottom-nav a .material-icons {
-    font-size: 24px;
-    margin-bottom: 5px;
-  }
-  
-  /* ========================
-     Botón Vincular Cuenta
-  ======================== */
-  #link-bank-button {
-    background-color: #222522;
-    color: white;
-    font-size: 1rem;
-    padding: 12px 20px;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: background-color 0.3s ease, transform 0.1s ease;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  }
-  #link-bank-button:hover {
-    background-color: #45a049;
-    transform: scale(1.02);
-  }
-  #link-bank-button:active {
-    transform: scale(0.98);
-  }
-  
-  /* ========================
-     Slider con Flechas y Puntitos
-  ======================== */
-  
-  /* Cada tarjeta (slide) */
-  .linked-account {
-    background-color: #fff;
-    padding: 16px;
-    margin: 0;
-    border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    box-sizing: border-box;
-    flex: 0 0 100%;
-  }
-  
-  /* Permitir que las flechas (absolutas) no queden recortadas */
-  .slider-wrapper {
-    position: relative;
-    width: 90%;
-    max-width: 500px;
-    margin: 0 auto 20px auto;
-    overflow: visible; /* <-- de 'hidden' a 'visible' para no cortar flechas */
-  }
-  
-  /* El contenedor de slides en sí mantiene overflow hidden para cortar las slides que no se ven */
-  .accounts-slider-container {
-    width: 100%;
-    overflow: hidden;
-  }
-  
-  .accounts-slider {
-    display: flex;
-    transition: transform 0.4s ease-in-out;
-  }
-  
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(to bottom, #e0e0e0, #f4f4f4);
+  color: #333;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  position: relative;
+  z-index: 2;
+}
+
+/* ========================
+   Cabecera
+======================== */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background-color: transparent;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+}
+.logo-icon-img {
+  width: 40px;
+  height: auto;
+  margin-right: 15px;
+}
+.welcome-message {
+  font-size: 1.2em;
+  margin: 0;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+}
+.notification-button {
+  background: none;
+  border: none;
+  color: #252525;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+}
+.notification-button .material-icons {
+  font-size: 24px;
+}
+
+/* ========================
+   Contenido Principal
+======================== */
+.content {
+  flex-grow: 1;
+  padding: 20px;
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.card {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  width: 90%;
+  max-width: 500px;
+  margin-bottom: 20px;
+}
+.card h2 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.2em;
+  color: #555;
+}
+.card p {
+  margin-bottom: 10px;
+  color: #444;
+}
+.card p strong {
+  font-weight: bold;
+  color: #333;
+  margin-right: 5px;
+}
+
+/* ========================
+   Botón Vincular Cuenta
+======================== */
+#link-bank-button {
+  background-color: #222522;
+  color: white;
+  font-size: 1rem;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.1s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 90%;
+  max-width: 500px;
+}
+#link-bank-button:hover {
+  background-color: #45a049;
+  transform: scale(1.02);
+}
+#link-bank-button:active {
+  transform: scale(0.98);
+}
+
+/* ========================
+   Slider con Flechas y Puntitos
+======================== */
+
+/* Contenedor “viewport” del slider y padre relativo */
+.accounts-slider-container {
+  position: relative;
+  overflow: hidden;
+  width: 90%;
+  max-width: 500px;    /* igual ancho que .card */
+  margin: 0 auto 20px;
+}
+
+/* Contenedor de las slides */
+.accounts-slider {
+  display: flex;
+  transition: transform 0.4s ease-in-out;
+}
+
+/* Cada tarjeta (slide) */
+.linked-account {
+  flex: 0 0 100%;        /* ocupa el 100% del contenedor */
+  background-color: #fff;
+  padding: 16px;
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  box-sizing: border-box;
+}
+
 /* Flechas de navegación */
 .slider-arrow {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    /* Fondo blanco, sombra suave */
-    background-color: #fff;
-    border: none;
-    padding: 8px;
-    cursor: pointer;
-    color: #333;
-    border-radius: 50%;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-    transition: background-color 0.2s, box-shadow 0.2s;
-    z-index: 9999; /* asegúrate de que queden encima de la tarjeta */
-  }
-  
-  /* Efecto hover */
-  .slider-arrow:hover {
-    background-color: #f0f0f0;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  }
-  
-  /* Aplica estilo al ícono de Material */
-  .slider-arrow .material-icons {
-    font-size: 24px;
-    line-height: 1;
-  }
-  
-  /* Ajusta la posición horizontal de cada flecha */
-  .left-arrow {
-    left: 0;
-    transform: translate(-110%, -50%); 
-  }
-  .right-arrow {
-    right: 0;
-    transform: translate(110%, -50%);
-  }
-  
-  
-  /* Puntitos de navegación */
-  .slider-dots {
-    text-align: center;
-    margin-top: 10px;
-  }
-  .slider-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    margin: 0 4px;
-    background-color: #ccc;
-    border-radius: 50%;
-    cursor: pointer;
-    transition: background-color 0.3s;
-  }
-  .slider-dot.active {
-    background-color: #333;
-  }
-  
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: #fff;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: #333;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  transition: background-color 0.2s, box-shadow 0.2s;
+  z-index: 10;
+}
+.slider-arrow:hover {
+  background-color: #f0f0f0;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* Posición de cada flecha */
+#slider-prev {
+  left: -24px;   /* desplaza hacia fuera */
+}
+#slider-next {
+  right: -24px;  /* desplaza hacia fuera */
+}
+
+/* Puntitos de navegación */
+.slider-dots-container {
+  text-align: center;
+  margin-top: 10px;
+}
+.slider-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 4px;
+  background-color: #ccc;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+.slider-dot.active {
+  background-color: #333;
+}
+
+/* ========================
+   Barra de Navegación Inferior
+======================== */
+.bottom-nav {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background-color: #f4f4f4;
+  border-top: 1px solid #e0e0e0;
+  padding: 10px 0;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: 3;
+}
+.bottom-nav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #777;
+  text-decoration: none;
+  font-size: 0.8em;
+}
+.bottom-nav a.active {
+  color: #252525;
+}
+.bottom-nav a .material-icons {
+  font-size: 24px;
+  margin-bottom: 5px;
+}
