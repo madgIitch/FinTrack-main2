@@ -1,11 +1,14 @@
-// functions/plaidRoutes.js
-
 require('dotenv').config();
 const express = require('express');
 const { admin, db } = require('./firebaseAdmin'); 
 const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
 
 const router = express.Router();
+
+console.log('--- Plaid Routes ---');
+console.log('PLAID_CLIENT_ID:', process.env.PLAID_CLIENT_ID);
+console.log('PLAID_SECRET:', process.env.PLAID_SECRET);
+console.log('PLAID_ENV:', process.env.PLAID_ENV);
 
 // ── CORS Middleware ─────────────────────────────────────────────────────────────
 router.use((req, res, next) => {
@@ -39,17 +42,21 @@ router.get('/ping', (_req, res) => {
 
 // ── Create Link Token ──────────────────────────────────────────────────────────
 router.post('/create_link_token', async (req, res) => {
-  const { userId } = req.body;
+  const { userId, accessToken: updateToken } = req.body;
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
 
   try {
-    const createResponse = await plaidClient.linkTokenCreate({
+    const params = {
       user: { client_user_id: userId },
       client_name: 'FinTrack',
       products: ['auth', 'transactions'],
       country_codes: ['US', 'ES'],
       language: 'es'
-    });
+    };
+    // Si viene updateToken, activamos modo "update"
+    if (updateToken) params.access_token = updateToken;
+
+    const createResponse = await plaidClient.linkTokenCreate(params);
     res.json({ link_token: createResponse.data.link_token });
   } catch (err) {
     console.error('Error creating link token:', err);
@@ -121,6 +128,15 @@ router.post('/get_account_details', async (req, res) => {
     });
   } catch (err) {
     console.error('Error getting account details:', err);
+    // Si Plaid indica login necesario, devolvemos payload controlado
+    const code = err.response?.data?.error_code;
+    if (code === 'ITEM_LOGIN_REQUIRED') {
+      return res.json({
+        status:      'login_required',
+        message:     err.response.data.error_message,
+        accessToken
+      });
+    }
     res.status(500).json({ error: err.message || 'Error al obtener detalles de cuenta' });
   }
 });
@@ -171,6 +187,5 @@ router.post('/get_transactions', async (req, res) => {
     res.status(500).json({ error: err.message || 'Error obteniendo transacciones' });
   }
 });
-
 
 module.exports = router;

@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Perfil de Usuario</title>
   <link rel="stylesheet" href="/profile.c4298255.css">
-  <link rel="stylesheet" href="/FinTrack-main.406065e9.css">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <link rel="manifest" href="/manifest.webmanifest">
   <script type="module" src="/FinTrack-main.64dd720e.js"></script><script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
@@ -38,57 +37,32 @@
         </div>
       </div>
 
-      <!-- Cuentas Bancarias -->
+      <!-- Cuentas bancarias vinculadas -->
       <h2 style="width: 90%; max-width: 500px">Cuentas Bancarias Vinculadas</h2>
       <p id="linked-accounts-message" style="width: 90%; max-width: 500px">
         No hay cuentas bancarias vinculadas actualmente.
       </p>
 
-      <!-- Envoltorio principal del slider -->
-      <div class="slider-wrapper">
-        <!-- Flecha Izquierda -->
-        <button class="slider-arrow left-arrow" id="slider-prev">
-          <span class="material-icons">navigate_before</span>
-        </button>
-
-        <!-- Contenedor principal del slider (oculta overflow) -->
-        <div class="accounts-slider-container">
-          <!-- Este div debe tener la clase "accounts-slider" y el ID "linked-accounts-list" -->
-          <div class="accounts-slider" id="linked-accounts-list">
-            <!-- Aquí se inyectan las cuentas (slides) mediante JS -->
-          </div>
+      <!-- Slider -->
+      <div class="accounts-slider-container">
+        <button id="slider-prev" class="slider-arrow">‹</button>
+        <div class="accounts-slider" id="linked-accounts-list">
+          <!-- Aquí se inyectan las cuentas -->
         </div>
-
-        <!-- Flecha Derecha -->
-        <button class="slider-arrow right-arrow" id="slider-next">
-          <span class="material-icons">navigate_next</span>
-        </button>
+        <button id="slider-next" class="slider-arrow">›</button>
       </div>
+      <div id="slider-dots" class="slider-dots-container"></div>
 
-      <!-- Indicadores (puntitos) -->
-      <div class="slider-dots" id="slider-dots"></div>
-
-      <!-- Botón para vincular cuenta -->
       <button id="link-bank-button" class="btn-custom" style="width: 90%; max-width: 500px">
         Vincular Cuenta Bancaria
       </button>
-
     </main>
 
     <!-- Barra de navegación inferior -->
     <nav class="bottom-nav">
-      <a href="/pages/home.html">
-        <i class="material-icons">home</i>
-        <span>Inicio</span>
-      </a>
-      <a href="/pages/profile.html" class="active">
-        <i class="material-icons">person</i>
-        <span>Perfil</span>
-      </a>
-      <a href="#">
-        <i class="material-icons">settings</i>
-        <span>Ajustes</span>
-      </a>
+      <a href="/pages/home.html"><i class="material-icons">home</i><span>Inicio</span></a>
+      <a href="/pages/profile.html" class="active"><i class="material-icons">person</i><span>Perfil</span></a>
+      <a href="#"><i class="material-icons">settings</i><span>Ajustes</span></a>
     </nav>
   </div>
 </body>

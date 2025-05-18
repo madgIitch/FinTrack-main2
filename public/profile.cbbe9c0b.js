@@ -674,13 +674,13 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const linkedAccountsMessage = document.getElementById('linked-accounts-message');
     const accountsListContainer = document.getElementById('linked-accounts-list');
     let accountsLoaded = false;
-    // Definir la URL de la API según el entorno
-    const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3071' : 'https://us-central1-fintrack-1bced.cloudfunctions.net';
+    // Definir la URL base para la API (sin /plaid al final)
+    const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3071' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
     console.log('[DEBUG] apiUrl es:', apiUrl);
     // ===========================
     // Función: fetchAndInitializePlaidLink
     // ===========================
-    async function fetchAndInitializePlaidLink() {
+    async function fetchAndInitializePlaidLink(updateToken = null) {
         console.log('[DEBUG] => fetchAndInitializePlaidLink() invocada');
         try {
             if (!(0, _firebaseJs.auth).currentUser) {
@@ -688,16 +688,19 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 return false;
             }
             console.log('[DEBUG] Usuario actual (uid):', (0, _firebaseJs.auth).currentUser.uid);
-            const createLinkTokenUrl = `${apiUrl}/api/plaid/create_link_token`;
+            const payload = {
+                userId: (0, _firebaseJs.auth).currentUser.uid
+            };
+            // Si viene updateToken, lo pasamos para el modo update
+            if (updateToken) payload.accessToken = updateToken;
+            const createLinkTokenUrl = `${apiUrl}/plaid/create_link_token`;
             console.log('[DEBUG] Llamando a:', createLinkTokenUrl);
             const res = await fetch(createLinkTokenUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    userId: (0, _firebaseJs.auth).currentUser.uid
-                })
+                body: JSON.stringify(payload)
             });
             console.log('[DEBUG] Status de create_link_token:', res.status);
             if (!res.ok) {
@@ -751,37 +754,54 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 return;
             } else linkedAccountsMessage.style.display = 'none';
             // Iterar sobre las cuentas para generar cada slide
-            for (const [index, account] of accounts.entries())try {
+            for (const [index, account] of accounts.entries()){
                 console.log(`[DEBUG] get_account_details para cuenta #${index + 1}`);
-                const res = await fetch(`${apiUrl}/api/plaid/get_account_details`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        accessToken: account.accessToken
-                    })
-                });
-                if (!res.ok) throw new Error('[ERROR] Respuesta de la API no OK');
-                const details = await res.json();
-                const accountDetails = details.accounts?.[0] || {};
-                const institutionDetails = details.institution || {};
-                // Crear la slide para la cuenta
-                const accountDiv = document.createElement('div');
-                accountDiv.classList.add('linked-account');
-                accountDiv.innerHTML = `
+                try {
+                    const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            accessToken: account.accessToken
+                        })
+                    });
+                    const details = await res.json();
+                    // Si requiere relogin, mostramos botón de re-autenticar
+                    if (details.status === 'login_required') {
+                        const accountDiv = document.createElement('div');
+                        accountDiv.classList.add('linked-account');
+                        accountDiv.innerHTML = `
+              <p><strong>Cuenta ${index + 1}</strong></p>
+              <p style="color: #c00;">Credenciales caducadas.</p>
+              <button class="reauth-btn">Re-autenticar cuenta</button>
+            `;
+                        accountDiv.querySelector('.reauth-btn').addEventListener('click', async ()=>{
+                            const ok = await fetchAndInitializePlaidLink(details.accessToken);
+                            if (ok) plaidLinkHandler.open();
+                            else alert('No se pudo iniciar Plaid Link.');
+                        });
+                        accountsListContainer.appendChild(accountDiv);
+                        continue;
+                    }
+                    // Caso normal
+                    const accountDetails = details.accounts?.[0] || {};
+                    const institutionDetails = details.institution || {};
+                    const accountDiv = document.createElement('div');
+                    accountDiv.classList.add('linked-account');
+                    accountDiv.innerHTML = `
             <p><strong>Cuenta ${index + 1}</strong></p>
             <p>Banco: ${institutionDetails.name || 'Desconocido'}</p>
             <p>Nombre de la cuenta: ${accountDetails.name || 'No especificado'}</p>
           `;
-                // Inserción en el slider
-                accountsListContainer.appendChild(accountDiv);
-                console.log("[DEBUG] Cuenta a\xf1adida al slider:", accountDiv);
-            } catch (err) {
-                console.error(`[ERROR] Al procesar la cuenta #${index + 1}:`, err);
-            }
-             // Fin for
-            // Antes de llamar initSlider() mostramos un log:
+                    // Inserción en el slider
+                    accountsListContainer.appendChild(accountDiv);
+                    console.log("[DEBUG] Cuenta a\xf1adida al slider:", accountDiv);
+                } catch (err) {
+                    console.error(`[ERROR] Al procesar la cuenta #${index + 1}:`, err);
+                }
+            } // Fin for
+            // Antes de llamar initSlider()
             console.log('[DEBUG] Todas las cuentas inyectadas, llamando initSlider()...');
             initSlider();
         } catch (err) {
@@ -798,7 +818,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
             const initialized = await fetchAndInitializePlaidLink();
             console.log('[DEBUG] fetchAndInitializePlaidLink =>', initialized);
             if (!initialized) {
-                alert("No se pudo iniciar Plaid Link. Revisa la consola para m\xe1s detalles.");
+                alert('No se pudo iniciar Plaid Link. Revisa la consola.');
                 return;
             }
         }
@@ -810,7 +830,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
 // ===========================
 let plaidLinkHandler = null;
 // ===========================
-/* Función para inicializar Plaid Link */ function initializePlaidLink(linkToken) {
+// Función para inicializar Plaid Link
+// ===========================
+function initializePlaidLink(linkToken) {
     console.log('[DEBUG] initializePlaidLink() => linkToken:', linkToken);
     plaidLinkHandler = Plaid.create({
         token: linkToken,
@@ -818,9 +840,9 @@ let plaidLinkHandler = null;
             console.log('[DEBUG] Plaid onSuccess => public_token:', public_token);
             console.log('[DEBUG] Plaid onSuccess => metadata:', metadata);
             try {
-                const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3071' : 'https://us-central1-fintrack-1bced.cloudfunctions.net';
-                console.log('[DEBUG] POST a /exchange_public_token =>', `${apiUrl}/api/plaid/exchange_public_token`);
-                const res = await fetch(`${apiUrl}/api/plaid/exchange_public_token`, {
+                const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3071' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
+                console.log('[DEBUG] POST a /exchange_public_token =>', `${apiUrl}/plaid/exchange_public_token`);
+                const res = await fetch(`${apiUrl}/plaid/exchange_public_token`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
