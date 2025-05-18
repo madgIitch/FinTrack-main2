@@ -43,14 +43,21 @@
         No hay cuentas bancarias vinculadas actualmente.
       </p>
 
-      <!-- Slider -->
-      <div class="accounts-slider-container">
-        <button id="slider-prev" class="slider-arrow">‹</button>
-        <div class="accounts-slider" id="linked-accounts-list">
-          <!-- Aquí se inyectan las cuentas -->
+      <!-- Slider Wrapper -->
+      <div class="slider-wrapper">
+        <button id="slider-prev" class="slider-arrow">
+          <span class="material-icons">chevron_left</span>
+        </button>
+        <div class="accounts-slider-container">
+          <div class="accounts-slider" id="linked-accounts-list">
+            <!-- Aquí inyecta JS las .linked-account -->
+          </div>
         </div>
-        <button id="slider-next" class="slider-arrow">›</button>
+        <button id="slider-next" class="slider-arrow">
+          <span class="material-icons">chevron_right</span>
+        </button>
       </div>
+
       <div id="slider-dots" class="slider-dots-container"></div>
 
       <button id="link-bank-button" class="btn-custom" style="width: 90%; max-width: 500px">

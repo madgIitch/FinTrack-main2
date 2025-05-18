@@ -37,11 +37,6 @@ body {
   font-size: 1.2em;
 }
 
-.header-right {
-  align-items: center;
-  display: flex;
-}
-
 .notification-button {
   color: #252525;
   cursor: pointer;
@@ -99,8 +94,6 @@ body {
   background-color: #222522;
   border: none;
   border-radius: 10px;
-  width: 90%;
-  max-width: 500px;
   padding: 12px 20px;
   font-size: 1rem;
   transition: background-color .3s, transform .1s;
@@ -114,76 +107,6 @@ body {
 
 #link-bank-button:active {
   transform: scale(.98);
-}
-
-.accounts-slider-container {
-  width: 90%;
-  max-width: 500px;
-  margin: 0 auto 20px;
-  position: relative;
-  overflow: hidden;
-}
-
-.accounts-slider {
-  transition: transform .4s ease-in-out;
-  display: flex;
-}
-
-.linked-account {
-  box-sizing: border-box;
-  background-color: #fff;
-  border-radius: 10px;
-  flex: 0 0 100%;
-  padding: 16px;
-  box-shadow: 0 2px 5px #0000001a;
-}
-
-.slider-arrow {
-  cursor: pointer;
-  color: #333;
-  z-index: 10;
-  background-color: #fff;
-  border: none;
-  border-radius: 50%;
-  padding: 8px;
-  transition: background-color .2s, box-shadow .2s;
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  box-shadow: 0 2px 6px #0003;
-}
-
-.slider-arrow:hover {
-  background-color: #f0f0f0;
-  box-shadow: 0 4px 8px #0003;
-}
-
-#slider-prev {
-  left: -24px;
-}
-
-#slider-next {
-  right: -24px;
-}
-
-.slider-dots-container {
-  text-align: center;
-  margin-top: 10px;
-}
-
-.slider-dot {
-  cursor: pointer;
-  background-color: #ccc;
-  border-radius: 50%;
-  width: 8px;
-  height: 8px;
-  margin: 0 4px;
-  transition: background-color .3s;
-  display: inline-block;
-}
-
-.slider-dot.active {
-  background-color: #333;
 }
 
 .bottom-nav {
@@ -216,5 +139,87 @@ body {
 .bottom-nav a .material-icons {
   margin-bottom: 5px;
   font-size: 24px;
+}
+
+.slider-wrapper {
+  width: 90%;
+  max-width: 500px;
+  margin: 0 auto 20px;
+  position: relative;
+  overflow: visible;
+}
+
+.accounts-slider-container {
+  border-radius: 8px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.accounts-slider {
+  transition: transform .4s ease-in-out;
+  display: flex;
+}
+
+.linked-account {
+  box-sizing: border-box;
+  background-color: #fff;
+  border-radius: 8px;
+  flex: 0 0 100%;
+  margin: 0;
+  padding: 16px;
+  box-shadow: 0 2px 5px #0000001a;
+}
+
+.slider-arrow {
+  cursor: pointer;
+  color: #333;
+  z-index: 10;
+  background-color: #fff;
+  border: none;
+  border-radius: 50%;
+  padding: 8px;
+  transition: background-color .2s, box-shadow .2s;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  box-shadow: 0 2px 6px #0003;
+}
+
+.slider-arrow:hover {
+  background-color: #f0f0f0;
+  box-shadow: 0 4px 8px #0003;
+}
+
+.slider-arrow .material-icons {
+  font-size: 24px;
+  line-height: 1;
+}
+
+#slider-prev {
+  left: -48px;
+}
+
+#slider-next {
+  right: -48px;
+}
+
+.slider-dots-container {
+  text-align: center;
+  margin-top: 10px;
+}
+
+.slider-dot {
+  cursor: pointer;
+  background-color: #ccc;
+  border-radius: 50%;
+  width: 8px;
+  height: 8px;
+  margin: 0 4px;
+  transition: background-color .3s;
+  display: inline-block;
+}
+
+.slider-dot.active {
+  background-color: #333;
 }
 /*# sourceMappingURL=profile.c4298255.css.map */

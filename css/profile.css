@@ -7,7 +7,6 @@ body {
   background: linear-gradient(to bottom, #e0e0e0, #f4f4f4);
   color: #333;
 }
-
 .container {
   display: flex;
   flex-direction: column;
@@ -26,23 +25,9 @@ body {
   padding: 20px;
   background-color: transparent;
 }
-.header-left {
-  display: flex;
-  align-items: center;
-}
-.logo-icon-img {
-  width: 40px;
-  height: auto;
-  margin-right: 15px;
-}
-.welcome-message {
-  font-size: 1.2em;
-  margin: 0;
-}
-.header-right {
-  display: flex;
-  align-items: center;
-}
+.header-left { display: flex; align-items: center; }
+.logo-icon-img { width: 40px; height: auto; margin-right: 15px; }
+.welcome-message { font-size: 1.2em; margin: 0; }
 .notification-button {
   background: none;
   border: none;
@@ -51,9 +36,7 @@ body {
   padding: 8px;
   border-radius: 50%;
 }
-.notification-button .material-icons {
-  font-size: 24px;
-}
+.notification-button .material-icons { font-size: 24px; }
 
 /* ========================
    Contenido Principal
@@ -67,12 +50,11 @@ body {
   align-items: center;
   gap: 20px;
 }
-
 .card {
   background-color: white;
   border-radius: 8px;
   padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   width: 90%;
   max-width: 500px;
   margin-bottom: 20px;
@@ -105,93 +87,10 @@ body {
   border-radius: 10px;
   cursor: pointer;
   transition: background-color 0.3s ease, transform 0.1s ease;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  width: 90%;
-  max-width: 500px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
-#link-bank-button:hover {
-  background-color: #45a049;
-  transform: scale(1.02);
-}
-#link-bank-button:active {
-  transform: scale(0.98);
-}
-
-/* ========================
-   Slider con Flechas y Puntitos
-======================== */
-
-/* Contenedor “viewport” del slider y padre relativo */
-.accounts-slider-container {
-  position: relative;
-  overflow: hidden;
-  width: 90%;
-  max-width: 500px;    /* igual ancho que .card */
-  margin: 0 auto 20px;
-}
-
-/* Contenedor de las slides */
-.accounts-slider {
-  display: flex;
-  transition: transform 0.4s ease-in-out;
-}
-
-/* Cada tarjeta (slide) */
-.linked-account {
-  flex: 0 0 100%;        /* ocupa el 100% del contenedor */
-  background-color: #fff;
-  padding: 16px;
-  border-radius: 10px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-  box-sizing: border-box;
-}
-
-/* Flechas de navegación */
-.slider-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background-color: #fff;
-  border: none;
-  padding: 8px;
-  cursor: pointer;
-  color: #333;
-  border-radius: 50%;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-  transition: background-color 0.2s, box-shadow 0.2s;
-  z-index: 10;
-}
-.slider-arrow:hover {
-  background-color: #f0f0f0;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-}
-
-/* Posición de cada flecha */
-#slider-prev {
-  left: -24px;   /* desplaza hacia fuera */
-}
-#slider-next {
-  right: -24px;  /* desplaza hacia fuera */
-}
-
-/* Puntitos de navegación */
-.slider-dots-container {
-  text-align: center;
-  margin-top: 10px;
-}
-.slider-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin: 0 4px;
-  background-color: #ccc;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-.slider-dot.active {
-  background-color: #333;
-}
+#link-bank-button:hover { background-color: #45a049; transform: scale(1.02); }
+#link-bank-button:active { transform: scale(0.98); }
 
 /* ========================
    Barra de Navegación Inferior
@@ -217,10 +116,92 @@ body {
   text-decoration: none;
   font-size: 0.8em;
 }
-.bottom-nav a.active {
-  color: #252525;
-}
+.bottom-nav a.active { color: #252525; }
 .bottom-nav a .material-icons {
   font-size: 24px;
   margin-bottom: 5px;
+}
+
+/* ========================
+   Slider con Flechas y Puntitos
+======================== */
+
+/* Wrapper con overflow visible para las flechas */
+.slider-wrapper {
+  position: relative;
+  width: 90%;
+  max-width: 500px;
+  margin: 0 auto 20px;
+  overflow: visible;
+}
+
+/* Viewport interno */
+.accounts-slider-container {
+  overflow: hidden;
+  width: 100%;
+  border-radius: 8px;
+}
+
+/* Contenedor de las slides */
+.accounts-slider {
+  display: flex;
+  transition: transform 0.4s ease-in-out;
+}
+
+/* Cada tarjeta (slide) */
+.linked-account {
+  flex: 0 0 100%;
+  background-color: #fff;
+  padding: 16px;
+  margin: 0;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  box-sizing: border-box;
+}
+
+/* Flechas de navegación */
+.slider-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: #fff;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: #333;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  z-index: 10;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+.slider-arrow:hover {
+  background-color: #f0f0f0;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+.slider-arrow .material-icons {
+  font-size: 24px;
+  line-height: 1;
+}
+
+/* Posición de cada flecha fuera de la card */
+#slider-prev { left: -48px; }
+#slider-next { right: -48px; }
+
+/* Puntitos de navegación */
+.slider-dots-container {
+  text-align: center;
+  margin-top: 10px;
+}
+.slider-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 4px;
+  background-color: #ccc;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+.slider-dot.active {
+  background-color: #333;
 }
