@@ -5,18 +5,19 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { openDB } from 'idb';
 
-// ── CONFIG API ────────────────────────────────────────────────────────────────
+// ── CONFIGURACIÓN DE LA API ────────────────────────────────────────────────
 const apiUrl = window.location.hostname === 'localhost'
   ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
   : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 
-// ── IndexedDB ────────────────────────────────────────────────────────────────
+// ── CONSTANTES DE IndexedDB ─────────────────────────────────────────────────
 const DB_NAME    = 'fintrack-cache';
 const STORE_NAME = 'transactions';
 const DB_VERSION = 1;
 
+// ── Inicializa o actualiza la base de datos ─────────────────────────────────
 async function initDB() {
-  console.debug('[DEBUG] initDB → abriendo IndexedDB...');
+  console.debug('[DEBUG] initDB → abriendo o creando IndexedDB');
   const idb = await openDB(DB_NAME, DB_VERSION, {
     upgrade(db) {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -25,28 +26,65 @@ async function initDB() {
       }
     }
   });
-  console.debug('[DEBUG] initDB → listo');
+  console.debug('[DEBUG] initDB → listo:', idb);
   return idb;
 }
 
+// ── Guarda transacciones en caché ───────────────────────────────────────────
 async function cacheTransactions(idb, txs) {
-  console.debug('[DEBUG] cacheTransactions → guardando', txs.length);
+  console.debug('[DEBUG] cacheTransactions → guardando transacciones:', txs.length);
   const tx = idb.transaction(STORE_NAME, 'readwrite');
   for (const t of txs) {
+    console.debug('  → cacheTransactions put id=', t.id);
     await tx.store.put(t);
-    console.debug(`  → cacheTransactions put id=${t.id}`);
   }
   await tx.done;
   console.debug('[DEBUG] cacheTransactions → terminado');
 }
 
+// ── Lee todas las transacciones de la caché ─────────────────────────────────
 async function readCachedTransactions(idb) {
   const all = await idb.getAll(STORE_NAME);
-  console.debug('[DEBUG] readCachedTransactions → leídas', all.length);
+  console.debug('[DEBUG] readCachedTransactions → leídas', all.length, 'transacciones');
   return all;
 }
 
-// ── RENDERIZADO ───────────────────────────────────────────────────────────────
+// ── Agrupa transacciones por categoría para la vista agrupada ───────────────
+function groupByCategory(txs) {
+  return txs.reduce((groups, tx) => {
+    const cat = tx.category || 'Sin categoría';
+    (groups[cat] = groups[cat] || []).push(tx);
+    return groups;
+  }, {});
+}
+
+// ── Renderiza en orden cronológico ──────────────────────────────────────────
+function renderChrono(txs) {
+  console.debug('[DEBUG] renderChrono → mostrando en orden cronológico');
+  const list = document.getElementById('transactions-list');
+  list.innerHTML = '';
+  txs.forEach(tx => {
+    list.appendChild(renderTxItem(tx));
+  });
+}
+
+// ── Renderiza agrupado por categoría ────────────────────────────────────────
+function renderGrouped(txs) {
+  console.debug('[DEBUG] renderGrouped → mostrando agrupado por categoría');
+  const list = document.getElementById('transactions-list');
+  list.innerHTML = '';
+  const groups = groupByCategory(txs);
+  for (const [cat, items] of Object.entries(groups)) {
+    console.debug('[DEBUG] renderGrouped → categoría', JSON.stringify(cat), 'con', items.length, 'items');
+    const section = document.createElement('div');
+    section.className = 'category-group';
+    section.innerHTML = `<h3>${cat}</h3>`;
+    items.forEach(tx => section.appendChild(renderTxItem(tx)));
+    list.appendChild(section);
+  }
+}
+
+// ── Crea el nodo HTML de una transacción ────────────────────────────────────
 function renderTxItem(tx) {
   const item = document.createElement('div');
   item.className = 'transaction-item';
@@ -61,33 +99,7 @@ function renderTxItem(tx) {
   return item;
 }
 
-function renderChrono(txs) {
-  console.debug('[DEBUG] renderChrono → orden cronológico');
-  const list = document.getElementById('transactions-list');
-  list.innerHTML = '';
-  txs.forEach(tx => list.appendChild(renderTxItem(tx)));
-}
-
-function renderGrouped(txs) {
-  console.debug('[DEBUG] renderGrouped → agrupado');
-  const list = document.getElementById('transactions-list');
-  list.innerHTML = '';
-  const groups = txs.reduce((g, tx) => {
-    const cat = tx.category || 'Sin categoría';
-    (g[cat] = g[cat] || []).push(tx);
-    return g;
-  }, {});
-  for (const [cat, items] of Object.entries(groups)) {
-    console.debug(`[DEBUG] renderGrouped → ${cat}: ${items.length}`);
-    const sec = document.createElement('div');
-    sec.className = 'category-group';
-    sec.innerHTML = `<h3>${cat}</h3>`;
-    items.forEach(tx => sec.appendChild(renderTxItem(tx)));
-    list.appendChild(sec);
-  }
-}
-
-// ── ESTADO UI ────────────────────────────────────────────────────────────────
+// ── Indicadores de estado ───────────────────────────────────────────────────
 function showOffline(msg = 'Estás sin conexión. Mostrando datos en caché.') {
   const ind = document.getElementById('offline-indicator');
   ind.textContent = msg;
@@ -103,67 +115,72 @@ function hideLoading() {
   document.getElementById('transactions-loading').hidden = true;
 }
 
-// ── FETCH DE TRANSACCIONES ───────────────────────────────────────────────────
+// ── Llama al endpoint para traer transacciones de Plaid ────────────────────
 async function fetchTransactionsFromPlaid(userId) {
-  console.debug('[DEBUG] Fetch → get_transactions, userId:', userId);
+  console.debug('[DEBUG] fetchTransactionsFromPlaid → get_transactions, userId:', userId);
   const res = await fetch(`${apiUrl}/plaid/get_transactions`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ userId })
   });
-  console.debug('[DEBUG] Fetch status:', res.status);
+  console.debug('[DEBUG] fetchTransactionsFromPlaid → status:', res.status);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(`Plaid error ${res.status}: ${err.error || res.statusText}`);
   }
   const { transactions } = await res.json();
-  console.debug('[DEBUG] Transacciones raw:', transactions);
+  console.debug('[DEBUG] fetchTransactionsFromPlaid → payload completo:', { transactions });
   return transactions;
 }
 
-// ── MAPA account_id → nombre ─────────────────────────────────────────────────
+// ── Construye un mapa account_id → nombre de cuenta ────────────────────────
 async function buildAccountMap(userId) {
-  console.debug('[DEBUG] buildAccountMap → userId:', userId);
-  const snap = await getDoc(doc(db,'users',userId));
-  const accounts = snap.exists() ? snap.data().plaid?.accounts||[] : [];
+  console.debug('[DEBUG] buildAccountMap → obteniendo cuentas Firestore para', userId);
+  const userSnap = await getDoc(doc(db, 'users', userId));
+  const accounts = userSnap.exists() ? userSnap.data().plaid?.accounts || [] : [];
   console.debug('[DEBUG] buildAccountMap → tokens encontrados:', accounts.length);
 
   const map = {};
   for (const { accessToken } of accounts) {
     try {
-      console.debug('[DEBUG] buildAccountMap → get_account_details', accessToken);
-      const r = await fetch(`${apiUrl}/plaid/get_account_details`, {
+      console.debug('[DEBUG] buildAccountMap → fetch get_account_details para', accessToken);
+      const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ accessToken })
       });
-      if (!r.ok) continue;
-      const { accounts: accs } = await r.json();
-      accs.forEach(a => { map[a.account_id] = a.name || 'Cuenta sin nombre'; });
+      if (!res.ok) {
+        console.warn('[WARN] buildAccountMap → detalles cuenta no OK para', accessToken);
+        continue;
+      }
+      const { accounts: accs } = await res.json();
+      console.debug('[DEBUG] buildAccountMap → detalles recibidos:', accs);
+      accs.forEach(a => {
+        map[a.account_id] = a.name || 'Cuenta sin nombre';
+      });
     } catch (e) {
       console.error('[ERROR] buildAccountMap →', e);
     }
   }
-  console.debug('[DEBUG] buildAccountMap → resultado:', map);
+  console.debug('[DEBUG] buildAccountMap → map final:', map);
   return map;
 }
 
-// ── FLUJO PRINCIPAL ───────────────────────────────────────────────────────────
-let lastTxs = [];  // <-- almacenamos el último array
-
+// ── Flujo principal: caché → render → fetch online → actualizar caché ──────
 async function loadTransactions(userId) {
-  console.debug('[DEBUG] loadTransactions → inicio para', userId);
-
-  const idb = await initDB();
+  console.debug('[DEBUG] loadTransactions → inicio para userId:', userId);
+  const idb        = await initDB();
   const accountMap = await buildAccountMap(userId);
 
-  // 1) Mostrar caché
+  // 1) Mostrar caché si existe
   const cached = await readCachedTransactions(idb);
   if (cached.length) {
-    cached.forEach(tx => tx.accountName = accountMap[tx.account_id] || 'Desconocida');
-    console.debug('[CACHE]', cached);
-    lastTxs = cached;
-    renderView();
+    cached.forEach(tx => {
+      tx.accountName = accountMap[tx.account_id] || 'Cuenta desconocida';
+    });
+    console.debug('[DEBUG] loadTransactions → renderizando CACHE:', cached);
+    const byCategory = document.getElementById('toggle-view').checked;
+    byCategory ? renderGrouped(cached) : renderChrono(cached);
   }
 
   // 2) Offline?
@@ -173,66 +190,72 @@ async function loadTransactions(userId) {
     return;
   }
 
-  // 3) Online: fetch → cache → render
+  // 3) Online: fetch → mapear categorías → render → cache
   hideOffline();
   showLoading();
   try {
     const txs = await fetchTransactionsFromPlaid(userId);
+    console.debug('[DEBUG] loadTransactions → recibidas del servidor:', txs);
 
+    // Mapear categoría y accountName
     txs.forEach(tx => {
-      // campo legacy
+      // Legacy fallback
       const legacyCat = tx.category || 'Sin categoría';
-      // nuevo pf category puede venir array u objeto
-      let pf = tx.personal_finance_category;
-      console.debug('[RAW TX.personal_finance_category]', pf);
-      // si es objeto con `.hierarchy`...
-      if (pf && pf.hierarchy) {
-        tx.personal_finance_category = pf.hierarchy;
-      }
-      // si es array, ok. si no, fallback legacy
-      if (!Array.isArray(tx.personal_finance_category) || !tx.personal_finance_category.length) {
-        tx.personal_finance_category = [];
-        tx.category = legacyCat;
-      } else {
-        tx.category = tx.personal_finance_category[0];
+
+      // Intentar personal_finance_category
+      const pf = tx.personal_finance_category;
+      let chosen = null;
+      if (pf && typeof pf === 'object') {
+        if (pf.detailed) {
+          chosen = pf.detailed;
+        } else if (pf.primary) {
+          chosen = pf.primary;
+        }
       }
 
-      tx.accountName = accountMap[tx.account_id] || 'Desconocida';
+      if (chosen) {
+        // "FOOD_AND_DRINK_COFFEE" → "Food And Drink Coffee"
+        tx.category = chosen
+          .toLowerCase()
+          .split('_')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+      } else {
+        tx.category = legacyCat;
+      }
+
+      tx.accountName = accountMap[tx.account_id] || 'Cuenta desconocida';
+      console.debug('[MAPPED TX]', tx.id, 'category:', tx.category, 'accountName:', tx.accountName);
     });
 
-    console.debug('[DEBUG] Transacciones mapeadas:', txs);
-    lastTxs = txs;
-    await cacheTransactions(idb, txs);
-    renderView();
+    console.debug('[DEBUG] loadTransactions → Transacciones mapeadas:', txs);
+    const byCategory = document.getElementById('toggle-view').checked;
+    byCategory ? renderGrouped(txs) : renderChrono(txs);
 
+    await cacheTransactions(idb, txs);
   } catch (err) {
     console.error('❌ loadTransactions error:', err);
     showOffline('No se pudieron actualizar datos, mostrando caché.');
   } finally {
     hideLoading();
+    console.debug('[DEBUG] loadTransactions → fin');
   }
-
-  console.debug('[DEBUG] loadTransactions → fin');
 }
 
-// render según switch
-function renderView() {
-  const byCat = document.getElementById('toggle-view').checked;
-  byCat ? renderGrouped(lastTxs) : renderChrono(lastTxs);
-}
-
-// ── INICIO ────────────────────────────────────────────────────────────────────
+// ── Arranca cuando el usuario esté autenticado ───────────────────────────────
 onAuthStateChanged(auth, user => {
   if (!user) {
     window.location.href = '../index.html';
     return;
   }
-  // toggle listener
+  // Al cambiar el switch recargamos la vista
   document.getElementById('toggle-view')
-    .addEventListener('change', renderView);
+    .addEventListener('change', () => loadTransactions(user.uid));
+
   loadTransactions(user.uid);
 });
 
+// ── Si volvemos online, recargamos ───────────────────────────────────────────
 window.addEventListener('online', () => {
   if (auth.currentUser) loadTransactions(auth.currentUser.uid);
 });
