@@ -66,6 +66,88 @@ body {
   padding-bottom: 60px;
 }
 
+.transactions-header {
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  display: flex;
+}
+
+.transactions-header h2 {
+  margin: 0 0 8px;
+  font-size: 1.4em;
+}
+
+.switch-container {
+  align-items: center;
+  gap: 8px;
+  display: flex;
+}
+
+.switch {
+  width: 36px;
+  height: 20px;
+  display: inline-block;
+  position: relative;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.switch .slider {
+  cursor: pointer;
+  background-color: #888;
+  border-radius: 10px;
+  transition: background-color .2s;
+  position: absolute;
+  inset: 0;
+}
+
+.switch .slider:before {
+  content: "";
+  background-color: #fff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  transition: transform .2s;
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+}
+
+.switch input:checked + .slider {
+  background-color: #8e44ad;
+}
+
+.switch input:checked + .slider:before {
+  transform: translateX(16px);
+}
+
+.switch:hover .slider {
+  background-color: #9b59b6;
+}
+
+.switch input:focus + .slider {
+  box-shadow: 0 0 0 3px #8e44ad66;
+}
+
+.switch input:disabled + .slider {
+  opacity: .6;
+  cursor: not-allowed;
+  background-color: #444;
+}
+
+.toggle-label {
+  color: #555;
+  -webkit-user-select: none;
+  user-select: none;
+  font-size: .9em;
+}
+
 .offline-indicator {
   color: #333;
   text-align: center;
@@ -108,9 +190,8 @@ body {
 
 .transaction-item .account-label {
   color: #555;
-  margin-bottom: 4px;
+  grid-area: account;
   font-size: .85em;
-  display: block;
 }
 
 .transaction-item .desc {

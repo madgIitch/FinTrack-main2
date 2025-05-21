@@ -22,7 +22,9 @@
       <div class="header-left">
         <img src="../img/logoFintonic.svg" class="logo-icon" alt="Logo">
       </div>
-      <h1 class="welcome-message">Bienvenido, <span id="user-name"></span></h1>
+      <h1 class="welcome-message">
+        Bienvenido, <span id="user-name"></span>
+      </h1>
       <div class="header-right">
         <button class="notification-button">
           <i class="material-icons">notifications</i>
@@ -32,9 +34,17 @@
 
     <!-- === MAIN CONTENT === -->
     <main class="content">
-      <!-- Aquí mostramos las transacciones -->
       <section id="transactions-section">
-        <h2>Mis Transacciones</h2>
+        <div class="transactions-header">
+          <h2>Mis Transacciones</h2>
+          <hr>
+          <label class="switch">
+            <input type="checkbox" id="toggle-view">
+            <span class="slider round"></span>
+          </label>
+          <span class="toggle-label">Por categoría</span>
+
+        </div>
 
         <!-- Indicador offline -->
         <div id="offline-indicator" class="offline-indicator" hidden>
@@ -44,7 +54,7 @@
         <!-- Loading -->
         <div id="transactions-loading" class="loading">Cargando transacciones…</div>
 
-        <!-- Donde se inyectan las transacciones agrupadas -->
+        <!-- Donde se inyectan las transacciones -->
         <div id="transactions-list"></div>
       </section>
     </main>
