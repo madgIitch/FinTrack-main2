@@ -149,39 +149,56 @@ router.post('/get_transactions', async (req, res) => {
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
 
   try {
+    // 1) Recupera tokens del usuario
     const userDoc = await db.collection('users').doc(userId).get();
-    const accounts = userDoc.exists ? userDoc.data().plaid?.accounts || [] : [];
-    if (accounts.length === 0) return res.json({ transactions: [] });
+    const accounts = userDoc.exists
+      ? userDoc.data().plaid?.accounts || []
+      : [];
+    if (accounts.length === 0) {
+      return res.json({ transactions: [] });
+    }
 
-    const start = startDate || new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
-    const end   = endDate   || new Date().toISOString().slice(0,10);
+    // 2) Rango de fechas – default 30 días
+    const start = startDate || new Date(Date.now() - 30*24*60*60*1000)
+      .toISOString().slice(0,10);
+    const end = endDate || new Date().toISOString().slice(0,10);
 
+    // 3) Trae transacciones de cada access_token con categoría personal
     let allTxs = [];
     for (const { accessToken } of accounts) {
       const txRes = await plaidClient.transactionsGet({
         access_token: accessToken,
         start_date:   start,
         end_date:     end,
-        options:      { count: 500, offset: 0 }
+        options: {
+          count: 500,
+          offset: 0,
+          include_personal_finance_category: true
+        }
       });
       allTxs = allTxs.concat(txRes.data.transactions);
     }
 
+    // 4) Orden descendente por fecha
     allTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // 5) Limpia payload y saca categoría primaria PFC
     const cleaned = allTxs.map(tx => ({
       id:          tx.transaction_id,
       account_id:  tx.account_id,
       date:        tx.date,
       description: tx.name,
-      category:    (tx.category && tx.category[0]) || 'Sin categoría',
+      category:    (tx.personal_finance_category?.[0]) || 'Sin categoría',
       amount:      tx.amount
     }));
 
     res.json({ transactions: cleaned });
   } catch (err) {
-    console.error('Error in get_transactions:', err.response?.data || err, '\n', err.stack);
+    console.error('Error in get_transactions:', err);
     res.status(500).json({ error: err.message || 'Error obteniendo transacciones' });
   }
 });
+
+
 
 module.exports = router;

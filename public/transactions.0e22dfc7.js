@@ -662,49 +662,76 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"j59nl":[function(require,module,exports,__globalThis) {
+// js/transactions.js
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
 var _firestore = require("firebase/firestore");
 var _idb = require("idb");
 // ----------------------------------------------------------------
-// Elementos clave del DOM
-// ----------------------------------------------------------------
-const userNameSpan = document.getElementById('user-name');
-const toggleSwitch = document.getElementById('toggle-view');
-const toggleLabel = document.querySelector('.toggle-label');
-const listContainer = document.getElementById('transactions-list');
-const offlineIndicator = document.getElementById('offline-indicator');
-const loadingIndicator = document.getElementById('transactions-loading');
-// ----------------------------------------------------------------
-// API Cloud Functions
+// API URL de tus Cloud Functions
 // ----------------------------------------------------------------
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 // ----------------------------------------------------------------
-// IndexedDB
+// Constantes de IndexedDB
 // ----------------------------------------------------------------
 const DB_NAME = 'fintrack-cache';
 const STORE_NAME = 'transactions';
 const DB_VERSION = 1;
+// ----------------------------------------------------------------
+// Estado global
+// ----------------------------------------------------------------
+let allTransactions = [];
+let accountMap = {};
+let idbInstance = null;
+// ----------------------------------------------------------------
+// Switch vista /categoría
+// ----------------------------------------------------------------
+const toggleEl = document.getElementById('toggle-view');
+toggleEl.addEventListener('change', ()=>{
+    console.debug("[DEBUG] Toggle vista por categor\xeda:", toggleEl.checked);
+    renderAll();
+});
+// ----------------------------------------------------------------
+// Inicializa o actualiza IndexedDB
+// ----------------------------------------------------------------
 async function initDB() {
+    console.debug('[DEBUG] Inicializando IndexedDB...');
     const idb = await (0, _idb.openDB)(DB_NAME, DB_VERSION, {
         upgrade (db) {
-            if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, {
-                keyPath: 'id'
-            });
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                console.debug('[DEBUG] Creando object store:', STORE_NAME);
+                db.createObjectStore(STORE_NAME, {
+                    keyPath: 'id'
+                });
+            }
         }
     });
+    console.debug('[DEBUG] IndexedDB lista:', idb);
     return idb;
 }
+// ----------------------------------------------------------------
+// Guardar en caché
+// ----------------------------------------------------------------
 async function cacheTransactions(idb, txs) {
+    console.debug("[DEBUG] Cach\xe9 \u2192 guardando", txs.length, 'transacciones');
     const tx = idb.transaction(STORE_NAME, 'readwrite');
-    for (const t of txs)await tx.store.put(t);
+    for (const t of txs){
+        console.debug("  \u2192 put id=", t.id);
+        await tx.store.put(t);
+    }
     await tx.done;
-}
-async function readCachedTransactions(idb) {
-    return idb.getAll(STORE_NAME);
+    console.debug("[DEBUG] Cach\xe9 \u2192 completo");
 }
 // ----------------------------------------------------------------
-// Agrupador
+// Leer de caché
+// ----------------------------------------------------------------
+async function readCachedTransactions(idb) {
+    const all = await idb.getAll(STORE_NAME);
+    console.debug("[DEBUG] Cach\xe9 \u2192 transacciones le\xeddas:", all.length);
+    return all;
+}
+// ----------------------------------------------------------------
+// Agrupa por categoría
 // ----------------------------------------------------------------
 function groupByCategory(txs) {
     return txs.reduce((groups, tx)=>{
@@ -714,25 +741,27 @@ function groupByCategory(txs) {
     }, {});
 }
 // ----------------------------------------------------------------
-// Indicadores de estado
+// UI helpers
 // ----------------------------------------------------------------
 function showOffline(msg) {
-    offlineIndicator.textContent = msg || "Est\xe1s sin conexi\xf3n. Mostrando datos en cach\xe9.";
-    offlineIndicator.hidden = false;
+    const ind = document.getElementById('offline-indicator');
+    ind.textContent = msg || "Est\xe1s sin conexi\xf3n. Mostrando cach\xe9.";
+    ind.hidden = false;
 }
 function hideOffline() {
-    offlineIndicator.hidden = true;
+    document.getElementById('offline-indicator').hidden = true;
 }
 function showLoading() {
-    loadingIndicator.hidden = false;
+    document.getElementById('transactions-loading').hidden = false;
 }
 function hideLoading() {
-    loadingIndicator.hidden = true;
+    document.getElementById('transactions-loading').hidden = true;
 }
 // ----------------------------------------------------------------
-// Llamadas a Cloud Functions
+// Llama a tu función get_transactions
 // ----------------------------------------------------------------
 async function fetchTransactionsFromPlaid(userId) {
+    console.debug("[DEBUG] Fetch \u2192 get_transactions para usuario:", userId);
     const res = await fetch(`${apiUrl}/plaid/get_transactions`, {
         method: 'POST',
         headers: {
@@ -742,11 +771,20 @@ async function fetchTransactionsFromPlaid(userId) {
             userId
         })
     });
-    if (!res.ok) throw new Error('Error al obtener transacciones desde Plaid');
+    console.debug('[DEBUG] Status fetch:', res.status);
+    if (!res.ok) {
+        const err = await res.json().catch(()=>({}));
+        throw new Error(`Plaid error ${res.status}: ${err.error || res.statusText}`);
+    }
     const { transactions } = await res.json();
+    console.debug("[DEBUG] \uD83D\uDD0D Transacciones brutas recibidas:", transactions);
     return transactions;
 }
+// ----------------------------------------------------------------
+// Detalles de cuenta para mapear account_id → nombre
+// ----------------------------------------------------------------
 async function fetchAccountDetails(accessToken) {
+    console.debug("[DEBUG] Fetch detalles cuenta \u2192", accessToken);
     const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
         method: 'POST',
         headers: {
@@ -756,39 +794,74 @@ async function fetchAccountDetails(accessToken) {
             accessToken
         })
     });
-    if (!res.ok) throw new Error('Error al obtener detalles de cuenta');
-    return res.json();
+    if (!res.ok) throw new Error('Error obteniendo detalles de cuenta');
+    const data = await res.json();
+    console.debug('[DEBUG] Detalles de cuenta:', data);
+    return data;
 }
 // ----------------------------------------------------------------
-// Construye mapa account_id → nombre de cuenta
+// Construye mapa de cuentas
 // ----------------------------------------------------------------
 async function buildAccountMap(userId) {
+    console.debug('[DEBUG] buildAccountMap para usuario:', userId);
     const userDoc = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', userId));
     const accounts = userDoc.exists() ? userDoc.data().plaid?.accounts || [] : [];
+    console.debug('[DEBUG] Cuentas Plaid:', accounts.length);
     const map = {};
     for (const { accessToken } of accounts)try {
         const { accounts: accs } = await fetchAccountDetails(accessToken);
         accs.forEach((acc)=>{
-            map[acc.account_id] = acc.name || 'Cuenta sin nombre';
+            map[acc.account_id] = {
+                name: acc.name || 'Sin nombre'
+            };
         });
-    } catch  {}
+    } catch (e) {
+        console.error("[ERROR] buildAccountMap \u2192", e);
+    }
+    console.debug('[DEBUG] Mapa final:', map);
     return map;
 }
 // ----------------------------------------------------------------
-// Estado global y vista
+// Render view según toggle
 // ----------------------------------------------------------------
-let allTransactions = [];
-let viewMode = 'category'; // 'category' | 'chron'
+function renderAll() {
+    if (toggleEl.checked) renderByCategory(allTransactions);
+    else renderChronological(allTransactions);
+}
+// ----------------------------------------------------------------
+// Render cronológico
+// ----------------------------------------------------------------
+function renderChronological(txs) {
+    console.debug("[DEBUG] renderChronological \u2192", txs);
+    const list = document.getElementById('transactions-list');
+    list.innerHTML = '';
+    txs.forEach((tx)=>{
+        const item = document.createElement('div');
+        item.className = 'transaction-item';
+        item.innerHTML = `
+      <span class="account-label">${tx.accountName}</span>
+      <span class="date">${new Date(tx.date).toLocaleDateString()}</span>
+      <div class="desc">${tx.description}</div>
+      <span class="amount ${tx.amount < 0 ? 'debit' : 'credit'}">
+        ${tx.amount < 0 ? "\u2212" : '+'}${Math.abs(tx.amount).toFixed(2)} \u{20AC}
+      </span>
+    `;
+        list.appendChild(item);
+    });
+}
 // ----------------------------------------------------------------
 // Render por categoría
 // ----------------------------------------------------------------
-function renderByCategory(groups) {
-    listContainer.innerHTML = '';
-    for (const [cat, txs] of Object.entries(groups)){
+function renderByCategory(txs) {
+    console.debug("[DEBUG] renderByCategory \u2192", txs);
+    const groups = groupByCategory(txs);
+    const list = document.getElementById('transactions-list');
+    list.innerHTML = '';
+    Object.entries(groups).forEach(([cat, arr])=>{
         const section = document.createElement('div');
         section.className = 'category-group';
         section.innerHTML = `<h3>${cat}</h3>`;
-        txs.forEach((tx)=>{
+        arr.forEach((tx)=>{
             const item = document.createElement('div');
             item.className = 'transaction-item';
             item.innerHTML = `
@@ -801,56 +874,26 @@ function renderByCategory(groups) {
       `;
             section.appendChild(item);
         });
-        listContainer.appendChild(section);
-    }
-}
-// ----------------------------------------------------------------
-// Render cronológico
-// ----------------------------------------------------------------
-function renderChronological(txs) {
-    listContainer.innerHTML = '';
-    // opcional: encabezado
-    const header = document.createElement('h3');
-    header.textContent = "Orden cronol\xf3gico";
-    header.style.marginBottom = '10px';
-    listContainer.appendChild(header);
-    txs.slice().sort((a, b)=>new Date(b.date) - new Date(a.date)).forEach((tx)=>{
-        const item = document.createElement('div');
-        item.className = 'transaction-item';
-        item.innerHTML = `
-        <span class="account-label">${tx.accountName}</span>
-        <span class="date">${new Date(tx.date).toLocaleDateString()}</span>
-        <div class="desc">${tx.description}</div>
-        <span class="amount ${tx.amount < 0 ? 'debit' : 'credit'}">
-          ${tx.amount < 0 ? "\u2212" : '+'}${Math.abs(tx.amount).toFixed(2)} \u{20AC}
-        </span>
-      `;
-        listContainer.appendChild(item);
+        list.appendChild(section);
     });
-}
-// ----------------------------------------------------------------
-// Actualiza UI según viewMode
-// ----------------------------------------------------------------
-function updateUI() {
-    if (viewMode === 'chron') renderChronological(allTransactions);
-    else renderByCategory(groupByCategory(allTransactions));
 }
 // ----------------------------------------------------------------
 // Flujo principal
 // ----------------------------------------------------------------
 async function loadTransactions(userId) {
-    const idb = await initDB();
-    const accountMap = await buildAccountMap(userId);
-    // 1) Caché
-    const cached = await readCachedTransactions(idb);
-    console.log("[DEBUG] Cach\xe9 \u2192", cached);
+    console.debug("[DEBUG] loadTransactions \u2192", userId);
+    if (!idbInstance) idbInstance = await initDB();
+    accountMap = await buildAccountMap(userId);
+    // 1) Mostrar caché
+    const cached = await readCachedTransactions(idbInstance);
     if (cached.length) {
-        allTransactions = cached.map((tx)=>({
-                ...tx,
-                accountName: accountMap[tx.account_id] || 'Cuenta desconocida'
-            }));
-        console.log("[DEBUG] allTransactions tras cach\xe9 \u2192", allTransactions);
-        updateUI();
+        cached.forEach((tx)=>{
+            // Si backend ya incluyó personal_finance_category, úsalo:
+            if (Array.isArray(tx.personal_finance_category)) tx.category = tx.personal_finance_category[0] || tx.category;
+            tx.accountName = accountMap[tx.account_id]?.name || 'Desconocida';
+        });
+        allTransactions = cached.slice().sort((a, b)=>new Date(b.date) - new Date(a.date));
+        renderAll();
     }
     // 2) Offline?
     if (!navigator.onLine) {
@@ -858,55 +901,43 @@ async function loadTransactions(userId) {
         hideLoading();
         return;
     }
-    // 3) Online
+    // 3) Online: fetch → render → cache
     hideOffline();
     showLoading();
     try {
         const txs = await fetchTransactionsFromPlaid(userId);
-        console.log("[DEBUG] Plaid \u2192", txs);
-        allTransactions = txs.map((tx)=>({
-                ...tx,
-                accountName: accountMap[tx.account_id] || 'Cuenta desconocida'
-            }));
-        console.log("[DEBUG] allTransactions tras fetch \u2192", allTransactions);
-        updateUI();
-        await cacheTransactions(idb, allTransactions);
-    } catch (e) {
-        console.error("[ERROR] loadTransactions \u2192", e);
-        showOffline("No se pudieron actualizar datos, mostrando cach\xe9.");
+        txs.forEach((tx)=>{
+            console.debug("[DEBUG] tx recibido \u2192", tx);
+            // si tu Cloud Function ya mapea personal_finance_category:
+            if (Array.isArray(tx.personal_finance_category)) tx.category = tx.personal_finance_category[0];
+            tx.accountName = accountMap[tx.account_id]?.name || 'Desconocida';
+        });
+        allTransactions = txs.slice().sort((a, b)=>new Date(b.date) - new Date(a.date));
+        renderAll();
+        await cacheTransactions(idbInstance, allTransactions);
+    } catch (err) {
+        console.error("\u274C loadTransactions error:", err);
+        showOffline("No se pudieron actualizar, mostrando cach\xe9.");
     } finally{
         hideLoading();
     }
 }
 // ----------------------------------------------------------------
-// Listener toggle
-// ----------------------------------------------------------------
-toggleSwitch.addEventListener('change', ()=>{
-    viewMode = toggleSwitch.checked ? 'chron' : 'category';
-    toggleLabel.textContent = viewMode === 'chron' ? 'Por fecha' : "Por categor\xeda";
-    updateUI();
-});
-// ----------------------------------------------------------------
-// Autenticación y saludo
+// Arranca al autenticar
 // ----------------------------------------------------------------
 (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), (user)=>{
-    if (user) {
-        // saludo
-        (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', user.uid)).then((sd)=>{
-            if (sd.exists()) {
-                const { firstName = '', lastName = '' } = sd.data();
-                userNameSpan.textContent = `${firstName} ${lastName}`.trim();
-            }
-        }).catch(()=>console.error('Error cargando perfil'));
-        // carga transacciones
-        loadTransactions(user.uid);
-    } else window.location.href = '../index.html';
+    console.debug("[DEBUG] onAuthStateChanged \u2192", user);
+    if (user) loadTransactions(user.uid);
+    else window.location.href = '../index.html';
 });
 // ----------------------------------------------------------------
-// Reconexión
+// Al reconectar
 // ----------------------------------------------------------------
 window.addEventListener('online', ()=>{
-    if ((0, _firebaseJs.auth).currentUser) loadTransactions((0, _firebaseJs.auth).currentUser.uid);
+    if ((0, _firebaseJs.auth).currentUser) {
+        console.debug('[DEBUG] Reconectado, recargando...');
+        loadTransactions((0, _firebaseJs.auth).currentUser.uid);
+    }
 });
 
 },{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1","idb":"258QC"}],"258QC":[function(require,module,exports,__globalThis) {
