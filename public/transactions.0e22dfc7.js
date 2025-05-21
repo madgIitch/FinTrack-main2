@@ -662,90 +662,89 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"j59nl":[function(require,module,exports,__globalThis) {
-// js/transactions.js
+// public/js/transactions.js
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
 var _firestore = require("firebase/firestore");
 var _idb = require("idb");
-// ----------------------------------------------------------------
-// API URL de tus Cloud Functions
-// ----------------------------------------------------------------
+// ── CONFIG API ────────────────────────────────────────────────────────────────
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
-// ----------------------------------------------------------------
-// Constantes de IndexedDB
-// ----------------------------------------------------------------
+// ── IndexedDB ────────────────────────────────────────────────────────────────
 const DB_NAME = 'fintrack-cache';
 const STORE_NAME = 'transactions';
 const DB_VERSION = 1;
-// ----------------------------------------------------------------
-// Estado global
-// ----------------------------------------------------------------
-let allTransactions = [];
-let accountMap = {};
-let idbInstance = null;
-// ----------------------------------------------------------------
-// Switch vista /categoría
-// ----------------------------------------------------------------
-const toggleEl = document.getElementById('toggle-view');
-toggleEl.addEventListener('change', ()=>{
-    console.debug("[DEBUG] Toggle vista por categor\xeda:", toggleEl.checked);
-    renderAll();
-});
-// ----------------------------------------------------------------
-// Inicializa o actualiza IndexedDB
-// ----------------------------------------------------------------
 async function initDB() {
-    console.debug('[DEBUG] Inicializando IndexedDB...');
+    console.debug("[DEBUG] initDB \u2192 abriendo IndexedDB...");
     const idb = await (0, _idb.openDB)(DB_NAME, DB_VERSION, {
         upgrade (db) {
             if (!db.objectStoreNames.contains(STORE_NAME)) {
-                console.debug('[DEBUG] Creando object store:', STORE_NAME);
+                console.debug("[DEBUG] initDB \u2192 creando store:", STORE_NAME);
                 db.createObjectStore(STORE_NAME, {
                     keyPath: 'id'
                 });
             }
         }
     });
-    console.debug('[DEBUG] IndexedDB lista:', idb);
+    console.debug("[DEBUG] initDB \u2192 listo");
     return idb;
 }
-// ----------------------------------------------------------------
-// Guardar en caché
-// ----------------------------------------------------------------
 async function cacheTransactions(idb, txs) {
-    console.debug("[DEBUG] Cach\xe9 \u2192 guardando", txs.length, 'transacciones');
+    console.debug("[DEBUG] cacheTransactions \u2192 guardando", txs.length);
     const tx = idb.transaction(STORE_NAME, 'readwrite');
     for (const t of txs){
-        console.debug("  \u2192 put id=", t.id);
         await tx.store.put(t);
+        console.debug(`  \u{2192} cacheTransactions put id=${t.id}`);
     }
     await tx.done;
-    console.debug("[DEBUG] Cach\xe9 \u2192 completo");
+    console.debug("[DEBUG] cacheTransactions \u2192 terminado");
 }
-// ----------------------------------------------------------------
-// Leer de caché
-// ----------------------------------------------------------------
 async function readCachedTransactions(idb) {
     const all = await idb.getAll(STORE_NAME);
-    console.debug("[DEBUG] Cach\xe9 \u2192 transacciones le\xeddas:", all.length);
+    console.debug("[DEBUG] readCachedTransactions \u2192 le\xeddas", all.length);
     return all;
 }
-// ----------------------------------------------------------------
-// Agrupa por categoría
-// ----------------------------------------------------------------
-function groupByCategory(txs) {
-    return txs.reduce((groups, tx)=>{
-        const cat = tx.category || "Sin categor\xeda";
-        (groups[cat] = groups[cat] || []).push(tx);
-        return groups;
-    }, {});
+// ── RENDERIZADO ───────────────────────────────────────────────────────────────
+function renderTxItem(tx) {
+    const item = document.createElement('div');
+    item.className = 'transaction-item';
+    item.innerHTML = `
+    <span class="account-label">${tx.accountName}</span>
+    <div class="desc">${tx.description}</div>
+    <span class="date">${new Date(tx.date).toLocaleDateString()}</span>
+    <span class="amount ${tx.amount < 0 ? 'debit' : 'credit'}">
+      ${tx.amount < 0 ? "\u2212" : '+'}${Math.abs(tx.amount).toFixed(2)} \u{20AC}
+    </span>
+  `;
+    return item;
 }
-// ----------------------------------------------------------------
-// UI helpers
-// ----------------------------------------------------------------
-function showOffline(msg) {
+function renderChrono(txs) {
+    console.debug("[DEBUG] renderChrono \u2192 orden cronol\xf3gico");
+    const list = document.getElementById('transactions-list');
+    list.innerHTML = '';
+    txs.forEach((tx)=>list.appendChild(renderTxItem(tx)));
+}
+function renderGrouped(txs) {
+    console.debug("[DEBUG] renderGrouped \u2192 agrupado");
+    const list = document.getElementById('transactions-list');
+    list.innerHTML = '';
+    const groups = txs.reduce((g, tx)=>{
+        const cat = tx.category || "Sin categor\xeda";
+        (g[cat] = g[cat] || []).push(tx);
+        return g;
+    }, {});
+    for (const [cat, items] of Object.entries(groups)){
+        console.debug(`[DEBUG] renderGrouped \u{2192} ${cat}: ${items.length}`);
+        const sec = document.createElement('div');
+        sec.className = 'category-group';
+        sec.innerHTML = `<h3>${cat}</h3>`;
+        items.forEach((tx)=>sec.appendChild(renderTxItem(tx)));
+        list.appendChild(sec);
+    }
+}
+// ── ESTADO UI ────────────────────────────────────────────────────────────────
+function showOffline(msg = "Est\xe1s sin conexi\xf3n. Mostrando datos en cach\xe9.") {
     const ind = document.getElementById('offline-indicator');
-    ind.textContent = msg || "Est\xe1s sin conexi\xf3n. Mostrando cach\xe9.";
+    ind.textContent = msg;
     ind.hidden = false;
 }
 function hideOffline() {
@@ -757,11 +756,9 @@ function showLoading() {
 function hideLoading() {
     document.getElementById('transactions-loading').hidden = true;
 }
-// ----------------------------------------------------------------
-// Llama a tu función get_transactions
-// ----------------------------------------------------------------
+// ── FETCH DE TRANSACCIONES ───────────────────────────────────────────────────
 async function fetchTransactionsFromPlaid(userId) {
-    console.debug("[DEBUG] Fetch \u2192 get_transactions para usuario:", userId);
+    console.debug("[DEBUG] Fetch \u2192 get_transactions, userId:", userId);
     const res = await fetch(`${apiUrl}/plaid/get_transactions`, {
         method: 'POST',
         headers: {
@@ -771,129 +768,57 @@ async function fetchTransactionsFromPlaid(userId) {
             userId
         })
     });
-    console.debug('[DEBUG] Status fetch:', res.status);
+    console.debug('[DEBUG] Fetch status:', res.status);
     if (!res.ok) {
         const err = await res.json().catch(()=>({}));
         throw new Error(`Plaid error ${res.status}: ${err.error || res.statusText}`);
     }
     const { transactions } = await res.json();
-    console.debug("[DEBUG] \uD83D\uDD0D Transacciones brutas recibidas:", transactions);
+    console.debug('[DEBUG] Transacciones raw:', transactions);
     return transactions;
 }
-// ----------------------------------------------------------------
-// Detalles de cuenta para mapear account_id → nombre
-// ----------------------------------------------------------------
-async function fetchAccountDetails(accessToken) {
-    console.debug("[DEBUG] Fetch detalles cuenta \u2192", accessToken);
-    const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            accessToken
-        })
-    });
-    if (!res.ok) throw new Error('Error obteniendo detalles de cuenta');
-    const data = await res.json();
-    console.debug('[DEBUG] Detalles de cuenta:', data);
-    return data;
-}
-// ----------------------------------------------------------------
-// Construye mapa de cuentas
-// ----------------------------------------------------------------
+// ── MAPA account_id → nombre ─────────────────────────────────────────────────
 async function buildAccountMap(userId) {
-    console.debug('[DEBUG] buildAccountMap para usuario:', userId);
-    const userDoc = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', userId));
-    const accounts = userDoc.exists() ? userDoc.data().plaid?.accounts || [] : [];
-    console.debug('[DEBUG] Cuentas Plaid:', accounts.length);
+    console.debug("[DEBUG] buildAccountMap \u2192 userId:", userId);
+    const snap = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', userId));
+    const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
+    console.debug("[DEBUG] buildAccountMap \u2192 tokens encontrados:", accounts.length);
     const map = {};
     for (const { accessToken } of accounts)try {
-        const { accounts: accs } = await fetchAccountDetails(accessToken);
-        accs.forEach((acc)=>{
-            map[acc.account_id] = {
-                name: acc.name || 'Sin nombre'
-            };
+        console.debug("[DEBUG] buildAccountMap \u2192 get_account_details", accessToken);
+        const r = await fetch(`${apiUrl}/plaid/get_account_details`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                accessToken
+            })
+        });
+        if (!r.ok) continue;
+        const { accounts: accs } = await r.json();
+        accs.forEach((a)=>{
+            map[a.account_id] = a.name || 'Cuenta sin nombre';
         });
     } catch (e) {
         console.error("[ERROR] buildAccountMap \u2192", e);
     }
-    console.debug('[DEBUG] Mapa final:', map);
+    console.debug("[DEBUG] buildAccountMap \u2192 resultado:", map);
     return map;
 }
-// ----------------------------------------------------------------
-// Render view según toggle
-// ----------------------------------------------------------------
-function renderAll() {
-    if (toggleEl.checked) renderByCategory(allTransactions);
-    else renderChronological(allTransactions);
-}
-// ----------------------------------------------------------------
-// Render cronológico
-// ----------------------------------------------------------------
-function renderChronological(txs) {
-    console.debug("[DEBUG] renderChronological \u2192", txs);
-    const list = document.getElementById('transactions-list');
-    list.innerHTML = '';
-    txs.forEach((tx)=>{
-        const item = document.createElement('div');
-        item.className = 'transaction-item';
-        item.innerHTML = `
-      <span class="account-label">${tx.accountName}</span>
-      <span class="date">${new Date(tx.date).toLocaleDateString()}</span>
-      <div class="desc">${tx.description}</div>
-      <span class="amount ${tx.amount < 0 ? 'debit' : 'credit'}">
-        ${tx.amount < 0 ? "\u2212" : '+'}${Math.abs(tx.amount).toFixed(2)} \u{20AC}
-      </span>
-    `;
-        list.appendChild(item);
-    });
-}
-// ----------------------------------------------------------------
-// Render por categoría
-// ----------------------------------------------------------------
-function renderByCategory(txs) {
-    console.debug("[DEBUG] renderByCategory \u2192", txs);
-    const groups = groupByCategory(txs);
-    const list = document.getElementById('transactions-list');
-    list.innerHTML = '';
-    Object.entries(groups).forEach(([cat, arr])=>{
-        const section = document.createElement('div');
-        section.className = 'category-group';
-        section.innerHTML = `<h3>${cat}</h3>`;
-        arr.forEach((tx)=>{
-            const item = document.createElement('div');
-            item.className = 'transaction-item';
-            item.innerHTML = `
-        <span class="account-label">${tx.accountName}</span>
-        <span class="date">${new Date(tx.date).toLocaleDateString()}</span>
-        <div class="desc">${tx.description}</div>
-        <span class="amount ${tx.amount < 0 ? 'debit' : 'credit'}">
-          ${tx.amount < 0 ? "\u2212" : '+'}${Math.abs(tx.amount).toFixed(2)} \u{20AC}
-        </span>
-      `;
-            section.appendChild(item);
-        });
-        list.appendChild(section);
-    });
-}
-// ----------------------------------------------------------------
-// Flujo principal
-// ----------------------------------------------------------------
+// ── FLUJO PRINCIPAL ───────────────────────────────────────────────────────────
+let lastTxs = []; // <-- almacenamos el último array
 async function loadTransactions(userId) {
-    console.debug("[DEBUG] loadTransactions \u2192", userId);
-    if (!idbInstance) idbInstance = await initDB();
-    accountMap = await buildAccountMap(userId);
+    console.debug("[DEBUG] loadTransactions \u2192 inicio para", userId);
+    const idb = await initDB();
+    const accountMap = await buildAccountMap(userId);
     // 1) Mostrar caché
-    const cached = await readCachedTransactions(idbInstance);
+    const cached = await readCachedTransactions(idb);
     if (cached.length) {
-        cached.forEach((tx)=>{
-            // Si backend ya incluyó personal_finance_category, úsalo:
-            if (Array.isArray(tx.personal_finance_category)) tx.category = tx.personal_finance_category[0] || tx.category;
-            tx.accountName = accountMap[tx.account_id]?.name || 'Desconocida';
-        });
-        allTransactions = cached.slice().sort((a, b)=>new Date(b.date) - new Date(a.date));
-        renderAll();
+        cached.forEach((tx)=>tx.accountName = accountMap[tx.account_id] || 'Desconocida');
+        console.debug('[CACHE]', cached);
+        lastTxs = cached;
+        renderView();
     }
     // 2) Offline?
     if (!navigator.onLine) {
@@ -901,43 +826,55 @@ async function loadTransactions(userId) {
         hideLoading();
         return;
     }
-    // 3) Online: fetch → render → cache
+    // 3) Online: fetch → cache → render
     hideOffline();
     showLoading();
     try {
         const txs = await fetchTransactionsFromPlaid(userId);
         txs.forEach((tx)=>{
-            console.debug("[DEBUG] tx recibido \u2192", tx);
-            // si tu Cloud Function ya mapea personal_finance_category:
-            if (Array.isArray(tx.personal_finance_category)) tx.category = tx.personal_finance_category[0];
-            tx.accountName = accountMap[tx.account_id]?.name || 'Desconocida';
+            // campo legacy
+            const legacyCat = tx.category || "Sin categor\xeda";
+            // nuevo pf category puede venir array u objeto
+            let pf = tx.personal_finance_category;
+            console.debug('[RAW TX.personal_finance_category]', pf);
+            // si es objeto con `.hierarchy`...
+            if (pf && pf.hierarchy) tx.personal_finance_category = pf.hierarchy;
+            // si es array, ok. si no, fallback legacy
+            if (!Array.isArray(tx.personal_finance_category) || !tx.personal_finance_category.length) {
+                tx.personal_finance_category = [];
+                tx.category = legacyCat;
+            } else tx.category = tx.personal_finance_category[0];
+            tx.accountName = accountMap[tx.account_id] || 'Desconocida';
         });
-        allTransactions = txs.slice().sort((a, b)=>new Date(b.date) - new Date(a.date));
-        renderAll();
-        await cacheTransactions(idbInstance, allTransactions);
+        console.debug('[DEBUG] Transacciones mapeadas:', txs);
+        lastTxs = txs;
+        await cacheTransactions(idb, txs);
+        renderView();
     } catch (err) {
         console.error("\u274C loadTransactions error:", err);
-        showOffline("No se pudieron actualizar, mostrando cach\xe9.");
+        showOffline("No se pudieron actualizar datos, mostrando cach\xe9.");
     } finally{
         hideLoading();
     }
+    console.debug("[DEBUG] loadTransactions \u2192 fin");
 }
-// ----------------------------------------------------------------
-// Arranca al autenticar
-// ----------------------------------------------------------------
+// render según switch
+function renderView() {
+    const byCat = document.getElementById('toggle-view').checked;
+    byCat ? renderGrouped(lastTxs) : renderChrono(lastTxs);
+}
+// ── INICIO ────────────────────────────────────────────────────────────────────
 (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), (user)=>{
-    console.debug("[DEBUG] onAuthStateChanged \u2192", user);
-    if (user) loadTransactions(user.uid);
-    else window.location.href = '../index.html';
-});
-// ----------------------------------------------------------------
-// Al reconectar
-// ----------------------------------------------------------------
-window.addEventListener('online', ()=>{
-    if ((0, _firebaseJs.auth).currentUser) {
-        console.debug('[DEBUG] Reconectado, recargando...');
-        loadTransactions((0, _firebaseJs.auth).currentUser.uid);
+    if (!user) {
+        window.location.href = '../index.html';
+        return;
     }
+    // toggle listener
+    document.getElementById('toggle-view').addEventListener('change', renderView);
+    loadTransactions(user.uid);
+});
+window.addEventListener('online', ()=>{
+    if ((0, _firebaseJs.auth).currentUser) loadTransactions((0, _firebaseJs.auth).currentUser.uid);
 });
 
 },{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1","idb":"258QC"}],"258QC":[function(require,module,exports,__globalThis) {
