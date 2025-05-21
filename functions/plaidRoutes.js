@@ -1,12 +1,11 @@
-// functions/plaidRoutes.js
-require('dotenv').config();
+require('dotenv').config();            // carga tu .env en dev
 const express = require('express');
 const { admin, db } = require('./firebaseAdmin');
 const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
 
 const router = express.Router();
 
-// ── CORS Middleware ─────────────────────────────────────────────────────────────
+// ── CORS ────────────────────────────────────────────────────────────────────────
 router.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -14,12 +13,11 @@ router.use((req, res, next) => {
   next();
 });
 
-// ── Plaid Client Initialization ────────────────────────────────────────────────
-const envName = process.env.PLAID_ENV || 'sandbox';
+// ── Inicializar Plaid ──────────────────────────────────────────────────────────
+const envName  = process.env.PLAID_ENV || 'sandbox';
 const plaidEnv = PlaidEnvironments[envName] || PlaidEnvironments.sandbox;
-
-const plaidConfig = new Configuration({
-  basePath: plaidEnv,
+const config   = new Configuration({
+  basePath:    plaidEnv,
   baseOptions: {
     headers: {
       'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
@@ -28,29 +26,29 @@ const plaidConfig = new Configuration({
     }
   }
 });
-const plaidClient = new PlaidApi(plaidConfig);
+const plaidClient = new PlaidApi(config);
 
 // ── Health Check ───────────────────────────────────────────────────────────────
-router.get('/ping', (_req, res) => {
-  res.json({ message: 'pong' });
-});
+router.get('/ping', (_req, res) => res.json({ message: 'pong' }));
 
 // ── Create Link Token ──────────────────────────────────────────────────────────
 router.post('/create_link_token', async (req, res) => {
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
+
   try {
-    const createResponse = await plaidClient.linkTokenCreate({
+    const resp = await plaidClient.linkTokenCreate({
       user:          { client_user_id: userId },
       client_name:   'FinTrack',
       products:      ['auth','transactions'],
       country_codes: ['US','ES'],
       language:      'es'
     });
-    res.json({ link_token: createResponse.data.link_token });
+    res.json({ link_token: resp.data.link_token });
+
   } catch (err) {
     console.error('Error creating link token:', err.response?.data || err);
-    res.status(500).json({ error: err.message || 'Error creando link token' });
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -60,62 +58,90 @@ router.post('/exchange_public_token', async (req, res) => {
   if (!public_token || !userId) {
     return res.status(400).json({ error: 'Falta public_token o userId' });
   }
+
   try {
-    const exchangeResponse = await plaidClient.itemPublicTokenExchange({ public_token });
-    const accessToken = exchangeResponse.data.access_token;
-    const itemId      = exchangeResponse.data.item_id;
+    const resp = await plaidClient.itemPublicTokenExchange({ public_token });
+    const accessToken = resp.data.access_token;
+    const itemId      = resp.data.item_id;
 
     const userRef = db.collection('users').doc(userId);
     const userDoc = await userRef.get();
-    let accounts = [];
-    if (userDoc.exists) {
-      accounts = userDoc.data().plaid?.accounts || [];
-    }
-    accounts.push({ accessToken, itemId, createdAt: admin.firestore.Timestamp.now() });
+    const accounts = userDoc.exists
+      ? userDoc.data().plaid?.accounts || []
+      : [];
+
+    accounts.push({
+      accessToken,
+      itemId,
+      createdAt: admin.firestore.Timestamp.now()
+    });
     await userRef.set({ plaid: { accounts } }, { merge: true });
 
     res.json({ success: true });
+
   } catch (err) {
     console.error('Error exchanging public token:', err.response?.data || err);
-    res.status(500).json({ error: err.message || 'Error intercambiando public token' });
+    res.status(500).json({ error: err.message });
   }
 });
 
 // ── Get Account Details ────────────────────────────────────────────────────────
 router.post('/get_account_details', async (req, res) => {
   const { accessToken } = req.body;
-  if (!accessToken) return res.status(400).json({ error: 'Falta accessToken' });
+  console.log('[PLAIDROUTES] → get_account_details called with accessToken:', accessToken);
+
+  if (!accessToken) {
+    console.log('[PLAIDROUTES] → Missing accessToken, responding 400');
+    return res.status(400).json({ error: 'Falta accessToken' });
+  }
+
   try {
-    const accountsResponse = await plaidClient.accountsGet({ access_token: accessToken });
-    const itemResponse     = await plaidClient.itemGet({ access_token: accessToken });
-    const institutionId    = itemResponse.data.item.institution_id;
+    console.log('[PLAIDROUTES] → Calling accountsGet');
+    const accsResp = await plaidClient.accountsGet({ access_token: accessToken });
+    console.log('[PLAIDROUTES] ← accountsGet returned:', accsResp.data.accounts);
+
+    console.log('[PLAIDROUTES] → Calling itemGet');
+    const itemResp = await plaidClient.itemGet({ access_token: accessToken });
+    console.log('[PLAIDROUTES] ← itemGet returned:', itemResp.data.item);
+
+    const instId = itemResp.data.item.institution_id;
+    console.log('[PLAIDROUTES] → institution_id:', instId);
 
     let institution = null;
-    if (institutionId) {
-      const instRes = await plaidClient.institutionsGetById({
-        institution_id: institutionId,
-        country_codes:  ['US','ES']
+    if (instId) {
+      console.log('[PLAIDROUTES] → Calling institutionsGetById for ID:', instId);
+      const inst = await plaidClient.institutionsGetById({
+        institution_id: instId,
+        country_codes:  ['US','ES'],
+        options:        { include_optional_metadata: true }
       });
-      institution = instRes.data.institution;
+      console.log('[PLAIDROUTES] ← institutionsGetById returned:', inst.data.institution);
+      institution = inst.data.institution;
+    } else {
+      console.log('[PLAIDROUTES] → No institution_id in itemGet response');
     }
 
+    console.log('[PLAIDROUTES] → Sending JSON response');
     res.json({
-      accounts:    accountsResponse.data.accounts,
+      accounts:    accsResp.data.accounts,
       institution
     });
+
   } catch (err) {
-    console.error('Error getting account details:', err.response?.data || err);
-    res.status(500).json({ error: err.message || 'Error al obtener detalles de cuenta' });
+    console.error('[PLAIDROUTES] ** Error in get_account_details:', err.response?.data || err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// ── Get Transactions (usando /transactions/get con categorías personales) ─────
+
+
+
+// ── Get Transactions (transactions/get + personal_finance_category) ──────────
 router.post('/get_transactions', async (req, res) => {
   const { userId, startDate, endDate } = req.body;
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
 
   try {
-    // 1) Recuperar tokens del usuario
     const userDoc = await db.collection('users').doc(userId).get();
     if (!userDoc.exists) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -125,13 +151,11 @@ router.post('/get_transactions', async (req, res) => {
       return res.json({ transactions: [] });
     }
 
-    // 2) Rango de fechas (por defecto últimos 30 días)
     const start = startDate
       || new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
-    const end = endDate
+    const end   = endDate
       || new Date().toISOString().slice(0,10);
 
-    // 3) Llamar a transactionsGet en cada access_token
     let allTxs = [];
     for (const { accessToken } of accounts) {
       const txRes = await plaidClient.transactionsGet({
@@ -147,16 +171,14 @@ router.post('/get_transactions', async (req, res) => {
       allTxs = allTxs.concat(txRes.data.transactions);
     }
 
-    // 4) Orden descendente
     allTxs.sort((a,b) => new Date(b.date) - new Date(a.date));
 
-    // 5) Limpiar payload y conservar personal_finance_category
     const cleaned = allTxs.map(tx => ({
       id:                         tx.transaction_id,
       account_id:                 tx.account_id,
       date:                       tx.date,
       description:                tx.name,
-      personal_finance_category:  tx.personal_finance_category || [],
+      personal_finance_category:  tx.personal_finance_category || null,
       category:  Array.isArray(tx.personal_finance_category) && tx.personal_finance_category.length
                   ? tx.personal_finance_category[0]
                   : 'Sin categoría',
@@ -166,7 +188,7 @@ router.post('/get_transactions', async (req, res) => {
     res.json({ transactions: cleaned });
   } catch (err) {
     console.error('Error in get_transactions:', err.response?.data || err);
-    res.status(500).json({ error: err.message || 'Error obteniendo transacciones' });
+    res.status(500).json({ error: err.message });
   }
 });
 
