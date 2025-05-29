@@ -1,19 +1,18 @@
 // js/service-worker.js
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', event => {
   console.log('[SW] Instalado');
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', event => {
   console.log('[SW] Activado');
   return self.clients.claim();
 });
 
-// Periodic Background Sync
-self.addEventListener('periodicsync', (event) => {
+self.addEventListener('periodicsync', event => {
   if (event.tag === 'sync-transactions') {
-    console.log('[SW] periodicSync event recibido');
+    console.log('[SW] periodicSync recibido');
     event.waitUntil(syncTransactionsFromWorker());
   }
 });
@@ -22,7 +21,7 @@ async function syncTransactionsFromWorker() {
   try {
     const uid = await getUIDFromIndexedDB();
     if (!uid) {
-      console.warn('[SW] No hay UID para sincronizar');
+      console.warn('[SW] No UID disponible');
       return;
     }
 
@@ -30,31 +29,30 @@ async function syncTransactionsFromWorker() {
       ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
       : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 
-    await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify({ userId: uid })
     });
-
-    console.log('[SW] Sincronización periódica completada');
+    console.log('[SW] Sync periódica completada:', await res.json());
   } catch (e) {
-    console.error('[SW] Error al sincronizar:', e);
+    console.error('[SW] Error en syncTransactionsFromWorker:', e);
   }
 }
 
 function getUIDFromIndexedDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('fintrack-db', 1);
+    const req = indexedDB.open('fintrack-db',1);
     req.onsuccess = () => {
       const db = req.result;
-      const tx = db.transaction('metadata', 'readonly');
+      const tx = db.transaction('metadata','readonly');
       const store = tx.objectStore('metadata');
-      const getReq = store.get('userId');
-      getReq.onsuccess = () => {
-        resolve(getReq.result || null);
+      const g = store.get('userId');
+      g.onsuccess = () => {
+        resolve(g.result || null);
         db.close();
       };
-      getReq.onerror = () => reject(getReq.error);
+      g.onerror = () => reject(g.error);
     };
     req.onerror = () => reject(req.error);
   });

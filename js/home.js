@@ -1,4 +1,3 @@
-// js/home.js
 import { auth, app } from './firebase.js';
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -30,9 +29,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const name = [data.firstName, data.lastName].filter(Boolean).join(' ') || 'Usuario';
       updateWelcome(name);
 
-      // Carga de saldos y sincronización de transacciones
+      // Carga balances
       await loadBalances(user.uid);
+
+      // Sincronización (periodic + manual)
       await setupTransactionSync(user.uid);
+
+      // Guarda UID para el SW
       await saveUIDToIndexedDB(user.uid);
 
     } catch (e) {
@@ -42,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   closeSidebar.onclick = () => sidebar.classList.remove('open');
-  logoutLink.onclick = async (e) => {
+  logoutLink.onclick   = async (e) => {
     e.preventDefault();
     await signOut(auth);
     window.location.href = '../index.html';
@@ -51,9 +54,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadBalances(userId) {
   console.log('[DEBUG] loadBalances → userId:', userId);
-  const db   = getFirestore(app);
-  const uRef = doc(db, 'users', userId);
-  const snap = await getDoc(uRef);
+  const db       = getFirestore(app);
+  const uRef     = doc(db, 'users', userId);
+  const snap     = await getDoc(uRef);
   const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
   console.log('[DEBUG] Firestore accounts:', accounts);
 
@@ -72,7 +75,10 @@ async function loadBalances(userId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken })
       });
+      console.log(`[DEBUG] HTTP status #${i}:`, res.status);
       const { accounts: accs, institution } = await res.json();
+      console.log(`[DEBUG] Response #${i}:`, { accs, institution });
+
       const acc = accs?.[0] || {};
       const accountName = acc.name || 'Cuenta';
       const bal = acc.balances?.current ?? 0;
@@ -94,8 +100,8 @@ async function loadBalances(userId) {
 
       // logo desactivado
       // const img = document.createElement('img');
-      // img.src = logoSrc;
-      // img.alt = `${accountName} logo`;
+      // img.src       = logoSrc;
+      // img.alt       = `${accountName} logo`;
       // img.className = 'card-logo';
       // card.appendChild(img);
 
@@ -155,71 +161,65 @@ function initBalanceSlider() {
   update();
 }
 
+// Parcel-compatible SW registration
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(new URL('./service-worker.js', import.meta.url))
+      .then(reg => console.log('[SW] Registered', reg))
+      .catch(err => console.error('[SW] Registration failed:', err));
+  });
+}
+
 async function setupTransactionSync(uid) {
   const apiUrl = window.location.hostname === 'localhost'
     ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
     : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 
-  // Intentamos registrar periodicSync
   if ('serviceWorker' in navigator && 'periodicSync' in ServiceWorkerRegistration.prototype) {
-    const registration = await navigator.serviceWorker.ready;
+    const reg = await navigator.serviceWorker.ready;
     try {
-      await registration.periodicSync.register('sync-transactions', {
-        minInterval: 24 * 60 * 60 * 1000
-      });
+      await reg.periodicSync.register('sync-transactions', { minInterval: 24*60*60*1000 });
       console.log('[SYNC] periodicSync registrado');
-    } catch (err) {
-      console.warn('[SYNC] No se pudo registrar periodicSync:', err);
+    } catch (e) {
+      console.warn('[SYNC] No se pudo registrar periodicSync:', e);
     }
   }
 
-  // Siempre ejecutamos al menos una sincronización manual
+  // Siempre forzamos la primera sincronización
   await doManualSync(uid, apiUrl);
-
-  // Registramos el SW (Parcel-compatible)
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register(new URL('./service-worker.js', import.meta.url))
-        .then(reg => console.log('[SW] Registered', reg))
-        .catch(err => console.error('[SW] Registration failed:', err));
-    });
-  }
 }
 
 async function doManualSync(uid, apiUrl) {
-  const lastSyncKey = `lastSync_${uid}`;
-  const last = localStorage.getItem(lastSyncKey);
-  const now = Date.now();
+  const lastKey = `lastSync_${uid}`;
+  const last = localStorage.getItem(lastKey);
+  const now  = Date.now();
 
-  if (!last || now - parseInt(last) > 24 * 60 * 60 * 1000) {
-    console.log('[SYNC] Ejecutando sincronización manual');
+  if (!last || now - parseInt(last) > 24*60*60*1000) {
+    console.log('[SYNC] Ejecutando sync manual');
     try {
       const res = await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ userId: uid })
       });
-      const result = await res.json();
-      console.log('[SYNC] Resultado manual:', result);
-      localStorage.setItem(lastSyncKey, now.toString());
-    } catch (err) {
-      console.error('[SYNC] Error manual:', err);
+      console.log('[SYNC] Resultado manual:', await res.json());
+      localStorage.setItem(lastKey, now.toString());
+    } catch (e) {
+      console.error('[SYNC] Error manual:', e);
     }
   } else {
-    console.log('[SYNC] Ya sincronizado en las últimas 24 h');
+    console.log('[SYNC] Ya sincronizado hoy');
   }
 }
 
 async function saveUIDToIndexedDB(uid) {
   if (!('indexedDB' in window)) return;
-  const openReq = indexedDB.open('fintrack-db', 1);
-  openReq.onupgradeneeded = () => {
-    openReq.result.createObjectStore('metadata');
-  };
-  openReq.onsuccess = () => {
-    const db = openReq.result;
-    const tx = db.transaction('metadata', 'readwrite');
-    tx.objectStore('metadata').put(uid, 'userId');
+  const req = indexedDB.open('fintrack-db',1);
+  req.onupgradeneeded = () => req.result.createObjectStore('metadata');
+  req.onsuccess = () => {
+    const db = req.result;
+    const tx = db.transaction('metadata','readwrite');
+    tx.objectStore('metadata').put(uid,'userId');
     tx.oncomplete = () => db.close();
   };
 }
