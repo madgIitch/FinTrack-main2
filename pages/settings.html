@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Perfil de Usuario</title>
+  <link rel="stylesheet" href="../css/profile.css" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+  <link rel="manifest" href="../manifest.json"/>
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+  <script type="module" src="../js/settings.js"></script>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <img src="../img/logoFintonic.svg" alt="Logo Fintonic" class="logo-icon-img"/>
+        <h1 class="welcome-message">Ajustes</h1>
+      </div>
+      <div class="header-right">
+        <button class="notification-button">
+          <i class="material-icons">notifications</i>
+        </button>
+      </div>
+    </header>
+
+    
+
+      <!-- Slider Wrapper -->
+      <div class="slider-wrapper">
+        <button id="slider-prev" class="slider-arrow">
+          <span class="material-icons">chevron_left</span>
+        </button>
+        <div class="accounts-slider-container">
+          <div class="accounts-slider" id="linked-accounts-list">
+            <!-- Aquí inyecta JS las .linked-account -->
+          </div>
+        </div>
+        <button id="slider-next" class="slider-arrow">
+          <span class="material-icons">chevron_right</span>
+        </button>
+      </div>
+
+      <div id="slider-dots" class="slider-dots-container"></div>
+
+      <button id="link-bank-button" class="btn-custom" style="width: 90%; max-width: 500px;">
+        Vincular Cuenta Bancaria
+      </button>
+    </main>
+
+    <!-- Barra de navegación inferior -->
+    <nav class="bottom-nav">
+      <a href="home.html"><i class="material-icons">home</i><span>Inicio</span></a>
+      <a href="profile.html"><i class="material-icons">person</i><span>Perfil</span></a>
+      <a href="settings.html" class="active"><i class="material-icons">settings</i><span>Ajustes</span></a>
+    </nav>
+  </div>
+</body>
+</html>

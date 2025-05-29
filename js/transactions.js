@@ -81,7 +81,7 @@ function renderGrouped(txs) {
     section.innerHTML = `<h3>${cat}</h3>`;
     items.forEach(tx => section.appendChild(renderTxItem(tx)));
     list.appendChild(section);
-  }
+  };
 }
 
 // ── Crea el nodo HTML de una transacción ────────────────────────────────────
@@ -199,31 +199,19 @@ async function loadTransactions(userId) {
 
     // Mapear categoría y accountName
     txs.forEach(tx => {
-      // Legacy fallback
       const legacyCat = tx.category || 'Sin categoría';
-
-      // Intentar personal_finance_category
       const pf = tx.personal_finance_category;
       let chosen = null;
       if (pf && typeof pf === 'object') {
-        if (pf.detailed) {
-          chosen = pf.detailed;
-        } else if (pf.primary) {
-          chosen = pf.primary;
-        }
+        if (pf.detailed) chosen = pf.detailed;
+        else if (pf.primary) chosen = pf.primary;
       }
-
-      if (chosen) {
-        // "FOOD_AND_DRINK_COFFEE" → "Food And Drink Coffee"
-        tx.category = chosen
-          .toLowerCase()
-          .split('_')
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(' ');
-      } else {
-        tx.category = legacyCat;
-      }
-
+      tx.category = chosen
+        ? chosen.toLowerCase()
+            .split('_')
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' ')
+        : legacyCat;
       tx.accountName = accountMap[tx.account_id] || 'Cuenta desconocida';
       console.debug('[MAPPED TX]', tx.id, 'category:', tx.category, 'accountName:', tx.accountName);
     });
@@ -243,11 +231,25 @@ async function loadTransactions(userId) {
 }
 
 // ── Arranca cuando el usuario esté autenticado ───────────────────────────────
-onAuthStateChanged(auth, user => {
+onAuthStateChanged(auth, async (user) => {
   if (!user) {
     window.location.href = '../index.html';
     return;
   }
+
+  // ── Cargar nombre y apellido desde Firestore y mostrar saludo ────────────
+  const userNameSpan = document.getElementById('user-name');
+  try {
+    const userSnap = await getDoc(doc(db, 'users', user.uid));
+    const data     = userSnap.exists() ? userSnap.data() : {};
+    const fullName = [data.firstName, data.lastName].filter(Boolean).join(' ') || 'Usuario';
+    userNameSpan.textContent = fullName;
+  } catch (e) {
+    console.error('Error cargando nombre de usuario:', e);
+    userNameSpan.textContent = 'Usuario';
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+
   // Al cambiar el switch recargamos la vista
   document.getElementById('toggle-view')
     .addEventListener('change', () => loadTransactions(user.uid));
