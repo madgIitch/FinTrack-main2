@@ -126,7 +126,7 @@
 
   // Only insert newRequire.load when it is actually used.
   // The code in this file is linted against ES5, so dynamic import is not allowed.
-  // INSERT_LOAD_HERE
+  function $parcel$resolve(url) {  url = importMap[url] || url;  return import.meta.resolve(distDir + url);}newRequire.resolve = $parcel$resolve;
 
   Object.defineProperty(newRequire, 'root', {
     get: function () {
@@ -690,7 +690,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 data.lastName
             ].filter(Boolean).join(' ') || 'Usuario';
             updateWelcome(name);
-            loadBalances(user.uid);
+            // Carga de saldos y sincronización de transacciones
+            await loadBalances(user.uid);
+            await setupTransactionSync(user.uid);
+            await saveUIDToIndexedDB(user.uid);
         } catch (e) {
             console.error('Error cargando usuario:', e);
             updateWelcome('Usuario');
@@ -725,35 +728,25 @@ async function loadBalances(userId) {
                     accessToken
                 })
             });
-            console.log(`[DEBUG] HTTP status #${i}:`, res.status);
             const { accounts: accs, institution } = await res.json();
-            console.log(`[DEBUG] Response #${i}:`, {
-                accs,
-                institution
-            });
             const acc = accs?.[0] || {};
             const accountName = acc.name || 'Cuenta';
             const bal = acc.balances?.current ?? 0;
-            // Plaid sandbox often returns null for institution.logo
+            let logoSrc = '/img/default_bank.png';
             const base64Logo = institution?.logo;
-            console.log(`[DEBUG] base64Logo #${i}:`, base64Logo);
-            // Fallback to institution's favicon or a default placeholder
-            let logoSrc;
             if (base64Logo) logoSrc = `data:image/png;base64,${base64Logo}`;
             else if (institution?.url) {
-                // use the site's favicon
                 const origin = institution.url.replace(/\/$/, '');
                 logoSrc = `${origin}/favicon.ico`;
-            } else logoSrc = '/img/default_bank.png';
-            console.log(`[DEBUG] logoSrc #${i}:`, logoSrc);
+            }
             const slide = document.createElement('div');
             slide.className = 'balance-slide';
             const card = document.createElement('div');
             card.className = 'card';
-            // -- Comentado para desactivar logo:
+            // logo desactivado
             // const img = document.createElement('img');
-            // img.src       = logoSrc;
-            // img.alt       = `${accountName} logo`;
+            // img.src = logoSrc;
+            // img.alt = `${accountName} logo`;
             // img.className = 'card-logo';
             // card.appendChild(img);
             const title = document.createElement('p');
@@ -809,7 +802,68 @@ function initBalanceSlider() {
     }
     update();
 }
+async function setupTransactionSync(uid) {
+    const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
+    // Intentamos registrar periodicSync
+    if ('serviceWorker' in navigator && 'periodicSync' in ServiceWorkerRegistration.prototype) {
+        const registration = await navigator.serviceWorker.ready;
+        try {
+            await registration.periodicSync.register('sync-transactions', {
+                minInterval: 86400000
+            });
+            console.log('[SYNC] periodicSync registrado');
+        } catch (err) {
+            console.warn('[SYNC] No se pudo registrar periodicSync:', err);
+        }
+    }
+    // Siempre ejecutamos al menos una sincronización manual
+    await doManualSync(uid, apiUrl);
+    // Registramos el SW (Parcel-compatible)
+    if ('serviceWorker' in navigator) window.addEventListener('load', ()=>{
+        navigator.serviceWorker.register(require("4488b39c1a676199")).then((reg)=>console.log('[SW] Registered', reg)).catch((err)=>console.error('[SW] Registration failed:', err));
+    });
+}
+async function doManualSync(uid, apiUrl) {
+    const lastSyncKey = `lastSync_${uid}`;
+    const last = localStorage.getItem(lastSyncKey);
+    const now = Date.now();
+    if (!last || now - parseInt(last) > 86400000) {
+        console.log("[SYNC] Ejecutando sincronizaci\xf3n manual");
+        try {
+            const res = await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId: uid
+                })
+            });
+            const result = await res.json();
+            console.log('[SYNC] Resultado manual:', result);
+            localStorage.setItem(lastSyncKey, now.toString());
+        } catch (err) {
+            console.error('[SYNC] Error manual:', err);
+        }
+    } else console.log("[SYNC] Ya sincronizado en las \xfaltimas 24 h");
+}
+async function saveUIDToIndexedDB(uid) {
+    if (!('indexedDB' in window)) return;
+    const openReq = indexedDB.open('fintrack-db', 1);
+    openReq.onupgradeneeded = ()=>{
+        openReq.result.createObjectStore('metadata');
+    };
+    openReq.onsuccess = ()=>{
+        const db = openReq.result;
+        const tx = db.transaction('metadata', 'readwrite');
+        tx.objectStore('metadata').put(uid, 'userId');
+        tx.oncomplete = ()=>db.close();
+    };
+}
 
-},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi"}]},["Ahhet","9wRWw"], "9wRWw", "parcelRequire94c2")
+},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","4488b39c1a676199":"1K1dD"}],"1K1dD":[function(require,module,exports,__globalThis) {
+module.exports = module.bundle.resolve("js\\service-worker.js");
+
+},{}]},["Ahhet","9wRWw"], "9wRWw", "parcelRequire94c2", "./", "/")
 
 //# sourceMappingURL=home.a4cb3a81.js.map

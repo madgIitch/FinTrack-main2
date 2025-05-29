@@ -20,14 +20,21 @@ document.addEventListener('DOMContentLoaded', () => {
       window.location.href = '../index.html';
       return;
     }
+
     const db   = getFirestore(app);
     const uRef = doc(db, 'users', user.uid);
+
     try {
       const snap = await getDoc(uRef);
       const data = snap.exists() ? snap.data() : {};
       const name = [data.firstName, data.lastName].filter(Boolean).join(' ') || 'Usuario';
       updateWelcome(name);
-      loadBalances(user.uid);
+
+      // Carga de saldos y sincronización de transacciones
+      await loadBalances(user.uid);
+      await setupTransactionSync(user.uid);
+      await saveUIDToIndexedDB(user.uid);
+
     } catch (e) {
       console.error('Error cargando usuario:', e);
       updateWelcome('Usuario');
@@ -44,9 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadBalances(userId) {
   console.log('[DEBUG] loadBalances → userId:', userId);
-  const db       = getFirestore(app);
-  const uRef     = doc(db, 'users', userId);
-  const snap     = await getDoc(uRef);
+  const db   = getFirestore(app);
+  const uRef = doc(db, 'users', userId);
+  const snap = await getDoc(uRef);
   const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
   console.log('[DEBUG] Firestore accounts:', accounts);
 
@@ -65,30 +72,19 @@ async function loadBalances(userId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken })
       });
-      console.log(`[DEBUG] HTTP status #${i}:`, res.status);
       const { accounts: accs, institution } = await res.json();
-      console.log(`[DEBUG] Response #${i}:`, { accs, institution });
-
       const acc = accs?.[0] || {};
       const accountName = acc.name || 'Cuenta';
       const bal = acc.balances?.current ?? 0;
 
-      // Plaid sandbox often returns null for institution.logo
+      let logoSrc = '/img/default_bank.png';
       const base64Logo = institution?.logo;
-      console.log(`[DEBUG] base64Logo #${i}:`, base64Logo);
-
-      // Fallback to institution's favicon or a default placeholder
-      let logoSrc;
       if (base64Logo) {
         logoSrc = `data:image/png;base64,${base64Logo}`;
       } else if (institution?.url) {
-        // use the site's favicon
         const origin = institution.url.replace(/\/$/, '');
         logoSrc = `${origin}/favicon.ico`;
-      } else {
-        logoSrc = '/img/default_bank.png';
       }
-      console.log(`[DEBUG] logoSrc #${i}:`, logoSrc);
 
       const slide = document.createElement('div');
       slide.className = 'balance-slide';
@@ -96,10 +92,10 @@ async function loadBalances(userId) {
       const card = document.createElement('div');
       card.className = 'card';
 
-      // -- Comentado para desactivar logo:
+      // logo desactivado
       // const img = document.createElement('img');
-      // img.src       = logoSrc;
-      // img.alt       = `${accountName} logo`;
+      // img.src = logoSrc;
+      // img.alt = `${accountName} logo`;
       // img.className = 'card-logo';
       // card.appendChild(img);
 
@@ -157,4 +153,73 @@ function initBalanceSlider() {
     );
   }
   update();
+}
+
+async function setupTransactionSync(uid) {
+  const apiUrl = window.location.hostname === 'localhost'
+    ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
+    : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
+
+  // Intentamos registrar periodicSync
+  if ('serviceWorker' in navigator && 'periodicSync' in ServiceWorkerRegistration.prototype) {
+    const registration = await navigator.serviceWorker.ready;
+    try {
+      await registration.periodicSync.register('sync-transactions', {
+        minInterval: 24 * 60 * 60 * 1000
+      });
+      console.log('[SYNC] periodicSync registrado');
+    } catch (err) {
+      console.warn('[SYNC] No se pudo registrar periodicSync:', err);
+    }
+  }
+
+  // Siempre ejecutamos al menos una sincronización manual
+  await doManualSync(uid, apiUrl);
+
+  // Registramos el SW (Parcel-compatible)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register(new URL('./service-worker.js', import.meta.url))
+        .then(reg => console.log('[SW] Registered', reg))
+        .catch(err => console.error('[SW] Registration failed:', err));
+    });
+  }
+}
+
+async function doManualSync(uid, apiUrl) {
+  const lastSyncKey = `lastSync_${uid}`;
+  const last = localStorage.getItem(lastSyncKey);
+  const now = Date.now();
+
+  if (!last || now - parseInt(last) > 24 * 60 * 60 * 1000) {
+    console.log('[SYNC] Ejecutando sincronización manual');
+    try {
+      const res = await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: uid })
+      });
+      const result = await res.json();
+      console.log('[SYNC] Resultado manual:', result);
+      localStorage.setItem(lastSyncKey, now.toString());
+    } catch (err) {
+      console.error('[SYNC] Error manual:', err);
+    }
+  } else {
+    console.log('[SYNC] Ya sincronizado en las últimas 24 h');
+  }
+}
+
+async function saveUIDToIndexedDB(uid) {
+  if (!('indexedDB' in window)) return;
+  const openReq = indexedDB.open('fintrack-db', 1);
+  openReq.onupgradeneeded = () => {
+    openReq.result.createObjectStore('metadata');
+  };
+  openReq.onsuccess = () => {
+    const db = openReq.result;
+    const tx = db.transaction('metadata', 'readwrite');
+    tx.objectStore('metadata').put(uid, 'userId');
+    tx.oncomplete = () => db.close();
+  };
 }
