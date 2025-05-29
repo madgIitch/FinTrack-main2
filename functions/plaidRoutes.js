@@ -1,22 +1,23 @@
-require('dotenv').config();
+require('dotenv').config();            // carga tu .env en dev
 const express = require('express');
-const { db, admin } = require('./firebaseAdmin');
+const { admin, db } = require('./firebaseAdmin');
 const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
 
 const router = express.Router();
 
-// ── CORS interno ────────────────────────────────────────────────────────────────
+// ── CORS ────────────────────────────────────────────────────────────────────────
 router.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin','*');
-  res.header('Access-Control-Allow-Methods','GET,POST,OPTIONS');
-  res.header('Access-Control-Allow-Headers','Content-Type');
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
   next();
 });
 
-// ── Inicializar Plaid ────────────────────────────────────────────────────────────
+// ── Inicializar Plaid ──────────────────────────────────────────────────────────
 const envName  = process.env.PLAID_ENV || 'sandbox';
+const plaidEnv = PlaidEnvironments[envName] || PlaidEnvironments.sandbox;
 const config   = new Configuration({
-  basePath:    PlaidEnvironments[envName],
+  basePath:    plaidEnv,
   baseOptions: {
     headers: {
       'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
@@ -44,6 +45,7 @@ router.post('/create_link_token', async (req, res) => {
       language:      'es'
     });
     res.json({ link_token: resp.data.link_token });
+
   } catch (err) {
     console.error('Error creating link token:', err.response?.data || err);
     res.status(500).json({ error: err.message });
@@ -76,6 +78,7 @@ router.post('/exchange_public_token', async (req, res) => {
     await userRef.set({ plaid: { accounts } }, { merge: true });
 
     res.json({ success: true });
+
   } catch (err) {
     console.error('Error exchanging public token:', err.response?.data || err);
     res.status(500).json({ error: err.message });
@@ -85,46 +88,68 @@ router.post('/exchange_public_token', async (req, res) => {
 // ── Get Account Details ────────────────────────────────────────────────────────
 router.post('/get_account_details', async (req, res) => {
   const { accessToken } = req.body;
+  console.log('[PLAIDROUTES] → get_account_details called with accessToken:', accessToken);
+
   if (!accessToken) {
+    console.log('[PLAIDROUTES] → Missing accessToken, responding 400');
     return res.status(400).json({ error: 'Falta accessToken' });
   }
 
   try {
+    console.log('[PLAIDROUTES] → Calling accountsGet');
     const accsResp = await plaidClient.accountsGet({ access_token: accessToken });
+    console.log('[PLAIDROUTES] ← accountsGet returned:', accsResp.data.accounts);
+
+    console.log('[PLAIDROUTES] → Calling itemGet');
     const itemResp = await plaidClient.itemGet({ access_token: accessToken });
+    console.log('[PLAIDROUTES] ← itemGet returned:', itemResp.data.item);
+
     const instId = itemResp.data.item.institution_id;
+    console.log('[PLAIDROUTES] → institution_id:', instId);
 
     let institution = null;
     if (instId) {
+      console.log('[PLAIDROUTES] → Calling institutionsGetById for ID:', instId);
       const inst = await plaidClient.institutionsGetById({
         institution_id: instId,
         country_codes:  ['US','ES'],
         options:        { include_optional_metadata: true }
       });
+      console.log('[PLAIDROUTES] ← institutionsGetById returned:', inst.data.institution);
       institution = inst.data.institution;
+    } else {
+      console.log('[PLAIDROUTES] → No institution_id in itemGet response');
     }
 
+    console.log('[PLAIDROUTES] → Sending JSON response');
     res.json({
       accounts:    accsResp.data.accounts,
       institution
     });
+
   } catch (err) {
-    console.error('[PLAIDROUTES] Error in get_account_details:', err.response?.data || err);
+    console.error('[PLAIDROUTES] ** Error in get_account_details:', err.response?.data || err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── Get Transactions ────────────────────────────────────────────────────────────
+
+
+
+// ── Get Transactions (transactions/get + personal_finance_category) ──────────
 router.post('/get_transactions', async (req, res) => {
   const { userId, startDate, endDate } = req.body;
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
 
   try {
     const userDoc = await db.collection('users').doc(userId).get();
-    if (!userDoc.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
-
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
     const accounts = userDoc.data().plaid?.accounts || [];
-    if (accounts.length === 0) return res.json({ transactions: [] });
+    if (accounts.length === 0) {
+      return res.json({ transactions: [] });
+    }
 
     const start = startDate
       || new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
@@ -147,16 +172,17 @@ router.post('/get_transactions', async (req, res) => {
     }
 
     allTxs.sort((a,b) => new Date(b.date) - new Date(a.date));
+
     const cleaned = allTxs.map(tx => ({
-      id:                        tx.transaction_id,
-      account_id:                tx.account_id,
-      date:                      tx.date,
-      description:               tx.name,
-      personal_finance_category: tx.personal_finance_category || null,
+      id:                         tx.transaction_id,
+      account_id:                 tx.account_id,
+      date:                       tx.date,
+      description:                tx.name,
+      personal_finance_category:  tx.personal_finance_category || null,
       category:  Array.isArray(tx.personal_finance_category) && tx.personal_finance_category.length
                   ? tx.personal_finance_category[0]
                   : 'Sin categoría',
-      amount:                    tx.amount
+      amount:                     tx.amount
     }));
 
     res.json({ transactions: cleaned });
@@ -166,71 +192,69 @@ router.post('/get_transactions', async (req, res) => {
   }
 });
 
-// ── Sync & Store Transactions ───────────────────────────────────────────────────
+
+// ── Sync transactions and store 
+
 router.post('/sync_transactions_and_store', async (req, res) => {
   const { userId } = req.body;
-  if (!userId) return res.status(400).json({ error: 'Falta userId' });
+  console.log('[SYNC_FN] 🔄 sync_transactions_and_store invoked for user:', userId);
 
-  console.log('[SYNC_FN] Iniciando sync para:', userId);
+  if (!userId) return res.status(400).json({ error: 'Falta userId' });
 
   try {
     const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
-    if (!userSnap.exists) {
-      console.warn('[SYNC_FN] Usuario no existe');
-      return res.status(404).json({ error: 'Usuario no encontrado' });
-    }
+    if (!userSnap.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
 
     const accounts = userSnap.data().plaid?.accounts || [];
-    if (accounts.length === 0) {
-      console.log('[SYNC_FN] Sin cuentas vinculadas');
-      return res.json({ message: 'Sin cuentas vinculadas' });
-    }
+    if (accounts.length === 0) return res.status(200).json({ message: 'Sin cuentas vinculadas' });
 
-    const endDate   = new Date().toISOString().slice(0,10);
-    const startDate = new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
+    const endDate   = new Date().toISOString().slice(0, 10);
+    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
     for (const { accessToken } of accounts) {
-      console.log('[SYNC_FN] Sync con token:', accessToken);
       const txRes = await plaidClient.transactionsGet({
         access_token: accessToken,
-        start_date:   startDate,
-        end_date:     endDate,
-        options:      { count:500, offset:0, include_personal_finance_category:true }
+        start_date: startDate,
+        end_date: endDate,
+        options: {
+          count: 500,
+          offset: 0,
+          include_personal_finance_category: true,
+        },
       });
+
       const txs = txRes.data.transactions;
 
       for (const tx of txs) {
-        const month = tx.date.slice(0,7);
+        const date = tx.date.slice(0, 7); // "YYYY-MM"
         const txRef = db
-          .collection('users').doc(userId)
-          .collection('transactions').doc(month)
-          .collection('items').doc(tx.transaction_id);
+          .collection('users')
+          .doc(userId)
+          .collection('transactions')
+          .doc(date)
+          .collection('items')
+          .doc(tx.transaction_id);
 
         await txRef.set({
           transaction_id: tx.transaction_id,
-          account_id:     tx.account_id,
-          date:           tx.date,
-          name:           tx.name,
-          category:       Array.isArray(tx.personal_finance_category) && tx.personal_finance_category.length
-                            ? tx.personal_finance_category[0]
-                            : 'Sin categoría',
-          amount:         tx.amount,
-          currency:       tx.iso_currency_code,
-          updatedAt:      admin.firestore.Timestamp.now()
+          account_id: tx.account_id,
+          date: tx.date,
+          name: tx.name,
+          category: tx.personal_finance_category?.primary || 'Sin categoría',
+          amount: tx.amount,
+          currency: tx.iso_currency_code,
         });
       }
-
-      console.log(`[SYNC_FN] Guardadas ${txs.length} tx para ${month}`);
     }
 
-    console.log('[SYNC_FN] Sincronización completa');
     res.json({ success: true });
 
   } catch (err) {
-    console.error('[SYNC_FN] Error:', err.response?.data || err);
+    console.error('[sync_transactions_and_store] Error:', err.response?.data || err);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 module.exports = router;

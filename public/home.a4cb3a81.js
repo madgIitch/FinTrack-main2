@@ -818,9 +818,16 @@ async function setupTransactionSync(uid) {
     }
     // Siempre ejecutamos al menos una sincronización manual
     await doManualSync(uid, apiUrl);
-    // Registramos el SW (Parcel-compatible)
-    if ('serviceWorker' in navigator) window.addEventListener('load', ()=>{
-        navigator.serviceWorker.register(require("4488b39c1a676199")).then((reg)=>console.log('[SW] Registered', reg)).catch((err)=>console.error('[SW] Registration failed:', err));
+    // Registramos el SW con Parcel y ruta correcta
+    if ('serviceWorker' in navigator) window.addEventListener('load', async ()=>{
+        try {
+            const reg = await navigator.serviceWorker.register(require("f49e69e7fb1d94f5"), {
+                scope: '/'
+            });
+            console.log('[SW] Registered with scope:', reg.scope);
+        } catch (err) {
+            console.error('[SW] Registration failed:', err);
+        }
     });
 }
 async function doManualSync(uid, apiUrl) {
@@ -861,8 +868,8 @@ async function saveUIDToIndexedDB(uid) {
     };
 }
 
-},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","4488b39c1a676199":"1K1dD"}],"1K1dD":[function(require,module,exports,__globalThis) {
-module.exports = module.bundle.resolve("js\\service-worker.js");
+},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","f49e69e7fb1d94f5":"170CW"}],"170CW":[function(require,module,exports,__globalThis) {
+module.exports = module.bundle.resolve("service-worker.js");
 
 },{}]},["Ahhet","9wRWw"], "9wRWw", "parcelRequire94c2", "./", "/")
 
