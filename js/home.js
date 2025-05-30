@@ -11,7 +11,8 @@ const apiUrl = window.location.hostname === 'localhost'
   ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
   : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 
-  // ── Registrar Service Worker con Parcel ─────────────────────────────────────
+  
+// Registrar y programar periodicSync
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
@@ -20,11 +21,25 @@ if ('serviceWorker' in navigator) {
         { scope: '/' }
       );
       console.log('[SW] Registered with scope:', reg.scope);
+
+      // Aquí registramos el Periodic Sync
+      if ('periodicSync' in reg) {
+        try {
+          await reg.periodicSync.register('sync-transactions', {
+            minInterval: 24 * 60 * 60 * 1000  // 24 h en ms
+          });
+          console.log('[SYNC] periodicSync registrado');
+        } catch (err) {
+          console.warn('[SYNC] No se pudo registrar periodicSync:', err);
+        }
+      }
+
     } catch (err) {
       console.error('[SW] Registration failed:', err);
     }
   });
 }
+
 
 document.addEventListener('DOMContentLoaded', () => {
   const userNameSpan = document.getElementById('user-name');

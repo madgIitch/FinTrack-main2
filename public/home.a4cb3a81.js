@@ -669,13 +669,22 @@ var _auth = require("firebase/auth");
 console.log('home.js loaded');
 // ── URL de tu API (ajústala según entorno) ─────────────────────────────────
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
-// ── Registrar Service Worker con Parcel ─────────────────────────────────────
+// Registrar y programar periodicSync
 if ('serviceWorker' in navigator) window.addEventListener('load', async ()=>{
     try {
         const reg = await navigator.serviceWorker.register(require("f49e69e7fb1d94f5"), {
             scope: '/'
         });
         console.log('[SW] Registered with scope:', reg.scope);
+        // Aquí registramos el Periodic Sync
+        if ('periodicSync' in reg) try {
+            await reg.periodicSync.register('sync-transactions', {
+                minInterval: 86400000 // 24 h en ms
+            });
+            console.log('[SYNC] periodicSync registrado');
+        } catch (err) {
+            console.warn('[SYNC] No se pudo registrar periodicSync:', err);
+        }
     } catch (err) {
         console.error('[SW] Registration failed:', err);
     }
