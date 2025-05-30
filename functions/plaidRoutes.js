@@ -19,7 +19,7 @@ router.use((req, res, next) => {
 const envName  = process.env.PLAID_ENV || 'sandbox';
 const plaidEnv = PlaidEnvironments[envName] || PlaidEnvironments.sandbox;
 const config   = new Configuration({
-  basePath: plaidEnv,
+  basePath:    plaidEnv,
   baseOptions: {
     headers: {
       'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
@@ -31,9 +31,7 @@ const config   = new Configuration({
 const plaidClient = new PlaidApi(config);
 
 // ── Health Check ───────────────────────────────────────────────────────────────
-router.get('/ping', (_req, res) => {
-  res.json({ message: 'pong' });
-});
+router.get('/ping', (_req, res) => res.json({ message: 'pong' }));
 
 // ── Create Link Token ──────────────────────────────────────────────────────────
 router.post('/create_link_token', async (req, res) => {
@@ -90,46 +88,31 @@ router.post('/exchange_public_token', async (req, res) => {
 // ── Get Account Details ────────────────────────────────────────────────────────
 router.post('/get_account_details', async (req, res) => {
   const { accessToken } = req.body;
-  console.log('[PLAIDROUTES] → get_account_details called with accessToken:', accessToken);
-
   if (!accessToken) {
-    console.log('[PLAIDROUTES] → Missing accessToken, responding 400');
     return res.status(400).json({ error: 'Falta accessToken' });
   }
 
   try {
-    console.log('[PLAIDROUTES] → Calling accountsGet');
     const accsResp = await plaidClient.accountsGet({ access_token: accessToken });
-    console.log('[PLAIDROUTES] ← accountsGet returned:', accsResp.data.accounts);
-
-    console.log('[PLAIDROUTES] → Calling itemGet');
     const itemResp = await plaidClient.itemGet({ access_token: accessToken });
-    console.log('[PLAIDROUTES] ← itemGet returned:', itemResp.data.item);
 
     const instId = itemResp.data.item.institution_id;
-    console.log('[PLAIDROUTES] → institution_id:', instId);
-
     let institution = null;
     if (instId) {
-      console.log('[PLAIDROUTES] → Calling institutionsGetById for ID:', instId);
       const inst = await plaidClient.institutionsGetById({
         institution_id: instId,
         country_codes:  ['US','ES'],
         options:        { include_optional_metadata: true }
       });
-      console.log('[PLAIDROUTES] ← institutionsGetById returned:', inst.data.institution);
       institution = inst.data.institution;
-    } else {
-      console.log('[PLAIDROUTES] → No institution_id in itemGet response');
     }
 
-    console.log('[PLAIDROUTES] → Sending JSON response');
     res.json({
       accounts:    accsResp.data.accounts,
       institution
     });
   } catch (err) {
-    console.error('[PLAIDROUTES] ** Error in get_account_details:', err.response?.data || err);
+    console.error('[PLAIDROUTES] Error in get_account_details:', err.response?.data || err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -177,9 +160,8 @@ router.post('/get_transactions', async (req, res) => {
       date:                       tx.date,
       description:                tx.name,
       personal_finance_category:  tx.personal_finance_category || null,
-      category:  Array.isArray(tx.personal_finance_category) && tx.personal_finance_category.length
-                  ? tx.personal_finance_category[0]
-                  : 'Sin categoría',
+      category:                   tx.personal_finance_category?.primary || 'Sin categoría',
+      category_id:                tx.category_id || null,
       amount:                     tx.amount
     }));
 
@@ -198,11 +180,13 @@ router.post('/sync_transactions_and_store', async (req, res) => {
   try {
     const userRef  = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
-    if (!userSnap.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (!userSnap.exists) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
 
     const accounts = userSnap.data().plaid?.accounts || [];
     if (accounts.length === 0) {
-      return res.status(200).json({ message: 'Sin cuentas vinculadas' });
+      return res.json({ message: 'Sin cuentas vinculadas' });
     }
 
     const endDate   = new Date().toISOString().slice(0,10);
@@ -213,7 +197,11 @@ router.post('/sync_transactions_and_store', async (req, res) => {
         access_token: accessToken,
         start_date:   startDate,
         end_date:     endDate,
-        options:      { count: 500, offset: 0, include_personal_finance_category: true }
+        options:      {
+          count: 500,
+          offset: 0,
+          include_personal_finance_category: true
+        }
       });
       const txs = txRes.data.transactions;
 
@@ -234,6 +222,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
             description:    tx.name,
             category:       tx.personal_finance_category?.primary || 'Sin categoría',
             detailed:       tx.personal_finance_category?.detailed || null,
+            category_id:    tx.category_id || null,
             amount:         tx.amount,
             currency:       tx.iso_currency_code || null,
             fetchedAt:      admin.firestore.Timestamp.now()
@@ -245,32 +234,6 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('[PLAIDROUTES] Error in sync_transactions_and_store:', err.response?.data || err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ── Seed inicial de categorías Plaid ──────────────────────────────────────────
-router.post('/categories/seed', async (req, res) => {
-  try {
-    console.log('[PLAIDROUTES] → Calling categoriesGet with empty body {}');
-    const catsResp = await plaidClient.categoriesGet({});
-    const categories = catsResp.data.categories;
-    console.log(`[PLAIDROUTES] ← categoriesGet returned ${categories.length} items`);
-
-    const batch = db.batch();
-    categories.forEach(cat => {
-      console.log('[PLAIDROUTES] → Queuing category:', cat.category_id);
-      const catRef = db.collection('categories').doc(cat.category_id);
-      batch.set(catRef, cat);
-    });
-
-    console.log('[PLAIDROUTES] → Committing batch write for categories');
-    await batch.commit();
-    console.log('[PLAIDROUTES] ← Categories successfully seeded to Firestore');
-
-    res.json({ success: true, count: categories.length });
-  } catch (err) {
-    console.error('[PLAIDROUTES] ** Error in /categories/seed:', err);
     res.status(500).json({ error: err.message });
   }
 });
