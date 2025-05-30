@@ -1,4 +1,4 @@
-// public/js/home.js
+// js/home.js
 
 import { auth, app } from './firebase.js';
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
@@ -6,11 +6,35 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 console.log('home.js loaded');
 
+// ── URL de tu API (ajústala según entorno) ─────────────────────────────────
+const apiUrl = window.location.hostname === 'localhost'
+  ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
+  : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
+
+  // ── Registrar Service Worker con Parcel ─────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register(
+        new URL('../service-worker.js', import.meta.url),
+        { scope: '/' }
+      );
+      console.log('[SW] Registered with scope:', reg.scope);
+    } catch (err) {
+      console.error('[SW] Registration failed:', err);
+    }
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const userNameSpan = document.getElementById('user-name');
   const sidebar      = document.getElementById('sidebar');
   const closeSidebar = document.getElementById('close-sidebar');
   const logoutLink   = document.getElementById('logout-link');
+
+  function updateWelcome(name) {
+    userNameSpan.textContent = name;
+  }
 
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -18,41 +42,28 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Mostrar nombre de usuario
+    const db   = getFirestore(app);
+    const uRef = doc(db, 'users', user.uid);
+
     try {
-      const db   = getFirestore(app);
-      const snap = await getDoc(doc(db, 'users', user.uid));
+      const snap = await getDoc(uRef);
       const data = snap.exists() ? snap.data() : {};
       const name = [data.firstName, data.lastName].filter(Boolean).join(' ') || 'Usuario';
-      userNameSpan.textContent = name;
+      updateWelcome(name);
+
+      // ── Sincronización manual al inicio ────────────────────────────────
+      await doManualSync(user.uid);
+
+      // ── Carga de saldos ────────────────────────────────────────────────
+      await loadBalances(user.uid);
+
+      // ── Guardar UID en IndexedDB para Periodic Sync ───────────────────
+      await saveUIDToIndexedDB(user.uid);
+
     } catch (e) {
       console.error('Error cargando usuario:', e);
-      userNameSpan.textContent = 'Usuario';
+      updateWelcome('Usuario');
     }
-
-    // Registrar Service Worker
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', async () => {
-        try {
-          const reg = await navigator.serviceWorker.register(
-            new URL('../service-worker.js', import.meta.url),
-            { scope: '/' }
-          );
-          console.log('[SW] Registered with scope:', reg.scope);
-        } catch (err) {
-          console.error('[SW] Registration failed:', err);
-        }
-      });
-    }
-
-    // Sincronizar transacciones en Firestore antes de cualquier otra cosa
-    await doManualSync(user.uid);
-
-    // Carga de saldos
-    await loadBalances(user.uid);
-
-    // Guardar UID en IndexedDB para periodicSync
-    await saveUIDToIndexedDB(user.uid);
   });
 
   closeSidebar.onclick = () => sidebar.classList.remove('open');
@@ -66,13 +77,10 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadBalances(userId) {
   console.log('[DEBUG] loadBalances → userId:', userId);
   const db   = getFirestore(app);
-  const snap = await getDoc(doc(db, 'users', userId));
+  const uRef = doc(db, 'users', userId);
+  const snap = await getDoc(uRef);
   const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
   console.log('[DEBUG] Firestore accounts:', accounts);
-
-  const apiUrl = window.location.hostname === 'localhost'
-    ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
-    : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 
   const slider = document.querySelector('.balance-slider');
   slider.innerHTML = '';
@@ -104,13 +112,6 @@ async function loadBalances(userId) {
 
       const card = document.createElement('div');
       card.className = 'card';
-
-      // logo desactivado
-      // const img = document.createElement('img');
-      // img.src = logoSrc;
-      // img.alt = `${accountName} logo`;
-      // img.className = 'card-logo';
-      // card.appendChild(img);
 
       const title = document.createElement('p');
       title.className   = 'card-title';
@@ -168,29 +169,8 @@ function initBalanceSlider() {
   update();
 }
 
-async function setupTransactionSync(uid) {
-  const apiUrl = window.location.hostname === 'localhost'
-    ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
-    : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
-
-  // Intento de registro Periodic Sync
-  if ('serviceWorker' in navigator && 'periodicSync' in ServiceWorkerRegistration.prototype) {
-    const registration = await navigator.serviceWorker.ready;
-    try {
-      await registration.periodicSync.register('sync-transactions', {
-        minInterval: 24 * 60 * 60 * 1000
-      });
-      console.log('[SYNC] periodicSync registrado');
-    } catch (err) {
-      console.warn('[SYNC] No se pudo registrar periodicSync:', err);
-    }
-  }
-
-  // Sync manual inicial
-  await doManualSync(uid, apiUrl);
-}
-
-async function doManualSync(uid, apiUrl) {
+// ── Sincronización manual de transacciones a Firestore ────────────────
+async function doManualSync(uid) {
   const lastSyncKey = `lastSync_${uid}`;
   const last = localStorage.getItem(lastSyncKey);
   const now = Date.now();

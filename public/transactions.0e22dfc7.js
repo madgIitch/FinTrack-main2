@@ -662,7 +662,7 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"j59nl":[function(require,module,exports,__globalThis) {
-// public/js/transactions.js
+// js/transactions.js
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
 var _firestore = require("firebase/firestore");
@@ -829,7 +829,7 @@ async function loadTransactions(userId) {
     console.debug("[DEBUG] loadTransactions \u2192 inicio para userId:", userId);
     const idb = await initDB();
     const accountMap = await buildAccountMap(userId);
-    // 1) Mostrar caché si existe
+    // 1) Mostrar caché
     const cached = await readCachedTransactions(idb);
     if (cached.length) {
         cached.forEach((tx)=>{
@@ -845,7 +845,7 @@ async function loadTransactions(userId) {
         hideLoading();
         return;
     }
-    // 3) Online: Primero sincronizar Firestore
+    // 3) Online: primero sincronizar Firestore
     try {
         await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
             method: 'POST',
@@ -860,7 +860,7 @@ async function loadTransactions(userId) {
     } catch (syncErr) {
         console.error('[ERROR] loadTransactions Firestore sync failed:', syncErr);
     }
-    // 4) Luego fetch → map → render → cache
+    // 4) Luego fetch → render → cache
     hideOffline();
     showLoading();
     try {
@@ -895,7 +895,6 @@ async function loadTransactions(userId) {
         window.location.href = '../index.html';
         return;
     }
-    // Actualizar switching view
     document.getElementById('toggle-view').addEventListener('change', ()=>loadTransactions(user.uid));
     loadTransactions(user.uid);
 });

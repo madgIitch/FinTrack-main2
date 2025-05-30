@@ -1,4 +1,4 @@
-// public/js/transactions.js
+// js/transactions.js
 
 import { auth, db } from './firebase.js';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -174,7 +174,7 @@ async function loadTransactions(userId) {
   const idb        = await initDB();
   const accountMap = await buildAccountMap(userId);
 
-  // 1) Mostrar caché si existe
+  // 1) Mostrar caché
   const cached = await readCachedTransactions(idb);
   if (cached.length) {
     cached.forEach(tx => {
@@ -192,7 +192,7 @@ async function loadTransactions(userId) {
     return;
   }
 
-  // 3) Online: Primero sincronizar Firestore
+  // 3) Online: primero sincronizar Firestore
   try {
     await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
       method: 'POST',
@@ -204,7 +204,7 @@ async function loadTransactions(userId) {
     console.error('[ERROR] loadTransactions Firestore sync failed:', syncErr);
   }
 
-  // 4) Luego fetch → map → render → cache
+  // 4) Luego fetch → render → cache
   hideOffline();
   showLoading();
   try {
@@ -249,7 +249,6 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  // Actualizar switching view
   document.getElementById('toggle-view')
     .addEventListener('change', () => loadTransactions(user.uid));
 
