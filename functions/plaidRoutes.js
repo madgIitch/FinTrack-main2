@@ -193,66 +193,69 @@ router.post('/get_transactions', async (req, res) => {
 });
 
 
-// ── Sync transactions and store 
 
+// ── Sync transactions and store ────────────────────────────────────────────
 router.post('/sync_transactions_and_store', async (req, res) => {
   const { userId } = req.body;
-  console.log('[SYNC_FN] 🔄 sync_transactions_and_store invoked for user:', userId);
-
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
 
   try {
-    const userRef = db.collection('users').doc(userId);
+    const userRef  = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
     if (!userSnap.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
 
     const accounts = userSnap.data().plaid?.accounts || [];
-    if (accounts.length === 0) return res.status(200).json({ message: 'Sin cuentas vinculadas' });
+    if (accounts.length === 0) {
+      return res.status(200).json({ message: 'Sin cuentas vinculadas' });
+    }
 
-    const endDate   = new Date().toISOString().slice(0, 10);
-    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    // Fechas para el rango de 30 días
+    const endDate   = new Date().toISOString().slice(0,10);
+    const startDate = new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
 
     for (const { accessToken } of accounts) {
+      // Obtener todas las txs del rango
       const txRes = await plaidClient.transactionsGet({
         access_token: accessToken,
-        start_date: startDate,
-        end_date: endDate,
-        options: {
-          count: 500,
-          offset: 0,
-          include_personal_finance_category: true,
-        },
+        start_date:   startDate,
+        end_date:     endDate,
+        options:      { count: 500, offset: 0, include_personal_finance_category: true }
       });
-
       const txs = txRes.data.transactions;
 
       for (const tx of txs) {
-        const date = tx.date.slice(0, 7); // "YYYY-MM"
-        const txRef = db
-          .collection('users')
-          .doc(userId)
-          .collection('transactions')
-          .doc(date)
+        // Formato YYYY-MM para agrupar por mes-año
+        const monthYear = tx.date.slice(0,7);
+
+        // Referencia al documento en history/{YYYY-MM}/{txId}
+        const txRef = userRef
+          .collection('history')
+          .doc(monthYear)
           .collection('items')
           .doc(tx.transaction_id);
 
-        await txRef.set({
-          transaction_id: tx.transaction_id,
-          account_id: tx.account_id,
-          date: tx.date,
-          name: tx.name,
-          category: tx.personal_finance_category?.primary || 'Sin categoría',
-          amount: tx.amount,
-          currency: tx.iso_currency_code,
-        });
+        // Solo escribir si aún no existe
+        const existing = await txRef.get();
+        if (!existing.exists) {
+          await txRef.set({
+            transaction_id: tx.transaction_id,
+            account_id:     tx.account_id,
+            date:           tx.date,
+            description:    tx.name,
+            category:       tx.personal_finance_category?.primary || 'Sin categoría',
+            detailed:       tx.personal_finance_category?.detailed || null,
+            amount:         tx.amount,
+            currency:       tx.iso_currency_code || null,
+            fetchedAt:      admin.firestore.Timestamp.now()
+          });
+        }
       }
     }
 
-    res.json({ success: true });
-
+    return res.json({ success: true });
   } catch (err) {
     console.error('[sync_transactions_and_store] Error:', err.response?.data || err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 

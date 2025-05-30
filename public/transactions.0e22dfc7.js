@@ -667,6 +667,7 @@ var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
 var _firestore = require("firebase/firestore");
 var _idb = require("idb");
+console.log('transactions.js loaded');
 // ── CONFIGURACIÓN DE LA API ────────────────────────────────────────────────
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 // ── CONSTANTES DE IndexedDB ─────────────────────────────────────────────────
@@ -844,13 +845,27 @@ async function loadTransactions(userId) {
         hideLoading();
         return;
     }
-    // 3) Online: fetch → mapear categorías → render → cache
+    // 3) Online: Primero sincronizar Firestore
+    try {
+        await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId
+            })
+        });
+        console.debug("[DEBUG] loadTransactions \u2192 Firestore sync OK");
+    } catch (syncErr) {
+        console.error('[ERROR] loadTransactions Firestore sync failed:', syncErr);
+    }
+    // 4) Luego fetch → map → render → cache
     hideOffline();
     showLoading();
     try {
         const txs = await fetchTransactionsFromPlaid(userId);
         console.debug("[DEBUG] loadTransactions \u2192 recibidas del servidor:", txs);
-        // Mapear categoría y accountName
         txs.forEach((tx)=>{
             const legacyCat = tx.category || "Sin categor\xeda";
             const pf = tx.personal_finance_category;
@@ -863,7 +878,6 @@ async function loadTransactions(userId) {
             tx.accountName = accountMap[tx.account_id] || 'Cuenta desconocida';
             console.debug('[MAPPED TX]', tx.id, 'category:', tx.category, 'accountName:', tx.accountName);
         });
-        console.debug("[DEBUG] loadTransactions \u2192 Transacciones mapeadas:", txs);
         const byCategory = document.getElementById('toggle-view').checked;
         byCategory ? renderGrouped(txs) : renderChrono(txs);
         await cacheTransactions(idb, txs);
@@ -881,22 +895,7 @@ async function loadTransactions(userId) {
         window.location.href = '../index.html';
         return;
     }
-    // ── Cargar nombre y apellido desde Firestore y mostrar saludo ────────────
-    const userNameSpan = document.getElementById('user-name');
-    try {
-        const userSnap = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', user.uid));
-        const data = userSnap.exists() ? userSnap.data() : {};
-        const fullName = [
-            data.firstName,
-            data.lastName
-        ].filter(Boolean).join(' ') || 'Usuario';
-        userNameSpan.textContent = fullName;
-    } catch (e) {
-        console.error('Error cargando nombre de usuario:', e);
-        userNameSpan.textContent = 'Usuario';
-    }
-    // ──────────────────────────────────────────────────────────────────────────
-    // Al cambiar el switch recargamos la vista
+    // Actualizar switching view
     document.getElementById('toggle-view').addEventListener('change', ()=>loadTransactions(user.uid));
     loadTransactions(user.uid);
 });
