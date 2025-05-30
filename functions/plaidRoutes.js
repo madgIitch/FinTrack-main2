@@ -1,6 +1,8 @@
-require('dotenv').config();            // carga tu .env en dev
+// plaidRoutes.js
+
+require('dotenv').config();            // Carga variables de entorno
 const express = require('express');
-const { admin, db } = require('./firebaseAdmin');
+const { admin, db } = require('./firebaseAdmin');  // db = admin.firestore()
 const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
 
 const router = express.Router();
@@ -17,7 +19,7 @@ router.use((req, res, next) => {
 const envName  = process.env.PLAID_ENV || 'sandbox';
 const plaidEnv = PlaidEnvironments[envName] || PlaidEnvironments.sandbox;
 const config   = new Configuration({
-  basePath:    plaidEnv,
+  basePath: plaidEnv,
   baseOptions: {
     headers: {
       'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
@@ -29,7 +31,9 @@ const config   = new Configuration({
 const plaidClient = new PlaidApi(config);
 
 // ── Health Check ───────────────────────────────────────────────────────────────
-router.get('/ping', (_req, res) => res.json({ message: 'pong' }));
+router.get('/ping', (_req, res) => {
+  res.json({ message: 'pong' });
+});
 
 // ── Create Link Token ──────────────────────────────────────────────────────────
 router.post('/create_link_token', async (req, res) => {
@@ -45,9 +49,8 @@ router.post('/create_link_token', async (req, res) => {
       language:      'es'
     });
     res.json({ link_token: resp.data.link_token });
-
   } catch (err) {
-    console.error('Error creating link token:', err.response?.data || err);
+    console.error('[PLAIDROUTES] Error creating link token:', err.response?.data || err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -78,9 +81,8 @@ router.post('/exchange_public_token', async (req, res) => {
     await userRef.set({ plaid: { accounts } }, { merge: true });
 
     res.json({ success: true });
-
   } catch (err) {
-    console.error('Error exchanging public token:', err.response?.data || err);
+    console.error('[PLAIDROUTES] Error exchanging public token:', err.response?.data || err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -126,17 +128,13 @@ router.post('/get_account_details', async (req, res) => {
       accounts:    accsResp.data.accounts,
       institution
     });
-
   } catch (err) {
     console.error('[PLAIDROUTES] ** Error in get_account_details:', err.response?.data || err);
     res.status(500).json({ error: err.message });
   }
 });
 
-
-
-
-// ── Get Transactions (transactions/get + personal_finance_category) ──────────
+// ── Get Transactions ────────────────────────────────────────────────────────────
 router.post('/get_transactions', async (req, res) => {
   const { userId, startDate, endDate } = req.body;
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
@@ -187,14 +185,12 @@ router.post('/get_transactions', async (req, res) => {
 
     res.json({ transactions: cleaned });
   } catch (err) {
-    console.error('Error in get_transactions:', err.response?.data || err);
+    console.error('[PLAIDROUTES] Error in get_transactions:', err.response?.data || err);
     res.status(500).json({ error: err.message });
   }
 });
 
-
-
-// ── Sync transactions and store ────────────────────────────────────────────
+// ── Sync transactions and store ───────────────────────────────────────────────
 router.post('/sync_transactions_and_store', async (req, res) => {
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
@@ -209,12 +205,10 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       return res.status(200).json({ message: 'Sin cuentas vinculadas' });
     }
 
-    // Fechas para el rango de 30 días
     const endDate   = new Date().toISOString().slice(0,10);
     const startDate = new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
 
     for (const { accessToken } of accounts) {
-      // Obtener todas las txs del rango
       const txRes = await plaidClient.transactionsGet({
         access_token: accessToken,
         start_date:   startDate,
@@ -224,17 +218,13 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       const txs = txRes.data.transactions;
 
       for (const tx of txs) {
-        // Formato YYYY-MM para agrupar por mes-año
         const monthYear = tx.date.slice(0,7);
-
-        // Referencia al documento en history/{YYYY-MM}/{txId}
         const txRef = userRef
           .collection('history')
           .doc(monthYear)
           .collection('items')
           .doc(tx.transaction_id);
 
-        // Solo escribir si aún no existe
         const existing = await txRef.get();
         if (!existing.exists) {
           await txRef.set({
@@ -252,12 +242,37 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       }
     }
 
-    return res.json({ success: true });
+    res.json({ success: true });
   } catch (err) {
-    console.error('[sync_transactions_and_store] Error:', err.response?.data || err);
-    return res.status(500).json({ error: err.message });
+    console.error('[PLAIDROUTES] Error in sync_transactions_and_store:', err.response?.data || err);
+    res.status(500).json({ error: err.message });
   }
 });
 
+// ── Seed inicial de categorías Plaid ──────────────────────────────────────────
+router.post('/categories/seed', async (req, res) => {
+  try {
+    console.log('[PLAIDROUTES] → Calling categoriesGet with empty body {}');
+    const catsResp = await plaidClient.categoriesGet({});
+    const categories = catsResp.data.categories;
+    console.log(`[PLAIDROUTES] ← categoriesGet returned ${categories.length} items`);
+
+    const batch = db.batch();
+    categories.forEach(cat => {
+      console.log('[PLAIDROUTES] → Queuing category:', cat.category_id);
+      const catRef = db.collection('categories').doc(cat.category_id);
+      batch.set(catRef, cat);
+    });
+
+    console.log('[PLAIDROUTES] → Committing batch write for categories');
+    await batch.commit();
+    console.log('[PLAIDROUTES] ← Categories successfully seeded to Firestore');
+
+    res.json({ success: true, count: categories.length });
+  } catch (err) {
+    console.error('[PLAIDROUTES] ** Error in /categories/seed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;

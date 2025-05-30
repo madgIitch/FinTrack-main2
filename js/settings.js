@@ -5,12 +5,7 @@ import {
   getFirestore,
   doc,
   getDoc,
-  updateDoc,
-  collection,
-  getDocs,
-  query,
-  limit,
-  writeBatch
+  updateDoc
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -42,36 +37,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const userRef = doc(db, 'users', uid);
     console.log('[settings.js] Authenticated uid:', uid);
 
-    // ── Seed inicial de categorías Plaid en Firestore ────────────────────
+    // ── Seed inicial de categorías Plaid ───────────────────────────────
     try {
-      console.log('[settings.js] Checking if categories exist in Firestore');
-      const catCol = collection(db, 'categories');
-      const q      = query(catCol, limit(1));
-      const snap   = await getDocs(q);
-      console.log('[settings.js] category snapshot empty?:', snap.empty);
-      if (snap.empty) {
-        console.log('[settings.js] No categories found, fetching from Plaid API');
-        const res = await fetch(`${apiUrl}/categories/get`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        console.log('[settings.js] /categories/get status:', res.status);
-        const data = await res.json();
-        console.log('[settings.js] Plaid categories received:', data.categories?.length);
-        const batch = writeBatch(db);
-        data.categories.forEach(cat => {
-          console.log('[settings.js] Queuing category for write:', cat.category_id);
-          const catRef = doc(db, 'categories', cat.category_id);
-          batch.set(catRef, cat);
-        });
-        console.log('[settings.js] Committing batch write for categories');
-        await batch.commit();
-        console.log('[settings.js] Categories successfully seeded to Firestore');
-      } else {
-        console.log('[settings.js] Categories already exist, skipping seed');
-      }
+      console.log('[settings.js] Invoking backend seed endpoint');
+      const seedRes = await fetch(`${apiUrl}/plaid/categories/seed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      console.log('[settings.js] /plaid/categories/seed status:', seedRes.status);
+      const seedData = await seedRes.json();
+      console.log('[settings.js] Seed response:', seedData);
     } catch (e) {
-      console.error('[settings.js] Error seeding categories:', e);
+      console.error('[settings.js] Error invoking seed endpoint:', e);
     }
 
     // ── Referencias UI ────────────────────────────────────────────────
