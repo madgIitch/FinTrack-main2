@@ -662,7 +662,82 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"6SdsI":[function(require,module,exports,__globalThis) {
+// public/js/settings.js
+var _firebaseJs = require("./firebase.js");
+var _firestore = require("firebase/firestore");
+var _auth = require("firebase/auth");
+const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
+document.addEventListener('DOMContentLoaded', ()=>{
+    // Referencias al DOM
+    const backBtn = document.getElementById('back-btn');
+    const chkNotifPush = document.getElementById('notif-push');
+    const chkNotifEmail = document.getElementById('notif-email');
+    const chkReportPush = document.getElementById('report-push');
+    const chkReportEmail = document.getElementById('report-email');
+    const btnSave = document.getElementById('save-settings-btn');
+    // “Atrás” vuelve en el historial
+    backBtn.addEventListener('click', ()=>{
+        window.history.back();
+    });
+    (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
+        if (!user) {
+            window.location.href = '../index.html';
+            return;
+        }
+        const uid = user.uid;
+        const userRef = (0, _firestore.doc)(db, 'users', uid);
+        // 1) Cargar ajustes desde Firestore
+        let loadedSettings = {};
+        try {
+            const snap = await (0, _firestore.getDoc)(userRef);
+            if (snap.exists()) // si no hay subclave 'settings', usamos objeto vacío
+            loadedSettings = snap.data().settings || {};
+        } catch (e) {
+            console.error('Error cargando ajustes:', e);
+        }
+        // Desestructuramos con valores por defecto
+        const notifications = loadedSettings.notifications || {};
+        const reports = loadedSettings.reports || {};
+        // 2) Rellenar los checkboxes
+        chkNotifPush.checked = Boolean(notifications.push);
+        chkNotifEmail.checked = Boolean(notifications.email);
+        chkReportPush.checked = Boolean(reports.push);
+        chkReportEmail.checked = Boolean(reports.email);
+        // 3) Guardar ajustes
+        btnSave.addEventListener('click', async ()=>{
+            btnSave.disabled = true;
+            btnSave.textContent = "Guardando\u2026";
+            const newSettings = {
+                notifications: {
+                    push: chkNotifPush.checked,
+                    email: chkNotifEmail.checked
+                },
+                reports: {
+                    push: chkReportPush.checked,
+                    email: chkReportEmail.checked
+                }
+            };
+            try {
+                await (0, _firestore.updateDoc)(userRef, {
+                    settings: newSettings
+                });
+                btnSave.textContent = "\xa1Guardado!";
+                setTimeout(()=>{
+                    btnSave.disabled = false;
+                    btnSave.textContent = 'Guardar Ajustes';
+                }, 1500);
+            } catch (e) {
+                console.error('Error guardando ajustes:', e);
+                btnSave.textContent = 'Error, reintenta';
+                setTimeout(()=>{
+                    btnSave.disabled = false;
+                    btnSave.textContent = 'Guardar Ajustes';
+                }, 2000);
+            }
+        });
+    });
+});
 
-},{}]},["g803I","6SdsI"], "6SdsI", "parcelRequire94c2")
+},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi"}]},["g803I","6SdsI"], "6SdsI", "parcelRequire94c2")
 
 //# sourceMappingURL=settings.a4f79202.js.map
