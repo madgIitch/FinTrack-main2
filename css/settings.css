@@ -1,0 +1,296 @@
+/* public/css/settings.css */
+
+/* ========================================
+   Fuentes e iconos Material
+   ======================================== */
+@font-face {
+  font-family: 'Material Icons';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Material Icons'),
+       local('MaterialIcons-Regular'),
+       url('../fonts/MaterialIcons-Regular.ttf') format('truetype');
+}
+.material-icons {
+  font-family: 'Material Icons';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: nowrap;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
+}
+
+/* ========================================
+   Reset y layout general
+   ======================================== */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(to bottom, #e0e0e0, #f4f4f4) fixed no-repeat;
+  color: #333333;
+}
+.container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+/* ========================================
+   Cabecera (header)
+   ======================================== */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: transparent;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+.header-left,
+.header-right {
+  display: flex;
+  align-items: center;
+}
+.back-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+}
+.back-button .material-icons {
+  color: #252525;
+  font-size: 24px;
+}
+.welcome-message {
+  font-size: 1.4em;
+  margin: 0 0 0 8px;
+  color: #252525;
+}
+
+/* Botón de guardar en header */
+.header-save-btn {
+  margin: 0;
+  padding: 10px 16px;
+  background-color: #252525;
+  color: #ffffff;
+  border: none;
+  border-radius: 24px;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.header-save-btn:hover {
+  background-color: #1b1b1b;
+}
+
+/* ========================================
+   Contenido principal
+   ======================================== */
+.content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 80px;
+  gap: 20px;
+  box-sizing: border-box;
+}
+
+/* ========================================
+   Divider entre secciones
+   ======================================== */
+.divider {
+  width: 90%;
+  max-width: 500px;
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  margin: 20px auto;
+}
+
+/* ========================================
+   Tarjetas (secciones) uniformes
+   ======================================== */
+.section {
+  width: 90%;
+  max-width: 500px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  padding: 20px;
+  margin-bottom: 24px;
+  box-sizing: border-box;
+}
+.section h2 {
+  margin: 0 0 16px;
+  font-size: 1.2em;
+  color: #252525;
+}
+
+/* ========================================
+   Grupo de checkboxes
+   ======================================== */
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background-color: #f4f4f4;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+  font-size: 1em;
+  color: #444444;
+}
+.checkbox-group label:hover {
+  background-color: #eaeaea;
+  border-color: #d0d0d0;
+}
+.checkbox-group input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: #252525;
+  cursor: pointer;
+}
+
+/* ========================================
+   Presupuestos por Categoría
+   ======================================== */
+#budgets-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.budget-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.budget-row .category-name {
+  flex: 1;
+  font-size: 1em;
+  color: #444444;
+}
+.budget-row input[type="number"] {
+  width: 80px;
+  padding: 8px;
+  font-size: 1em;
+  border: 1px solid #dddddd;
+  border-radius: 6px;
+  text-align: right;
+}
+.budget-row button {
+  background-color: #252525;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.budget-row button:hover {
+  background-color: #1b1b1b;
+}
+
+/* ========================================
+   Botón “Añadir Categoría”
+   ======================================== */
+.btn-add-category {
+  width: 90%;
+  max-width: 360px;
+  margin: 16px auto;
+  padding: 14px;
+  font-size: 1em;
+  background-color: #252525;
+  color: #ffffff;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  text-align: center;
+  display: block;
+  transition: background-color 0.2s;
+}
+.btn-add-category .material-icons {
+  font-size: 20px;
+}
+.btn-add-category:hover {
+  background-color: #1b1b1b;
+}
+
+/* ========================================
+   Barra de navegación inferior
+   ======================================== */
+.bottom-nav {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background: transparent;
+  border-top: 1px solid #e0e0e0;
+  padding: 10px 0;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: 2;
+}
+.bottom-nav .nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #777777;
+  text-decoration: none;
+  font-size: 0.8em;
+}
+.bottom-nav .nav-item .material-icons {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+.bottom-nav .nav-item.active {
+  color: #252525;
+}
+.bottom-nav .nav-item:hover {
+  color: #000000;
+}
+
+/* ========================================
+   Adaptaciones móviles
+   ======================================== */
+@media (max-width: 480px) {
+  .content {
+    padding: 16px 12px 80px;
+    gap: 16px;
+  }
+  .section {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .budget-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .budget-row input[type="number"],
+  .budget-row button {
+    width: 100%;
+  }
+}

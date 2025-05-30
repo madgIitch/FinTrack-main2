@@ -1,59 +1,90 @@
+<!-- pages/settings.html -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Perfil de Usuario</title>
+  <title>FinTrack – Ajustes</title>
+
+  <!-- Estilos globales y específicos -->
   <link rel="stylesheet" href="/FinTrack-main.558d9a0b.css">
-  <link rel="stylesheet" href="/profile.c4298255.css">
+  <link rel="stylesheet" href="/settings.0b40118e.css">
+
+  <!-- Manifest PWA -->
   <link rel="manifest" href="/manifest.webmanifest">
-  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
-  <script type="module" src="/settings.a4f79202.js"></script>
+
+  <!-- JS de configuración -->
+  <script type="module" src="/settings.a4f79202.js" defer=""></script>
 </head>
 <body>
   <div class="container">
-    <!-- Header -->
+    <!-- HEADER -->
     <header class="header">
       <div class="header-left">
-        <img src="/logoFintonic.89fddae4.svg" alt="Logo Fintonic" class="logo-icon-img">
+        <button id="back-btn" class="back-button">
+          <span class="material-icons">arrow_back</span>
+        </button>
         <h1 class="welcome-message">Ajustes</h1>
       </div>
       <div class="header-right">
-        <button class="notification-button">
-          <i class="material-icons">notifications</i>
+        <!-- Botón Guardar Ajustes movido aquí -->
+        <button id="save-settings-btn" class="btn-custom header-save-btn">
+          Guardar Ajustes
         </button>
       </div>
     </header>
 
-    
-
-      <!-- Slider Wrapper -->
-      <div class="slider-wrapper">
-        <button id="slider-prev" class="slider-arrow">
-          <span class="material-icons">chevron_left</span>
-        </button>
-        <div class="accounts-slider-container">
-          <div class="accounts-slider" id="linked-accounts-list">
-            <!-- Aquí inyecta JS las .linked-account -->
-          </div>
+    <!-- MAIN -->
+    <main class="content settings-content">
+      <!-- Sección de notificaciones -->
+      <section class="section notifications-section">
+        <h2>Notificaciones</h2>
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" id="notif-push">
+            Notificaciones push
+          </label>
+          <label>
+            <input type="checkbox" id="notif-email">
+            Notificaciones por correo
+          </label>
         </div>
-        <button id="slider-next" class="slider-arrow">
-          <span class="material-icons">chevron_right</span>
+      </section>
+
+      <!-- Sección de Reports -->
+      <section class="section reports-section">
+        <h2>Informes</h2>
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" id="report-push">
+            Notificaciones Informes push
+          </label>
+          <label>
+            <input type="checkbox" id="report-email">
+            Notificaciones Informes por correo
+          </label>
+        </div>
+      </section>
+
+      <hr class="divider">
+
+      <!-- Sección de presupuestos -->
+      <section class="section budgets-section">
+        <h2>Presupuestos por Categoría</h2>
+        <div id="budgets-container">
+          <!-- JS inyectará aquí una fila por cada categoría -->
+        </div>
+        <button id="add-category-btn" class="btn-add-category">
+          <span class="material-icons">add</span> Añadir Categoría
         </button>
-      </div>
-
-      <div id="slider-dots" class="slider-dots-container"></div>
-
-      <button id="link-bank-button" class="btn-custom" style="width: 90%; max-width: 500px">
-        Vincular Cuenta Bancaria
-      </button>
-    
+      </section>
+    </main>
 
     <!-- Barra de navegación inferior -->
     <nav class="bottom-nav">
-      <a href="/pages/home.html"><i class="material-icons">home</i><span>Inicio</span></a>
-      <a href="/pages/profile.html"><i class="material-icons">person</i><span>Perfil</span></a>
-      <a href="/pages/settings.html" class="active"><i class="material-icons">settings</i><span>Ajustes</span></a>
+      <a href="/pages/home.html" class="nav-item"><span class="material-icons">home</span><span>Inicio</span></a>
+      <a href="/pages/profile.html" class="nav-item"><span class="material-icons">person</span><span>Perfil</span></a>
+      <a href="/pages/settings.html" class="nav-item active"><span class="material-icons">settings</span><span>Ajustes</span></a>
     </nav>
   </div>
 </body>
