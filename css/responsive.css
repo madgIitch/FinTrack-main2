@@ -1,3 +1,5 @@
+/* responsive.css */
+
 /* =====================================================
    Estilos para dispositivos móviles (max-width: 600px)
    ===================================================== */
@@ -14,6 +16,7 @@
   .header {
     padding: 10px;
   }
+  .logo-icon,
   .logo-icon-img {
     width: 32px;
     margin-right: 10px;
@@ -23,6 +26,12 @@
   }
   .notification-button .material-icons {
     font-size: 20px;
+  }
+
+  /* Botón Guardar Ajustes (ajuste de tamaño) */
+  .header-save-btn {
+    padding: 8px 12px;
+    font-size: 0.8em;
   }
 
   /* Contenido Principal */
@@ -44,7 +53,7 @@
     font-size: 0.9em;
   }
 
-  /* Botón Vincular Cuenta */
+  /* Botón Vincular Cuenta (ajuste de anchura) */
   #link-bank-button {
     font-size: 0.9rem;
     padding: 10px 16px;
@@ -52,59 +61,11 @@
     max-width: none;
   }
 
-  /* Slider de cuentas (perfil) */
-  .slider-wrapper {
-    width: 100%;
-    max-width: 100%;
-    margin: 0 auto 10px;
-    overflow: visible;
-  }
-  .accounts-slider-container {
-    width: 100%;
-    overflow: hidden;
-  }
-  .accounts-slider {
-    transition: transform 0.4s ease-in-out;
-  }
-  .slider-arrow {
-    padding: 6px;
-    font-size: 20px;
-  }
-  .left-arrow {
-    left: 0;
-    transform: translate(-110%, -50%);
-  }
-  .right-arrow {
-    right: 0;
-    transform: translate(110%, -50%);
-  }
-
-  /* Puntitos del slider */
-  .slider-dots {
-    margin-top: 8px;
-  }
-  .slider-dot {
-    width: 6px;
-    height: 6px;
-    margin: 0 3px;
-  }
-
-  /* Barra de Navegación Inferior */
-  .bottom-nav {
-    padding: 8px 0;
-  }
-  .bottom-nav a {
-    font-size: 0.7em;
-  }
-  .bottom-nav a .material-icons {
-    font-size: 20px;
-  }
-
   /* Formularios, Register y Login */
   .login-container,
   .register-container {
     width: 90%;
-    max-width: 100%;
+    max-width: none;
     margin-top: 150px;
   }
   .input-field {
@@ -126,6 +87,56 @@
   .progress-container {
     height: 6px;
   }
+
+  /* Barra de Navegación Inferior */
+  .bottom-nav {
+    padding: 8px 0;
+  }
+  .bottom-nav a {
+    font-size: 0.7em;
+  }
+  .bottom-nav a .material-icons {
+    font-size: 20px;
+  }
+
+  /* ================================================
+     Ajustes específicos de página de Ajustes (max-width: 600px)
+     ================================================ */
+  /* Tarjetas de notificaciones e informes */
+  .section {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  /* Presupuestos por Categoría: distribuir verticalmente */
+  #budgets-container {
+    width: 100%;
+  }
+  .budget-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .budget-row .category-name {
+    width: 100%;
+    flex: none;
+    margin-bottom: 8px;
+  }
+  .budget-row input[type="number"] {
+    width: 100%;
+    min-width: none;
+    margin-bottom: 8px;
+  }
+  .budget-row .remove-btn {
+    width: 100%;
+    padding: 10px;
+    font-size: 1em;
+  }
+  .btn-add-category {
+    width: 100%;
+    max-width: none;
+    font-size: 1em;
+    padding: 12px;
+  }
 }
 
 /* ======================================================
@@ -144,6 +155,9 @@
   .welcome-message {
     font-size: 1.1em;
   }
+  .notification-button .material-icons {
+    font-size: 22px;
+  }
   .content {
     margin-top: 15px;
     padding: 15px;
@@ -154,6 +168,27 @@
   }
   #link-bank-button {
     font-size: 1rem;
+  }
+
+  /* Ajustes semánticos de presupuesto en tablet */
+  .budget-row {
+    flex-direction: row;
+    gap: 10px;
+  }
+  .budget-row .category-name {
+    flex: 1;
+  }
+  .budget-row input[type="number"] {
+    flex: 0 0 100px;
+  }
+  .budget-row .remove-btn {
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    min-width: 80px;
+  }
+  .btn-add-category {
+    width: 90%;
+    max-width: 360px;
   }
 }
 
@@ -167,7 +202,6 @@ button,
   min-height: 44px;
   min-width: 44px;
 }
-
 .card,
 .slider-wrapper,
 .login-container,
@@ -178,31 +212,136 @@ button,
 }
 
 /* =====================================================
-   Ajustes adicionales específicos para móviles
+   Ajustes adicionales específicos para pantallas muy pequeñas (max-width: 420px)
    ===================================================== */
-
-@media only screen and (max-width: 600px) {
-  .card {
-    width: 80%;
-    max-width: none;
-    padding: 15px;
+@media only screen and (max-width: 420px) {
+  /* Ajustes de contenedor y fondo para no dejar márgenes laterales */
+  .container {
+    padding-left: 5px;
+    padding-right: 5px;
   }
 
+  /* Cabecera: reducir elemento de guardado */
+  .header {
+    padding: 8px;
+  }
+  .welcome-message {
+    font-size: 0.95em;
+  }
+  .back-button .material-icons,
+  .notification-button .material-icons {
+    font-size: 18px;
+  }
+  .header-save-btn {
+    padding: 6px 10px;
+    font-size: 0.75em;
+  }
+
+  /* Ajustes de contenido */
+  .content {
+    padding: 8px 5px 70px;
+    gap: 8px;
+  }
+
+  /* Página de perfil: slider de cuentas más estrecho */
+  .accounts-slider-container {
+    width: 100%;
+  }
+  .accounts-slider {
+    transition: transform 0.4s ease-in-out;
+  }
   .slider-arrow {
-    padding: 4px;
+    padding: 6px;
+    font-size: 18px;
   }
-  .slider-arrow .material-icons {
+
+  /* Página de transacciones: reducir margen superior */
+  #transactions-section {
+    margin: 10px auto 20px;
+    padding-bottom: 50px;
+  }
+  .transactions-header h2 {
+    font-size: 1.2em;
+    margin-bottom: 6px;
+  }
+  .toggle-label {
+    font-size: 0.85em;
+  }
+  .switch {
+    width: 32px;
+    height: 18px;
+  }
+  .switch .slider:before {
+    height: 14px;
+    width: 14px;
+    left: 2px;
+    bottom: 2px;
+  }
+  .switch input:checked + .slider:before {
+    transform: translateX(14px);
+  }
+
+  /* Página de home: slider de saldos más compacto */
+  .balance-section {
+    margin: 10px auto 15px;
+  }
+  .balance-slider-container {
+    max-width: 350px;
+  }
+  .slider-btn.prev {
+    left: 5px;
+  }
+  .slider-btn.next {
+    right: 5px;
+  }
+  .slider-dots {
+    margin-top: 6px;
+  }
+  .slider-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  /* Página de ajustes: compactar secciones */
+  .section {
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .section h2 {
+    font-size: 1.1em;
+  }
+  .checkbox-group label {
+    font-size: 0.9em;
+    padding: 8px 10px;
+  }
+  .checkbox-group input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Presupuestos por Categoría: campos apilados (ya ajustado anteriormente) */
+  .budget-row .category-name {
+    margin-bottom: 6px;
+  }
+  .budget-row input[type="number"] {
+    margin-bottom: 6px;
+  }
+  .budget-row .remove-btn {
+    padding: 8px;
+    font-size: 0.9em;
+  }
+
+  /* Botón “Añadir Categoría” más compacto */
+  .btn-add-category {
+    padding: 10px;
+    font-size: 0.9em;
+  }
+
+  /* Barra inferior: iconos más pequeños */
+  .bottom-nav .nav-item .material-icons {
     font-size: 20px;
   }
-}
-
-@media (max-width: 480px) {
-  .budget-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .budget-row .budget-input,
-  .budget-row .remove-btn {
-    width: 100%;
+  .bottom-nav .nav-item {
+    font-size: 0.7em;
   }
 }

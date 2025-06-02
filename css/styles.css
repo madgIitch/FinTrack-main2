@@ -42,12 +42,31 @@ html, body {
 }
 a {
   text-decoration: none;
+  color: inherit;
 }
 button {
   font-family: inherit;
   border: none;
   background: none;
   cursor: pointer;
+}
+
+/* ========================================
+   Contenedor del logo (centrado y siempre encima)
+   ======================================== */
+.logo-container {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.logo-container .logo {
+  max-width: 120px;
+  height: auto;
 }
 
 /* ========================================
@@ -262,21 +281,6 @@ button {
   height: 100%;
   background: linear-gradient(to bottom, #e0e0e0, #f4f4f4);
   z-index: 1;
-}
-.logo-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  position: fixed;
-  top: 10%;
-  left: 0;
-  padding: 20px 0;
-  z-index: 2;
-}
-.logo {
-  width: 80px;
-  height: auto;
 }
 .login-container,
 .register-container {
