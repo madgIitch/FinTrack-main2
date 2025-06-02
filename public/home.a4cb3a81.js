@@ -662,21 +662,21 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"9wRWw":[function(require,module,exports,__globalThis) {
-// public/js/home.js
+// js/home.js
 var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
 var _auth = require("firebase/auth");
 console.log('home.js loaded');
-// <<< Reemplázalo con la URL que te muestra Firebase Console → Functions (Cloud Run) >>>
-// Debería ser algo como: https://api-<hash>.uc.a.run.app/api
-const apiUrl = 'https://api-t6634jgkjqu-uc.a.run.app/api';
-// ── Registrar y programar periodicSync (opcional) ───────────────────────────
+// ── URL de tu API (ajústala según entorno) ─────────────────────────────────
+const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
+// Registrar y programar periodicSync
 if ('serviceWorker' in navigator) window.addEventListener('load', async ()=>{
     try {
         const reg = await navigator.serviceWorker.register(require("f49e69e7fb1d94f5"), {
             scope: '/'
         });
         console.log('[SW] Registered with scope:', reg.scope);
+        // Aquí registramos el Periodic Sync
         if ('periodicSync' in reg) try {
             await reg.periodicSync.register('sync-transactions', {
                 minInterval: 86400000 // 24 h en ms
@@ -730,7 +730,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
         window.location.href = '../index.html';
     };
 });
-// ── Función para cargar saldos de cada cuenta Plaid ─────────────────────────
 async function loadBalances(userId) {
     console.log("[DEBUG] loadBalances \u2192 userId:", userId);
     const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
@@ -752,10 +751,6 @@ async function loadBalances(userId) {
                     accessToken
                 })
             });
-            if (!res.ok) {
-                console.error(`[ERROR] get_account_details #${i} status:`, res.status);
-                continue;
-            }
             const { accounts: accs, institution } = await res.json();
             const acc = accs?.[0] || {};
             const accountName = acc.name || 'Cuenta';
@@ -824,7 +819,7 @@ function initBalanceSlider() {
     }
     update();
 }
-// ── Sincronización manual de transacciones ───────────────────────────────────
+// ── Sincronización manual de transacciones a Firestore ────────────────
 async function doManualSync(uid) {
     const lastSyncKey = `lastSync_${uid}`;
     const last = localStorage.getItem(lastSyncKey);
@@ -841,10 +836,6 @@ async function doManualSync(uid) {
                     userId: uid
                 })
             });
-            if (!res.ok) {
-                console.error('[SYNC] sync failed:', res.status, await res.text());
-                return;
-            }
             const result = await res.json();
             console.log('[SYNC] Resultado manual:', result);
             localStorage.setItem(lastSyncKey, now.toString());

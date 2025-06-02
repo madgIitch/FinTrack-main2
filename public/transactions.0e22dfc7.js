@@ -668,7 +668,8 @@ var _auth = require("firebase/auth");
 var _firestore = require("firebase/firestore");
 var _idb = require("idb");
 console.log('transactions.js loaded');
-const apiUrl = 'https://api-t6634jgkjqu-uc.a.run.app/api';
+// ── CONFIGURACIÓN DE LA API ────────────────────────────────────────────────
+const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 // ── CONSTANTES DE IndexedDB ─────────────────────────────────────────────────
 const DB_NAME = 'fintrack-cache';
 const STORE_NAME = 'transactions';

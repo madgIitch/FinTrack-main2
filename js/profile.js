@@ -15,8 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let accountsLoaded = false;
 
   // Definir la URL base para la API (sin /plaid al final)
-const apiUrl = 'https://api-t6634jgkjqu-uc.a.run.app/api'; 
-
+  const apiUrl = window.location.hostname === 'localhost'
+    ? 'http://localhost:3071'
+    : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 
   console.log('[DEBUG] apiUrl es:', apiUrl);
 
