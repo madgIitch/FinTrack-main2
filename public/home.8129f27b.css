@@ -79,7 +79,25 @@
   background-color: #202124;
 }
 
-.sidebar ul li:last-child a.btn-custom {
-  margin-bottom: 0;
+@font-face {
+  font-family: Material Icons;
+  font-style: normal;
+  font-weight: 400;
+  src: local(Material Icons), local(MaterialIcons-Regular), url("MaterialIcons-Regular.b0090aef.ttf") format("truetype");
+}
+
+.material-icons {
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: nowrap;
+  font-feature-settings: "liga";
+  -webkit-font-feature-settings: "liga";
+  direction: ltr;
+  font-family: Material Icons;
+  font-size: 24px;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+  display: inline-block;
 }
 /*# sourceMappingURL=home.8129f27b.css.map */

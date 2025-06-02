@@ -1,87 +1,112 @@
-/* sidebar.css */
+/* ========================================
+   Sidebar (panel lateral)
+   ======================================== */
+
 .sidebar {
-    position: fixed;
-    top: 0;
-    left: 0; 
-    width: 300px; 
-    height: 100%;
-    background-color: #f0f0f0;
-    transform: translateX(-100%); 
-    transition: transform 0.3s ease-in-out;
-    z-index: 1000; 
-    padding: 20px;
-    box-shadow: 2px 0px 5px rgba(0, 0, 0, 0.2); /* Cambiamos el box-shadow para que esté a la derecha */
+  position: fixed;
+  top: 0;
+  left: 0; 
+  width: 300px; 
+  height: 100%;
+  background-color: #f0f0f0;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease-in-out;
+  z-index: 1000;
+  padding: 20px;
+  box-shadow: 2px 0px 5px rgba(0, 0, 0, 0.2);
 }
 
 .sidebar.open {
-    transform: translateX(0); /* Mostrar el panel lateral */
+  transform: translateX(0);
 }
 
 .sidebar h2 {
-    margin-top: 0;
+  margin-top: 0;
 }
 
 .sidebar ul {
-    list-style: none;
-    padding: 0;
+  list-style: none;
+  padding: 0;
 }
 
 .sidebar ul li {
-    margin-bottom: 10px;
+  margin-bottom: 10px;
 }
 
 .sidebar ul li a {
-    display: block;
-    padding: 10px;
-    background-color: #ddd;
-    color: #333;
-    text-decoration: none;
-    border-radius: 5px;
+  display: block;
+  padding: 10px;
+  background-color: #ddd;
+  color: #333;
+  text-decoration: none;
+  border-radius: 5px;
 }
 
 .sidebar ul li a:hover {
-    background-color: #ccc;
+  background-color: #ccc;
 }
 
 .close-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px; /* Mantenemos el botón de cierre a la derecha del sidebar */
-    font-size: 24px;
-    cursor: pointer;
-    background: none;
-    border: none;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 24px;
+  cursor: pointer;
+  background: none;
+  border: none;
 }
 
-
 .sidebar ul li a.btn-custom {
-    display: block;
-    margin-bottom: 10px;
-    text-align: left;
-    padding-left: 15px;
-    padding-right: 15px;
-    line-height: 50px;
-    height: 50px;
-    border-radius: 4px;
-    background-color: #f0f0f0; /* Color de fondo base grisáceo */
-    color: #333; /* Color de texto base oscuro */
-    border: none;
-    cursor: pointer;
-    text-decoration: none;
-    box-sizing: border-box;
-    transition: background-color 0.2s ease-in-out; /* Transición suave para el hover */
+  display: block;
+  margin-bottom: 10px;
+  text-align: left;
+  padding-left: 15px;
+  padding-right: 15px;
+  line-height: 50px;
+  height: 50px;
+  border-radius: 4px;
+  background-color: #f0f0f0;
+  color: #333;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
+  transition: background-color 0.2s ease-in-out;
 }
 
 .sidebar ul li a.btn-custom:hover {
-    background-color: #e0e0e0; /* Gris más claro al pasar el ratón */
+  background-color: #e0e0e0;
 }
 
-/* Estilo para el botón "seleccionado" (puedes añadir esta clase con JS) */
 .sidebar ul li a.btn-custom.selected {
-    background-color: #202124; /* Color de fondo negro */
-    color: white;
+  background-color: #202124;
+  color: white;
 }
 
-.sidebar ul li:last-child a.btn-custom {
-    margin-bottom: 0;
+/* ========================================
+   Fuentes e iconos Material (solo si no están ya en styles.css)
+   ======================================== */
+
+@font-face {
+  font-family: 'Material Icons';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Material Icons'),
+       local('MaterialIcons-Regular'),
+       url('../fonts/MaterialIcons-Regular.ttf') format('truetype');
+}
+
+.material-icons {
+  font-family: 'Material Icons';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: nowrap;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
 }

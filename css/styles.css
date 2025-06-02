@@ -1,4 +1,6 @@
-/*Material Icons hosteado */
+/* ========================================
+   Fuentes e iconos Material Icons
+   ======================================== */
 @font-face {
   font-family: 'Material Icons';
   font-style: normal;
@@ -7,7 +9,6 @@
        local('MaterialIcons-Regular'),
        url('../fonts/MaterialIcons-Regular.ttf') format('truetype');
 }
-
 .material-icons {
   font-family: 'Material Icons';
   font-weight: normal;
@@ -23,160 +24,457 @@
   -webkit-font-feature-settings: 'liga';
 }
 
-
-/* Fondo con gradiente */
-body {
-    margin: 0; /* Aseguramos que no haya márgenes en el body */
-    font-family: Arial, sans-serif;
+/* ========================================
+   Reset y estilos base
+   ======================================== */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(to bottom, #e0e0e0, #f4f4f4);
+  color: #333333;
+  box-sizing: border-box;
+}
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+a {
+  text-decoration: none;
+}
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
 }
 
-.background-container {
-    position: fixed; /* Fija el fondo en toda la página */
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(to bottom, #e0e0e0, #f4f4f4); /* Gradiente */
-    z-index: 1; /* Asegura que esté detrás de otros elementos */
+/* ========================================
+   Contenedor principal
+   ======================================== */
+.container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  position: relative;
+  z-index: 2;
+  width: 100%;
 }
 
-/* Logo */
-.logo-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-    position: fixed;
-    top: 10%;
-    left: 0;
-    padding: 20px 0;
-    z-index: 2; /* Asegura que esté por encima del fondo */
+/* ========================================
+   Cabecera (header) genérica
+   ======================================== */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background-color: transparent;
+  position: relative;
+  z-index: 2;
+}
+.header-left,
+.header-right {
+  display: flex;
+  align-items: center;
+}
+.logo-icon,
+.logo-icon-img {
+  width: 40px;
+  height: auto;
+  border-radius: 50%;
+  margin-right: 15px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.welcome-message {
+  font-size: 1.2em;
+  margin: 0;
+  color: #252525;
+}
+.notification-button {
+  background: none;
+  border: none;
+  color: #252525;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+}
+.notification-button .material-icons {
+  font-size: 24px;
 }
 
-.logo {
-    width: 80px;
-    height: auto;
+/* ========================================
+   Contenido principal (main .content)
+   ======================================== */
+.content {
+  flex-grow: 1;
+  padding: 20px;
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
 }
 
-/* Contenedor del login */
-.login-container {
-    width: 90%;
-    max-width: 380px;
-    text-align: center;
-    margin-top: 300px; /* Ajusta el margen para que no se superponga con el logo */
-    position: relative; /* Asegura que esté por encima del fondo */
-    z-index: 2;
-    margin-left: auto;
-    margin-right: auto;
+/* ========================================
+   Tarjetas genéricas (.card)
+   ======================================== */
+.card {
+  background-color: #ffffff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  width: 90%;
+  max-width: 500px;
+  margin-bottom: 20px;
+}
+.card h2 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.2em;
+  color: #555555;
+}
+.card p {
+  margin-bottom: 10px;
+  color: #444444;
+}
+.card p strong {
+  font-weight: bold;
+  color: #333333;
+  margin-right: 5px;
 }
 
-/* Contenedor para el register */
-.register-container {
-    width: 90%;
-    max-width: 380px;
-    text-align: left;
-    margin-top: 200px; /* Ajusta el margen para que no se superponga con el logo */
-    position: relative; /* Asegura que esté por encima del fondo */
-    z-index: 2;
-    margin-left: auto;
-    margin-right: auto;
-}
-.register-container h2{
-    font-size: 1em;
-    margin-bottom: 20px;
-    color : #333
-    
-
-}
-
-/* Campos de entrada pruebaa git */
+/* ========================================
+   Campos de entrada (.input-field)
+   ======================================== */
 .input-field {
-
-    background-color: #252525;
-    border-radius: 4px;
-    padding: 10px 15px;
-    display: flex;
-    align-items: center;
-    margin-top: auto;
-    margin-bottom: 20px;
-    height: 50px;
+  background-color: #252525;
+  border-radius: 4px;
+  padding: 10px 15px;
+  display: flex;
+  align-items: center;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  height: 50px;
+  width: 100%;
 }
-
 .input-field input {
-    border: none;
-    background: none;
-    outline: none;
-    color: white;
-    width: 100%;
-    padding: 8px;
-    font-size: 16px;
+  border: none;
+  background: none;
+  outline: none;
+  color: #ffffff;
+  width: 100%;
+  padding: 8px;
+  font-size: 16px;
 }
-
 .input-field input::placeholder {
-    color: #b0b0b0;
-    font-size: 16px;
+  color: #b0b0b0;
+  font-size: 16px;
 }
-
-/* Icono de visibilidad en el campo de contraseña */
 .password-field {
-    position: relative;
+  position: relative;
+  width: 100%;
 }
-
 .password-field .material-icons {
-    position: absolute;
-    right: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #b0b0b0;
-    cursor: pointer;
-    font-size: 24px;
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #b0b0b0;
+  cursor: pointer;
+  font-size: 24px;
 }
 
-/* Botones */
+/* ========================================
+   Botones genéricos (.btn-custom)
+   ======================================== */
 .btn-custom {
-    background-color: #252525;
-    color: white;
-    border-radius: 30px;
-    width: 100%; /* Asegura que ambos tengan el mismo ancho */
+  background-color: #252525;
+  color: #ffffff;
+  border-radius: 30px;
+  width: 100%;
+  margin-top: 15px;
+  padding: 15px;
+  font-size: 18px;
+  text-transform: none;
+  cursor: pointer;
+  text-align: center;
+  display: inline-block;
+  box-sizing: border-box;
+  transition: background-color 0.3s ease, transform 0.1s ease;
+}
+.btn-custom:hover {
+  background-color: #1b1b1b;
+}
+.btn-custom:active {
+  transform: scale(0.98);
+}
+.btn-custom + .btn-custom {
+  margin-top: 15px;
+}
+
+/* ========================================
+   Barra de navegación inferior (.bottom-nav)
+   ======================================== */
+.bottom-nav {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background-color: #f4f4f4;
+  border-top: 1px solid #e0e0e0;
+  padding: 10px 0;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: 3;
+}
+.bottom-nav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #777777;
+  font-size: 0.8em;
+}
+.bottom-nav a.active {
+  color: #252525;
+}
+.bottom-nav a .material-icons {
+  font-size: 24px;
+  margin-bottom: 5px;
+}
+.bottom-nav a:hover {
+  color: #000000;
+}
+
+/* ========================================
+   Formularios de login/registro (contenedores específicos)
+   ======================================== */
+.background-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, #e0e0e0, #f4f4f4);
+  z-index: 1;
+}
+.logo-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  position: fixed;
+  top: 10%;
+  left: 0;
+  padding: 20px 0;
+  z-index: 2;
+}
+.logo {
+  width: 80px;
+  height: auto;
+}
+.login-container,
+.register-container {
+  width: 90%;
+  max-width: 380px;
+  margin-top: 200px;
+  position: relative;
+  z-index: 2;
+  margin-left: auto;
+  margin-right: auto;
+}
+.register-container h2 {
+  font-size: 1em;
+  margin-bottom: 20px;
+  color: #333333;
+}
+/* Formularios de pasos en registro */
+.step {
+  display: none;
+}
+.step.active {
+  display: block;
+}
+.alert {
+  padding: 10px;
+  border-radius: 4px;
+}
+/* Formulario de recuperación de contraseña */
+#reset-form {
+  display: none;
+  position: relative;
+  z-index: 3;
+  width: 90%;
+  max-width: 380px;
+  margin: 20px auto;
+  background: linear-gradient(to bottom, #e0e0e0, #f4f4f4);
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+/* ========================================
+   Barra de progreso en registro
+   ======================================== */
+.progress-container {
+  width: 100%;
+  height: 8px;
+  background-color: #dddddd;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.progress-bar {
+  height: 100%;
+  width: 0;
+  background-color: #007bff;
+  transition: width 0.3s ease-in-out;
+}
+
+/* ========================================
+   Styles para elementos de formulario genéricos
+   ======================================== */
+input[type="email"],
+input[type="password"],
+input[type="text"],
+input[type="number"],
+select {
+  font-family: inherit;
+  font-size: 16px;
+  border: 1px solid #dddddd;
+  border-radius: 4px;
+  padding: 8px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+input::placeholder {
+  color: #888888;
+}
+
+/* ========================================
+   Ajustes generales para tablas y listas si se necesitan
+   ======================================== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th, td {
+  padding: 8px;
+  border: 1px solid #dddddd;
+  text-align: left;
+}
+
+/* ========================================
+   Media Queries: Responsive genérico
+   ======================================== */
+
+/* Móviles (hasta 600px) */
+@media only screen and (max-width: 600px) {
+  body {
+    font-size: 14px;
+  }
+  .container {
+    padding: 10px;
+  }
+  .header {
+    padding: 10px;
+  }
+  .logo-icon,
+  .logo-icon-img {
+    width: 32px;
+    margin-right: 10px;
+  }
+  .welcome-message {
+    font-size: 1em;
+  }
+  .notification-button .material-icons {
+    font-size: 20px;
+  }
+  .content {
+    padding: 10px;
+    margin-top: 10px;
+    gap: 10px;
+  }
+  .card {
+    width: 100%;
+    max-width: none;
+    padding: 15px;
+    margin-bottom: 15px;
+  }
+  .card h2 {
+    font-size: 1em;
+  }
+  .card p {
+    font-size: 0.9em;
+  }
+  .btn-custom {
+    padding: 12px;
+    font-size: 16px;
+    border-radius: 25px;
+  }
+  .login-container,
+  .register-container {
+    margin-top: 150px;
+  }
+  .input-field {
+    height: 45px;
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  .input-field input {
+    font-size: 14px;
+  }
+  .progress-container {
+    height: 6px;
+  }
+  .bottom-nav {
+    padding: 8px 0;
+  }
+  .bottom-nav a {
+    font-size: 0.7em;
+  }
+  .bottom-nav a .material-icons {
+    font-size: 20px;
+  }
+}
+
+/* Tablets (601px a 1024px) */
+@media only screen and (min-width: 601px) and (max-width: 1024px) {
+  body {
+    font-size: 15px;
+  }
+  .container {
+    padding: 15px;
+  }
+  .header {
+    padding: 15px;
+  }
+  .welcome-message {
+    font-size: 1.1em;
+  }
+  .content {
     margin-top: 15px;
     padding: 15px;
-    font-size: 18px;
-    text-transform: none;
-    border: none;
-    cursor: pointer;
-    text-align: center;
-    display: inline-block;
-    text-decoration: none;
-    box-sizing: border-box; /* Incluye el padding en el ancho total */
-}
-
-.btn-custom:hover {
-    background-color: #1b1b1b;
-}
-
-/* Espaciado entre botones */
-.btn-custom + .btn-custom {
-    margin-top: 15px;
-}
-
-/* Estilos para el formulario de recuperación */
-#reset-form {
-    display: none; /* Inicialmente oculto */
-    position: relative;
-    z-index: 3; /* Mayor que el login-container (z-index:2) */
+  }
+  .card {
     width: 90%;
-    max-width: 380px;
-    margin: 20px auto;
-    background-color:linear-gradient(to bottom, #e0e0e0, #f4f4f4);
-    padding: 20px;
-    border-radius: 10px;
-    text-align: center;
+    max-width: 500px;
+  }
+  .btn-custom {
+    font-size: 1rem;
+  }
 }
 
-/* Opcional: darle estilo a los enlaces y botones internos del reset-form */
-#reset-form .btn-custom {
-    margin-top: 15px;
-}
-#reset-form .input-field {
-    background-color: #252525; 
+/* Mínimo tamaño táctil (global) */
+button,
+.btn-custom,
+.slider-arrow {
+  min-height: 44px;
+  min-width: 44px;
 }

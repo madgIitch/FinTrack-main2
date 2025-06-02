@@ -1,77 +1,6 @@
-/* transactions.css */
-
-/* ================================
-   Estilos globales y layout base
-   ================================ */
-
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: linear-gradient(to bottom, #e0e0e0, #f4f4f4);
-  color: #333;
-}
-
-.container {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  position: relative;
-  z-index: 2;
-}
-
-/* ================================
-   Cabecera de la página
-   ================================ */
-
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px;
-  background-color: transparent;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-}
-
-.logo-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-right: 15px;
-}
-
-.welcome-message {
-  font-size: 1.2em;
-  margin: 0;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-}
-
-.notification-button {
-  background: none;
-  border: none;
-  color: #252525;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 50%;
-}
-
-.notification-button .material-icons {
-  font-size: 24px;
-}
-
-/* ================================
+/* ========================================
    Sección de Transacciones
-   ================================ */
+   ======================================== */
 
 #transactions-section {
   width: 90%;
@@ -94,7 +23,7 @@ body {
   margin-bottom: 8px;
 }
 
-/* Contenedor del switch + etiqueta */
+/* Contenedor del switch y etiqueta */
 .switch-container {
   display: flex;
   align-items: center;
@@ -123,7 +52,7 @@ body {
   position: absolute;
   cursor: pointer;
   top: 0; left: 0; right: 0; bottom: 0;
-  background-color: #888;           /* gris OFF */
+  background-color: #888;
   transition: background-color 0.2s;
   border-radius: 10px;
 }
@@ -141,7 +70,7 @@ body {
 }
 
 .switch input:checked + .slider {
-  background-color: #8e44ad;        /* púrpura ON */
+  background-color: #8e44ad;
 }
 
 .switch input:checked + .slider:before {
@@ -149,11 +78,11 @@ body {
 }
 
 .switch:hover .slider {
-  background-color: #9b59b6;        /* hover */
+  background-color: #9b59b6;
 }
 
 .switch input:focus + .slider {
-  box-shadow: 0 0 0 3px rgba(142, 68, 173, 0.4); /* focus */
+  box-shadow: 0 0 0 3px rgba(142, 68, 173, 0.4);
 }
 
 .switch input:disabled + .slider {
@@ -256,82 +185,9 @@ body {
   color: #43a047;
 }
 
-/* ================================
-   Contenido principal (cards…)
-   ================================ */
-
-.content {
-  flex-grow: 1;
-  padding: 20px;
-  margin-top: 60px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-}
-
-.card {
-  background-color: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  width: 90%;
-  max-width: 400px;
-}
-
-.card h2 {
-  margin-top: 0;
-  margin-bottom: 15px;
-  font-size: 1.1em;
-  color: #555;
-}
-
-.balance p.current-balance {
-  font-size: 1.8em;
-  font-weight: bold;
-  color: #252525;
-  margin-bottom: 0;
-}
-
-/* ================================
-   Barra de navegación inferior
-   ================================ */
-
-.bottom-nav {
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  background-color: #f4f4f4;
-  border-top: 1px solid #e0e0e0;
-  padding: 10px 0;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  z-index: 3;
-}
-
-.bottom-nav a {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  color: #777;
-  text-decoration: none;
-  font-size: 0.8em;
-}
-
-.bottom-nav a.active {
-  color: #252525;
-}
-
-.bottom-nav a .material-icons {
-  font-size: 24px;
-  margin-bottom: 5px;
-}
-
-/* ================================
+/* ========================================
    Responsive: colapsar grid en móvil
-   ================================ */
+   ======================================== */
 
 @media (max-width: 360px) {
   .transaction-item {

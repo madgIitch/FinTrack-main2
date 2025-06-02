@@ -1,204 +1,208 @@
-/* responsive.css */
-
 /* =====================================================
    Estilos para dispositivos móviles (max-width: 600px)
-===================================================== */
+   ===================================================== */
 @media only screen and (max-width: 600px) {
-    /* Global */
-    body {
-      font-size: 14px;
-    }
-    .container {
-      padding: 10px;
-    }
-    
-    /* Cabecera */
-    .header {
-      padding: 10px;
-    }
-    .logo-icon-img {
-      width: 32px;
-      margin-right: 10px;
-    }
-    .welcome-message {
-      font-size: 1em;
-    }
-    .notification-button .material-icons {
-      font-size: 20px;
-    }
-    
-    /* Contenido Principal */
-    .content {
-      padding: 10px;
-      margin-top: 10px;
-      gap: 10px;
-    }
-    .card {
-      width: 100%;       /* Se adapta a la pantalla */
-      max-width: none;
-      padding: 15px;
-      margin-bottom: 15px;
-    }
-    .card h2 {
-      font-size: 1em;
-    }
-    .card p {
-      font-size: 0.9em;
-    }
-    
-    /* Botón Vincular Cuenta */
-    #link-bank-button {
-      font-size: 0.9rem;
-      padding: 10px 16px;
-      width: 100%;
-      max-width: none;
-    }
-    
-    /* Slider (Carrusel) */
-    .slider-wrapper {
-      width: 100%;
-      max-width: 100%;
-      margin: 0 auto 10px;
-      overflow: visible;  /* Permite ver las flechas fuera del contenedor */
-    }
-    .accounts-slider-container {
-      width: 100%;
-      overflow: hidden;
-    }
-    .accounts-slider {
-      transition: transform 0.4s ease-in-out;
-    }
-    /* Flechas de navegación: tamaño e íconos ajustados */
-    .slider-arrow {
-      padding: 6px;
-      font-size: 20px;
-    }
-    .left-arrow {
-      left: 0;
-      transform: translate(-110%, -50%);
-    }
-    .right-arrow {
-      right: 0;
-      transform: translate(110%, -50%);
-    }
-    
-    /* Puntitos de navegación */
-    .slider-dots {
-      margin-top: 8px;
-    }
-    .slider-dot {
-      width: 6px;
-      height: 6px;
-      margin: 0 3px;
-    }
-    
-    /* Barra de Navegación Inferior */
-    .bottom-nav {
-      padding: 8px 0;
-    }
-    .bottom-nav a {
-      font-size: 0.7em;
-    }
-    .bottom-nav a .material-icons {
-      font-size: 20px;
-    }
-    
-    /* Formularios, Register y Login */
-    .login-container,
-    .register-container {
-      width: 90%;
-      max-width: 100%;
-      margin-top: 150px;
-    }
-    .input-field {
-      height: 45px;
-      padding: 8px 12px;
-      font-size: 14px;
-    }
-    .input-field input {
-      font-size: 14px;
-    }
-    
-    .btn-custom {
-      padding: 12px;
-      font-size: 16px;
-      border-radius: 25px;
-    }
-    
-    /* Ajuste de la barra de progreso */
-    .progress-container {
-      height: 6px;
-    }
+  /* Ajustes de tipografía y espaciado global */
+  body {
+    font-size: 14px;
   }
-  
-  /* ======================================================
-     Estilos para tablets (min-width: 601px y max-width: 1024px)
-  ====================================================== */
-  @media only screen and (min-width: 601px) and (max-width: 1024px) {
-    body {
-      font-size: 15px;
-    }
-    .container {
-      padding: 15px;
-    }
-    .header {
-      padding: 15px;
-    }
-    .welcome-message {
-      font-size: 1.1em;
-    }
-    .content {
-      margin-top: 15px;
-      padding: 15px;
-    }
-    .card {
-      width: 90%;
-      max-width: 500px;
-    }
-    #link-bank-button {
-      font-size: 1rem;
-    }
+  .container {
+    padding: 10px;
   }
-  
-  /* =====================================================
-     Opcionales: Mejoras globales para interacción táctil
-  ===================================================== */
-  
-  /* Asegurar que los botones y flechas sean táctiles (mínimo 44px de alto/ancho) */
-  button,
-  .slider-arrow,
-  .btn-custom {
-    min-height: 44px;
-    min-width: 44px;
+
+  /* Cabecera */
+  .header {
+    padding: 10px;
   }
-  
-  /* Unidades flexibles: permite que contenedores como .card y .slider-wrapper se adapten */
-  .card,
-  .slider-wrapper,
-  .login-container,
-  .register-container,
+  .logo-icon-img {
+    width: 32px;
+    margin-right: 10px;
+  }
+  .welcome-message {
+    font-size: 1em;
+  }
+  .notification-button .material-icons {
+    font-size: 20px;
+  }
+
+  /* Contenido Principal */
+  .content {
+    padding: 10px;
+    margin-top: 10px;
+    gap: 10px;
+  }
+  .card {
+    width: 100%;
+    max-width: none;
+    padding: 15px;
+    margin-bottom: 15px;
+  }
+  .card h2 {
+    font-size: 1em;
+  }
+  .card p {
+    font-size: 0.9em;
+  }
+
+  /* Botón Vincular Cuenta */
   #link-bank-button {
+    font-size: 0.9rem;
+    padding: 10px 16px;
+    width: 100%;
+    max-width: none;
+  }
+
+  /* Slider de cuentas (perfil) */
+  .slider-wrapper {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto 10px;
+    overflow: visible;
+  }
+  .accounts-slider-container {
+    width: 100%;
+    overflow: hidden;
+  }
+  .accounts-slider {
+    transition: transform 0.4s ease-in-out;
+  }
+  .slider-arrow {
+    padding: 6px;
+    font-size: 20px;
+  }
+  .left-arrow {
+    left: 0;
+    transform: translate(-110%, -50%);
+  }
+  .right-arrow {
+    right: 0;
+    transform: translate(110%, -50%);
+  }
+
+  /* Puntitos del slider */
+  .slider-dots {
+    margin-top: 8px;
+  }
+  .slider-dot {
+    width: 6px;
+    height: 6px;
+    margin: 0 3px;
+  }
+
+  /* Barra de Navegación Inferior */
+  .bottom-nav {
+    padding: 8px 0;
+  }
+  .bottom-nav a {
+    font-size: 0.7em;
+  }
+  .bottom-nav a .material-icons {
+    font-size: 20px;
+  }
+
+  /* Formularios, Register y Login */
+  .login-container,
+  .register-container {
+    width: 90%;
+    max-width: 100%;
+    margin-top: 150px;
+  }
+  .input-field {
+    height: 45px;
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  .input-field input {
+    font-size: 14px;
+  }
+
+  .btn-custom {
+    padding: 12px;
+    font-size: 16px;
+    border-radius: 25px;
+  }
+
+  /* Ajuste de la barra de progreso */
+  .progress-container {
+    height: 6px;
+  }
+}
+
+/* ======================================================
+   Estilos para tablets (min-width: 601px y max-width: 1024px)
+   ====================================================== */
+@media only screen and (min-width: 601px) and (max-width: 1024px) {
+  body {
+    font-size: 15px;
+  }
+  .container {
+    padding: 15px;
+  }
+  .header {
+    padding: 15px;
+  }
+  .welcome-message {
+    font-size: 1.1em;
+  }
+  .content {
+    margin-top: 15px;
+    padding: 15px;
+  }
+  .card {
     width: 90%;
     max-width: 500px;
   }
-  
-  
-  /* Ejemplo de media query para pantallas de hasta 600px */
-@media only screen and (max-width: 600px) {
-    /* Tarjeta más estrecha */
-    .card {
-      width: 80%;        /* antes podía ser 90% */
-      max-width: none;   /* sin límite fijo */
-      padding: 15px;     /* reduce un poco el padding */
-    }
-  
-    /* Ajuste de flechas del slider */
-    .slider-arrow {
-      padding: 4px;      /* más compacto que 8px */
-    }
-    .slider-arrow .material-icons {
-      font-size: 20px;   /* en lugar de 24px */
-    }
+  #link-bank-button {
+    font-size: 1rem;
   }
-  
-  
+}
+
+/* =====================================================
+   Opcionales: Mejoras globales para interacción táctil
+   ===================================================== */
+
+button,
+.slider-arrow,
+.btn-custom {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.card,
+.slider-wrapper,
+.login-container,
+.register-container,
+#link-bank-button {
+  width: 90%;
+  max-width: 500px;
+}
+
+/* =====================================================
+   Ajustes adicionales específicos para móviles
+   ===================================================== */
+
+@media only screen and (max-width: 600px) {
+  .card {
+    width: 80%;
+    max-width: none;
+    padding: 15px;
+  }
+
+  .slider-arrow {
+    padding: 4px;
+  }
+  .slider-arrow .material-icons {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .budget-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .budget-row .budget-input,
+  .budget-row .remove-btn {
+    width: 100%;
+  }
+}

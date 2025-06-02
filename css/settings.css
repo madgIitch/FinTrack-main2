@@ -1,7 +1,5 @@
-/* public/css/settings.css */
-
 /* ========================================
-   Fuentes e iconos Material
+   Fuentes e iconos Material Icons
    ======================================== */
 @font-face {
   font-family: 'Material Icons';
@@ -33,28 +31,47 @@ html, body {
   margin: 0;
   padding: 0;
   width: 100%;
-  height: 100%;
+  min-height: 100vh;
   font-family: Arial, sans-serif;
-  background: linear-gradient(to bottom, #e0e0e0, #f4f4f4) fixed no-repeat;
+  background: linear-gradient(to bottom, #e0e0e0, #f4f4f4) fixed;
   color: #333333;
+  box-sizing: border-box;
 }
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+a {
+  text-decoration: none;
+  color: inherit;
+}
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+/* ========================================
+   Contenedor principal
+   ======================================== */
 .container {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   position: relative;
-  z-index: 1;
+  z-index: 2;
+  width: 100%;
 }
 
 /* ========================================
-   Cabecera (header)
+   Cabecera (header) igual que en perfil
    ======================================== */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  background: transparent;
+  padding: 20px;                   /* Igual que perfil */
+  background-color: transparent;   /* Transparente, igual que perfil */
   position: sticky;
   top: 0;
   z-index: 3;
@@ -98,16 +115,17 @@ html, body {
 }
 
 /* ========================================
-   Contenido principal
+   Contenido principal (fondo transparente igual que perfil)
    ======================================== */
 .content {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 24px 16px 80px;
+  padding: 24px 16px 80px; /* Espacio inferior para la barra de navegación */
   gap: 20px;
   box-sizing: border-box;
+  background-color: transparent; /* Fondo transparente para que se vea el gradiente */
 }
 
 /* ========================================
@@ -174,44 +192,57 @@ html, body {
 }
 
 /* ========================================
-   Presupuestos por Categoría
+   Presupuestos por Categoría (ajustado)
    ======================================== */
 #budgets-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
+
 .budget-row {
   display: flex;
   align-items: center;
   gap: 12px;
 }
+
+/* Selección de categoría: ahora ocupa menos espacio */
 .budget-row .category-name {
-  flex: 1;
+  flex: 0 0 50%;      /* Antes era flex: 1; */
   font-size: 1em;
   color: #444444;
 }
+
+/* Campo de importe: un poco más pequeño */
 .budget-row input[type="number"] {
-  width: 80px;
+  flex: 0 0 20%;      /* Antes width: 80px fijo; ahora ocupa 20% */
+  min-width: 60px;    /* Para que no quede demasiado estrecho */
   padding: 8px;
   font-size: 1em;
   border: 1px solid #dddddd;
   border-radius: 6px;
   text-align: right;
+  box-sizing: border-box;
 }
-.budget-row button {
-  background-color: #252525;
+
+/* Botón de eliminar presupuesto */
+.budget-row .remove-btn {
+  background-color: #e53935;
   color: #ffffff;
   border: none;
   border-radius: 6px;
-  padding: 8px 12px;
+  padding: 8px 16px;   /* Suficiente “espacio interior” para que “Eliminar” quepa */
   font-size: 0.9em;
   cursor: pointer;
   transition: background-color 0.2s;
+  white-space: nowrap; /* Evita que el texto se rompa */
+  flex: 0 0 auto;      /* No se expande ni contrae */
+  min-width: 80px;     /* Asegura un ancho mínimo */
 }
-.budget-row button:hover {
-  background-color: #1b1b1b;
+.budget-row .remove-btn:hover {
+  background-color: #c62828;
 }
+
 
 /* ========================================
    Botón “Añadir Categoría”
@@ -219,7 +250,7 @@ html, body {
 .btn-add-category {
   width: 90%;
   max-width: 360px;
-  margin: 16px auto;
+  margin: 16px auto 0;
   padding: 14px;
   font-size: 1em;
   background-color: #252525;
@@ -239,13 +270,13 @@ html, body {
 }
 
 /* ========================================
-   Barra de navegación inferior
+   Barra de navegación inferior (igual que perfil)
    ======================================== */
 .bottom-nav {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  background: transparent;
+  background-color: transparent; /* Transparente para fondo igual que perfil */
   border-top: 1px solid #e0e0e0;
   padding: 10px 0;
   position: fixed;
@@ -274,7 +305,7 @@ html, body {
 }
 
 /* ========================================
-   Adaptaciones móviles
+   Ajustes móviles
    ======================================== */
 @media (max-width: 480px) {
   .content {
@@ -290,88 +321,6 @@ html, body {
     align-items: stretch;
   }
   .budget-row input[type="number"],
-  .budget-row button {
-    width: 100%;
-  }
-}
-
-#budgets-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.budget-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.budget-row .category-select {
-  flex: 1;
-  padding: 8px;
-  font-size: 1em;
-  border: 1px solid #dddddd;
-  border-radius: 6px;
-  background-color: #f9f9f9;
-}
-
-.budget-row .budget-input {
-  width: 100px;
-  padding: 8px;
-  font-size: 1em;
-  border: 1px solid #dddddd;
-  border-radius: 6px;
-  text-align: right;
-}
-
-.budget-row .remove-btn {
-  background-color: #e53935;
-  color: #ffffff;
-  border: none;
-  border-radius: 4px;
-  padding: 6px 10px;
-  font-size: 0.85em;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.budget-row .remove-btn:hover {
-  background-color: #c62828;
-}
-
-/* Botón “Añadir Categoría” (ya lo tenías) */
-.btn-add-category {
-  width: 90%;
-  max-width: 360px;
-  margin: 16px auto 0;
-  padding: 14px;
-  font-size: 1em;
-  background-color: #252525;
-  color: #ffffff;
-  border: none;
-  border-radius: 30px;
-  cursor: pointer;
-  text-align: center;
-  display: block;
-  transition: background-color 0.2s;
-}
-
-.btn-add-category .material-icons {
-  font-size: 20px;
-}
-
-.btn-add-category:hover {
-  background-color: #1b1b1b;
-}
-
-/* Ajustes móviles, etc. */
-@media (max-width: 480px) {
-  .budget-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .budget-row .budget-input,
   .budget-row .remove-btn {
     width: 100%;
   }
