@@ -667,8 +667,7 @@ var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
 var _auth = require("firebase/auth");
 console.log('home.js loaded');
-// ── URL de tu API (ajústala según entorno) ─────────────────────────────────
-const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
+const apiUrl = 'https://api-t6634jgkjqu-uc.a.run.app/api';
 // Registrar y programar periodicSync
 if ('serviceWorker' in navigator) window.addEventListener('load', async ()=>{
     try {

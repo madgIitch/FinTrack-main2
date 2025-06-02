@@ -1,4 +1,5 @@
 // functions/index.js
+
 const functions = require('firebase-functions');
 const express = require('express');
 const cors = require('cors');
@@ -6,25 +7,26 @@ const plaidRoutes = require('./plaidRoutes');
 
 const app = express();
 
-// Configuración de CORS: Para pruebas se permite cualquier origen.
+// ── Configuración CORS ───────────────────────────────────────────────────────────
 const corsOptions = {
-  origin: '*', // En producción puedes restringirlo a 'https://fintrack-1bced.web.app'
+  origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type'],
 };
-
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+
+// ── Middleware para parsear JSON ───────────────────────────────────────────────
 app.use(express.json());
 
-// Montamos las rutas bajo "/plaid" (no "/api/plaid" para evitar duplicación)
-app.use('/plaid', plaidRoutes);
+// ── RUTAS DE PLAID ──────────────────────────────────────────────────────────────
+app.use('/api/plaid', plaidRoutes);
 
-// Middleware de manejo de errores que añade los encabezados CORS en caso de error
+// ── Manejo de errores añadiendo cabeceras CORS ─────────────────────────────────
 app.use((err, req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.status(err.status || 500).json({ error: err.message });
 });
 
-// No se usa app.listen() ya que Firebase Functions gestiona el puerto automáticamente.
+// Firebase Functions expone este servidor HTTP
 exports.api = functions.https.onRequest(app);
