@@ -1,4 +1,4 @@
-// plaidRoutes.js
+// functions/plaidRoutes.js
 
 require('dotenv').config();            // Carga variables de entorno
 const express = require('express');
@@ -6,14 +6,6 @@ const { admin, db } = require('./firebaseAdmin');  // db = admin.firestore()
 const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
 
 const router = express.Router();
-
-// ── CORS ────────────────────────────────────────────────────────────────────────
-router.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  next();
-});
 
 // ── Inicializar Plaid ──────────────────────────────────────────────────────────
 const envName  = process.env.PLAID_ENV || 'sandbox';
@@ -31,12 +23,16 @@ const config   = new Configuration({
 const plaidClient = new PlaidApi(config);
 
 // ── Health Check ───────────────────────────────────────────────────────────────
-router.get('/ping', (_req, res) => res.json({ message: 'pong' }));
+router.get('/ping', (_req, res) => {
+  return res.json({ message: 'pong' });
+});
 
 // ── Create Link Token ──────────────────────────────────────────────────────────
 router.post('/create_link_token', async (req, res) => {
   const { userId } = req.body;
-  if (!userId) return res.status(400).json({ error: 'Falta userId' });
+  if (!userId) {
+    return res.status(400).json({ error: 'Falta userId' });
+  }
 
   try {
     const resp = await plaidClient.linkTokenCreate({
@@ -46,10 +42,10 @@ router.post('/create_link_token', async (req, res) => {
       country_codes: ['US','ES'],
       language:      'es'
     });
-    res.json({ link_token: resp.data.link_token });
+    return res.json({ link_token: resp.data.link_token });
   } catch (err) {
     console.error('[PLAIDROUTES] Error creating link token:', err.response?.data || err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -78,10 +74,10 @@ router.post('/exchange_public_token', async (req, res) => {
     });
     await userRef.set({ plaid: { accounts } }, { merge: true });
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (err) {
     console.error('[PLAIDROUTES] Error exchanging public token:', err.response?.data || err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -107,20 +103,22 @@ router.post('/get_account_details', async (req, res) => {
       institution = inst.data.institution;
     }
 
-    res.json({
+    return res.json({
       accounts:    accsResp.data.accounts,
       institution
     });
   } catch (err) {
     console.error('[PLAIDROUTES] Error in get_account_details:', err.response?.data || err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
 // ── Get Transactions ────────────────────────────────────────────────────────────
 router.post('/get_transactions', async (req, res) => {
   const { userId, startDate, endDate } = req.body;
-  if (!userId) return res.status(400).json({ error: 'Falta userId' });
+  if (!userId) {
+    return res.status(400).json({ error: 'Falta userId' });
+  }
 
   try {
     const userDoc = await db.collection('users').doc(userId).get();
@@ -165,17 +163,19 @@ router.post('/get_transactions', async (req, res) => {
       amount:                     tx.amount
     }));
 
-    res.json({ transactions: cleaned });
+    return res.json({ transactions: cleaned });
   } catch (err) {
     console.error('[PLAIDROUTES] Error in get_transactions:', err.response?.data || err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
 // ── Sync transactions and store ───────────────────────────────────────────────
 router.post('/sync_transactions_and_store', async (req, res) => {
   const { userId } = req.body;
-  if (!userId) return res.status(400).json({ error: 'Falta userId' });
+  if (!userId) {
+    return res.status(400).json({ error: 'Falta userId' });
+  }
 
   try {
     const userRef  = db.collection('users').doc(userId);
@@ -231,10 +231,10 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       }
     }
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (err) {
     console.error('[PLAIDROUTES] Error in sync_transactions_and_store:', err.response?.data || err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
