@@ -172,7 +172,7 @@ router.post('/get_transactions', async (req, res) => {
   }
 });
 
-// ── Sync transactions and store ───────────────────────────────────────────────
+// ── Sync transactions and store (with historyCategorias) ─────────────────────
 router.post('/sync_transactions_and_store', async (req, res) => {
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
@@ -184,14 +184,20 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
+    // 1) Obtén todas las cuentas Plaid del usuario
     const accounts = userSnap.data().plaid?.accounts || [];
+    console.log('[PLAIDROUTES] Accounts for user:', accounts);
     if (accounts.length === 0) {
       return res.json({ message: 'Sin cuentas vinculadas' });
     }
 
-    const endDate   = new Date().toISOString().slice(0,10);
-    const startDate = new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
+    // 2) Fecha de inicio y fin (últimos 30 días)
+    const endDate   = new Date().toISOString().slice(0, 10);
+    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString().slice(0, 10);
 
+    // 3) Recolecta todas las transacciones en ese rango
+    let allTxs = [];
     for (const { accessToken } of accounts) {
       const txRes = await plaidClient.transactionsGet({
         access_token: accessToken,
@@ -203,38 +209,81 @@ router.post('/sync_transactions_and_store', async (req, res) => {
           include_personal_finance_category: true
         }
       });
-      const txs = txRes.data.transactions;
+      allTxs = allTxs.concat(txRes.data.transactions);
+    }
+    console.log('[PLAIDROUTES] Total transactions fetched:', allTxs.length);
 
-      for (const tx of txs) {
-        const monthYear = tx.date.slice(0,7);
-        const txRef = userRef
-          .collection('history')
-          .doc(monthYear)
-          .collection('items')
+    // 4) Ordena cronológicamente (más reciente primero)
+    allTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // 5) Agrupa transacciones por mes (“YYYY-MM”)
+    const txsPorMes = {};
+    allTxs.forEach(tx => {
+      const mes = tx.date.slice(0, 7); // “2025-06”
+      if (!txsPorMes[mes]) txsPorMes[mes] = [];
+      txsPorMes[mes].push(tx);
+    });
+    console.log('[PLAIDROUTES] Transactions grouped by month:', Object.keys(txsPorMes));
+
+    // 6) Carga TODOS los categoryGroups y construye un mapa “subcategory_normalized → grupoOriginal”
+    const categoryGroupsSnap = await db.collection('categoryGroups').get();
+    const catToGroupMap = {};
+
+    categoryGroupsSnap.forEach(docSnap => {
+      const docIdRaw = docSnap.id; // p.ej. “Loan Payments”
+      // Normalizamos el ID a minúsculas y reemplazamos espacios por guiones bajos
+      const subcatKey = docIdRaw.toLowerCase().replace(/\s+/g, '_'); 
+      const data      = docSnap.data();
+      // El campo "grupo" contiene el nombre en español, p.ej. “Finanzas y Seguros”
+      const grupoEs   = data.grupo || docIdRaw; 
+      catToGroupMap[subcatKey] = grupoEs;
+      console.log(`[PLAIDROUTES] Mapping subcategory "${docIdRaw}" (key="${subcatKey}") → grupo="${grupoEs}"`);
+    });
+
+    // 7) Itera por cada mes y cada transacción, determinando el grupoSuperior en español
+    const batchOverall = db.batch();
+
+    for (const [mesKey, transacciones] of Object.entries(txsPorMes)) {
+      console.log(`[PLAIDROUTES] Processing month "${mesKey}" with ${transacciones.length} transactions`);
+      const mesDocRef = userRef
+        .collection('historyCategorias')
+        .doc(mesKey);
+
+      for (const tx of transacciones) {
+        // A) Extraer la categoría en mayúsculas, pasar a minúsculas y reemplazar "_" por " "
+        //    Preferimos personal_finance_category.primary, si existe; si no, usamos tx.category
+        const rawCatSource = tx.personal_finance_category?.primary || tx.category || '';
+        // Algunas categorías vienen con guiones bajos, p.ej. "LOAN_PAYMENTS"
+        const rawCatLowerUnderscore = rawCatSource.toString().toLowerCase();          // e.g. "loan_payments"
+        const rawCatNormalized = rawCatLowerUnderscore.replace(/_/g, '_');            // sigue siendo "loan_payments"
+        // Buscamos grupo en el mapa; si no existe, agrupamos en "Otros"
+        const grupoSuperiorEs = catToGroupMap[rawCatNormalized] || 'Otros';
+        console.log(`[PLAIDROUTES] TxID=${tx.transaction_id} | rawCat="${rawCatSource}" → normalized="${rawCatNormalized}" → grupoEs="${grupoSuperiorEs}"`);
+
+        // C) Ruta final en Firestore:
+        //    users/{userId}/historyCategorias/{mesKey}/{grupoSuperiorEs}/{txId}
+        const docRef = mesDocRef
+          .collection(grupoSuperiorEs)
           .doc(tx.transaction_id);
 
-        const existing = await txRef.get();
-        if (!existing.exists) {
-          await txRef.set({
-            transaction_id: tx.transaction_id,
-            account_id:     tx.account_id,
-            date:           tx.date,
-            description:    tx.name,
-            category:       tx.personal_finance_category?.primary || 'Sin categoría',
-            detailed:       tx.personal_finance_category?.detailed || null,
-            category_id:    tx.category_id || null,
-            amount:         tx.amount,
-            currency:       tx.iso_currency_code || null,
-            fetchedAt:      admin.firestore.Timestamp.now()
-          });
-        }
+        // Guardamos únicamente el campo “amount”
+        batchOverall.set(
+          docRef,
+          { amount: tx.amount },
+          { merge: true }
+        );
+        console.log(`[PLAIDROUTES] batch.set → path: users/${userId}/historyCategorias/${mesKey}/${grupoSuperiorEs}/${tx.transaction_id} | { amount: ${tx.amount} }`);
       }
     }
 
-    res.json({ success: true });
+    // 8) Ejecutar todas las operaciones en un solo batch
+    await batchOverall.commit();
+    console.log('[PLAIDROUTES] batchOverall.commit → All writes committed');
+
+    return res.json({ success: true, message: 'historyCategorias updated successfully' });
   } catch (err) {
-    console.error('[PLAIDROUTES] Error in sync_transactions_and_store:', err.response?.data || err);
-    res.status(500).json({ error: err.message });
+    console.error('[PLAIDROUTES] Error updating historyCategorias:', err);
+    return res.status(500).json({ error: err.message });
   }
 });
 

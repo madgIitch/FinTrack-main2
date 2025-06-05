@@ -666,10 +666,10 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
 var _auth = require("firebase/auth");
-console.log('home.js loaded');
+console.log('[HOME] home.js loaded');
 // ── URL de tu API (ajústala según entorno) ─────────────────────────────────
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
-// Registrar y programar periodicSync
+// ── Registrar y programar periodicSync ─────────────────────────────────────
 if ('serviceWorker' in navigator) window.addEventListener('load', async ()=>{
     try {
         const reg = await navigator.serviceWorker.register(require("f49e69e7fb1d94f5"), {
@@ -681,9 +681,9 @@ if ('serviceWorker' in navigator) window.addEventListener('load', async ()=>{
             await reg.periodicSync.register('sync-transactions', {
                 minInterval: 86400000 // 24 h en ms
             });
-            console.log('[SYNC] periodicSync registrado');
+            console.log('[SYNC] periodicSync registered');
         } catch (err) {
-            console.warn('[SYNC] No se pudo registrar periodicSync:', err);
+            console.warn('[SYNC] Could not register periodicSync:', err);
         }
     } catch (err) {
         console.error('[SW] Registration failed:', err);
@@ -695,10 +695,13 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const closeSidebar = document.getElementById('close-sidebar');
     const logoutLink = document.getElementById('logout-link');
     function updateWelcome(name) {
+        console.log("[HOME] updateWelcome \u2192", name);
         userNameSpan.textContent = name;
     }
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
+        console.log("[HOME] onAuthStateChanged \u2192 user:", user);
         if (!user) {
+            console.log('[HOME] No user logged in, redirecting to index.html');
             window.location.href = '../index.html';
             return;
         }
@@ -707,6 +710,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
         try {
             const snap = await (0, _firestore.getDoc)(uRef);
             const data = snap.exists() ? snap.data() : {};
+            console.log('[HOME] Firestore user data:', data);
             const name = [
                 data.firstName,
                 data.lastName
@@ -718,29 +722,48 @@ document.addEventListener('DOMContentLoaded', ()=>{
             await loadBalances(user.uid);
             // ── Guardar UID en IndexedDB para Periodic Sync ───────────────────
             await saveUIDToIndexedDB(user.uid);
+            console.log('[HOME] UID saved to IndexedDB for periodicSync:', user.uid);
         } catch (e) {
-            console.error('Error cargando usuario:', e);
+            console.error('[HOME] Error loading user from Firestore:', e);
             updateWelcome('Usuario');
         }
     });
-    closeSidebar.onclick = ()=>sidebar.classList.remove('open');
-    logoutLink.onclick = async (e)=>{
+    closeSidebar.addEventListener('click', ()=>{
+        console.log('[HOME] closeSidebar clicked');
+        sidebar.classList.remove('open');
+    });
+    logoutLink.addEventListener('click', async (e)=>{
         e.preventDefault();
-        await (0, _auth.signOut)((0, _firebaseJs.auth));
-        window.location.href = '../index.html';
-    };
+        console.log('[HOME] logoutLink clicked, signing out');
+        try {
+            await (0, _auth.signOut)((0, _firebaseJs.auth));
+            console.log('[HOME] User signed out');
+            window.location.href = '../index.html';
+        } catch (err) {
+            console.error('[HOME] Error signing out:', err);
+        }
+    });
 });
 async function loadBalances(userId) {
     console.log("[DEBUG] loadBalances \u2192 userId:", userId);
     const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
     const uRef = (0, _firestore.doc)(db, 'users', userId);
-    const snap = await (0, _firestore.getDoc)(uRef);
-    const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
-    console.log('[DEBUG] Firestore accounts:', accounts);
+    let accounts = [];
+    try {
+        const snap = await (0, _firestore.getDoc)(uRef);
+        accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
+        console.log('[DEBUG] Firestore accounts list:', accounts);
+    } catch (err) {
+        console.error('[DEBUG] Error fetching Firestore user document for balances:', err);
+    }
     const slider = document.querySelector('.balance-slider');
+    if (!slider) {
+        console.warn("[DEBUG] loadBalances \u2192 .balance-slider not found in DOM");
+        return;
+    }
     slider.innerHTML = '';
     for (const [i, { accessToken }] of accounts.entries()){
-        console.log(`[DEBUG] Processing account #${i}`, accessToken);
+        console.log(`[DEBUG] Processing account #${i}, accessToken:`, accessToken);
         try {
             const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
                 method: 'POST',
@@ -751,8 +774,11 @@ async function loadBalances(userId) {
                     accessToken
                 })
             });
-            const { accounts: accs, institution } = await res.json();
-            const acc = accs?.[0] || {};
+            console.log(`[DEBUG] get_account_details status for account #${i}:`, res.status);
+            const data = await res.json();
+            console.log(`[DEBUG] get_account_details response for account #${i}:`, data);
+            const { accounts: accs = [], institution } = data;
+            const acc = accs[0] || {};
             const accountName = acc.name || 'Cuenta';
             const bal = acc.balances?.current ?? 0;
             let logoSrc = '/img/default_bank.png';
@@ -780,8 +806,9 @@ async function loadBalances(userId) {
             card.appendChild(balance);
             slide.appendChild(card);
             slider.appendChild(slide);
+            console.log(`[DEBUG] Added slide for account #${i} (${accountName}) with balance ${bal}`);
         } catch (err) {
-            console.error(`[ERROR] get_account_details #${i}:`, err);
+            console.error(`[ERROR] get_account_details for account #${i}:`, err);
         }
     }
     initBalanceSlider();
@@ -792,8 +819,13 @@ function initBalanceSlider() {
     const prev = document.getElementById('balance-prev');
     const next = document.getElementById('balance-next');
     const dots = document.getElementById('balance-dots');
+    if (!slider || !prev || !next || !dots) {
+        console.warn("[SLIDER] initBalanceSlider \u2192 Missing DOM elements for slider");
+        return;
+    }
     let idx = 0;
     const total = slides.length;
+    console.log("[SLIDER] initBalanceSlider \u2192 total slides:", total);
     if (total < 2) return;
     dots.innerHTML = '';
     slides.forEach((_, i)=>{
@@ -805,27 +837,29 @@ function initBalanceSlider() {
         });
         dots.appendChild(d);
     });
-    prev.onclick = ()=>{
+    prev.addEventListener('click', ()=>{
         idx = (idx - 1 + total) % total;
         update();
-    };
-    next.onclick = ()=>{
+    });
+    next.addEventListener('click', ()=>{
         idx = (idx + 1) % total;
         update();
-    };
+    });
     function update() {
         slider.style.transform = `translateX(-${idx * 100}%)`;
         Array.from(dots.children).forEach((dot, i)=>dot.classList.toggle('active', i === idx));
+        console.log("[SLIDER] update \u2192 current index:", idx);
     }
     update();
 }
-// ── Sincronización manual de transacciones a Firestore ────────────────
+// ── Sincronización manual de transacciones a Firestore ─────────────────────
 async function doManualSync(uid) {
     const lastSyncKey = `lastSync_${uid}`;
     const last = localStorage.getItem(lastSyncKey);
     const now = Date.now();
+    console.log("[SYNC] doManualSync \u2192 last:", last, 'now:', now);
     if (!last || now - parseInt(last) > 86400000) {
-        console.log("[SYNC] Ejecutando sincronizaci\xf3n manual");
+        console.log("[SYNC] Running manual sync now\u2026");
         try {
             const res = await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
                 method: 'POST',
@@ -836,25 +870,45 @@ async function doManualSync(uid) {
                     userId: uid
                 })
             });
-            const result = await res.json();
-            console.log('[SYNC] Resultado manual:', result);
-            localStorage.setItem(lastSyncKey, now.toString());
+            console.log('[SYNC] sync_transactions_and_store HTTP status:', res.status);
+            let result = {};
+            try {
+                result = await res.json();
+            } catch (jsonErr) {
+                console.error('[SYNC] Error parsing JSON from sync_transactions_and_store:', jsonErr);
+            }
+            console.log('[SYNC] sync_transactions_and_store response JSON:', result);
+            if (res.ok && result.success) {
+                console.log('[SYNC] Synchronization successful:', result.message || result);
+                localStorage.setItem(lastSyncKey, now.toString());
+            } else console.warn('[SYNC] sync_transactions_and_store returned an error:', result);
         } catch (err) {
-            console.error('[SYNC] Error manual:', err);
+            console.error('[SYNC] Error performing manual fetch:', err);
         }
-    } else console.log("[SYNC] Ya sincronizado en las \xfaltimas 24 h");
+    } else console.log("[SYNC] Already synced in the last 24\u2009h");
 }
 async function saveUIDToIndexedDB(uid) {
-    if (!('indexedDB' in window)) return;
+    console.log("[DB] saveUIDToIndexedDB \u2192 uid:", uid);
+    if (!('indexedDB' in window)) {
+        console.warn('[DB] IndexedDB not supported');
+        return;
+    }
     const openReq = indexedDB.open('fintrack-db', 1);
     openReq.onupgradeneeded = ()=>{
+        console.log('[DB] saveUIDToIndexedDB \u2192 onupgradeneeded, creating "metadata" store');
         openReq.result.createObjectStore('metadata');
     };
     openReq.onsuccess = ()=>{
         const db = openReq.result;
         const tx = db.transaction('metadata', 'readwrite');
         tx.objectStore('metadata').put(uid, 'userId');
-        tx.oncomplete = ()=>db.close();
+        tx.oncomplete = ()=>{
+            console.log("[DB] saveUIDToIndexedDB \u2192 UID stored, closing DB");
+            db.close();
+        };
+    };
+    openReq.onerror = ()=>{
+        console.error("[DB] saveUIDToIndexedDB \u2192 Error opening IndexedDB:", openReq.error);
     };
 }
 
