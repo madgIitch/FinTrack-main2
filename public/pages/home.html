@@ -7,12 +7,11 @@
   <link rel="stylesheet" href="/FinTrack-main.558d9a0b.css">
   <link rel="stylesheet" href="/home.c779873a.css">
   <script type="importmap">{"imports":{"i551T":"/service-worker.js"}}</script><script type="module" src="/FinTrack-main.64dd720e.js"></script><script src="/home.16e028b0.js"></script>
-  <!-- sidebar.js NO se modifica -->
   <script type="module" src="/home.659d772f.js"></script>
   <script type="module" src="/home.a4cb3a81.js"></script>
 </head>
 <body>
-  <!-- Sidebar (sin tocar) -->
+  <!-- Sidebar (oculto por defecto) -->
   <aside id="sidebar" class="sidebar">
     <button id="close-sidebar" class="close-btn">&times;</button>
     <h2>Menú</h2>
@@ -23,20 +22,23 @@
   </aside>
 
   <div class="container">
+    <!-- HEADER -->
     <header class="header">
-      <!-- Botón de menú en la esquina superior izquierda -->
       <button id="open-sidebar" class="hamburger">
         <i class="material-icons">menu</i>
       </button>
-
-      <h1 class="welcome-message">Bienvenido, <span id="user-name"></span></h1>
-
+      <div class="header-center">
+        <h1 class="welcome-message">Bienvenido, <span id="user-name"></span></h1>
+        <img src="/logoFintonic.89fddae4.svg" alt="Logo FinTrack" class="logo-icon-img">
+      </div>
       <button class="notification-button">
         <i class="material-icons">notifications</i>
       </button>
     </header>
 
+    <!-- MAIN CONTENT -->
     <main class="content grid-2">
+      <!-- SALDO ACTUAL -->
       <section class="card balance-section">
         <h2>Saldo Actual</h2>
         <div class="balance-slider-container">
@@ -51,6 +53,7 @@
         <div id="balance-dots" class="slider-dots"></div>
       </section>
 
+      <!-- RESUMEN MENSUAL -->
       <section class="card chart-section">
         <h2>Resumen Mensual</h2>
         <div class="month-summaries"></div>
@@ -63,6 +66,7 @@
       </section>
     </main>
 
+    <!-- NAV INFERIOR -->
     <nav class="bottom-nav">
       <a href="/pages/home.html" class="nav-item active">
         <i class="material-icons">home</i><span>Home</span>

@@ -25,6 +25,93 @@ button {
   font-family: inherit;
 }
 
+.sidebar {
+  z-index: 1000;
+  background: #fff;
+  width: 260px;
+  height: 100%;
+  padding: 1rem;
+  transition: transform .3s;
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform: translateX(-100%);
+  box-shadow: 2px 0 8px #0000001a;
+}
+
+.sidebar.open {
+  transform: translateX(0);
+}
+
+.close-btn {
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+}
+
+.sidebar h2 {
+  margin-top: 0;
+}
+
+.sidebar-btn {
+  color: #fff;
+  text-align: left;
+  background: #252525;
+  border-radius: 6px;
+  margin: .5rem 0;
+  padding: .75rem 1rem;
+  display: block;
+}
+
+.sidebar-btn:hover {
+  background: #1b1b1b;
+}
+
+.header {
+  justify-content: center;
+  align-items: center;
+  height: 60px;
+  padding: 0 2rem;
+  display: flex;
+  position: relative;
+}
+
+.hamburger, .notification-button {
+  color: #252525;
+  font-size: 1.5rem;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.hamburger {
+  left: 1rem;
+}
+
+.notification-button {
+  right: 1rem;
+}
+
+.header-center {
+  align-items: center;
+  gap: .5rem;
+  display: flex;
+}
+
+.welcome-message {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.logo-icon-img {
+  width: 32px;
+  height: 32px;
+}
+
 @media (width >= 800px) {
   .grid-2 {
     grid-template-columns: 1fr 1fr;
@@ -34,23 +121,10 @@ button {
   }
 }
 
-.header {
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  display: flex;
-}
-
-.welcome-message {
-  text-align: center;
-  flex: 1;
-  font-size: 1.2rem;
-}
-
 .balance-section {
   width: 90%;
   max-width: 600px;
-  margin: 0 auto 1.5rem;
+  margin: 1rem auto;
 }
 
 .balance-section h2 {
@@ -79,13 +153,20 @@ button {
 
 .balance-slide .card {
   text-align: center;
-  background-color: #fff;
+  background: #fff;
   border-radius: 12px;
   width: 90%;
   max-width: 350px;
   margin: 0 auto;
   padding: 1.25rem;
   box-shadow: 0 2px 4px #0000001a;
+}
+
+.card-logo {
+  border-radius: 4px;
+  width: 48px;
+  margin: 0 auto .75rem;
+  display: block;
 }
 
 .slider-btn {
@@ -126,28 +207,16 @@ button {
   background: #555;
 }
 
-.card-logo {
-  border-radius: 4px;
-  width: 48px;
-  margin: 0 auto .75rem;
-  display: block;
-}
-
 .chart-section {
   width: 90%;
   max-width: 600px;
-  margin: 0 auto;
+  margin: 1rem auto;
 }
 
 .chart-section h2 {
   color: #333;
   margin-bottom: 1rem;
   font-size: 1.4em;
-}
-
-#monthlyChart {
-  width: 100%;
-  height: 300px;
 }
 
 .month-summaries {
@@ -158,43 +227,9 @@ button {
   overflow-x: auto;
 }
 
-.summary-card {
-  text-align: center;
-  background: #fff;
-  border-radius: 8px;
-  flex: none;
-  min-width: 120px;
-  padding: .75rem;
-  box-shadow: 0 1px 3px #0000001a;
-}
-
-.summary-card h4 {
-  color: #333;
-  margin: 0 0 .5rem;
-  font-size: 1rem;
-}
-
-.summary-card p {
-  color: #444;
-  margin: .25rem 0;
-  font-size: .9rem;
-}
-
-.summary-card .dot {
-  vertical-align: middle;
-  border-radius: 50%;
-  width: 8px;
-  height: 8px;
-  margin-right: 4px;
-  display: inline-block;
-}
-
-.summary-card .dot.gastos {
-  background: #ff6384;
-}
-
-.summary-card .dot.ingresos {
-  background: #36a2eb;
+#monthlyChart {
+  width: 100%;
+  height: 300px;
 }
 
 .chart-footer {
@@ -205,11 +240,11 @@ button {
 .chart-footer .btn-custom {
   max-width: 200px;
   padding: .5rem 1rem;
-  display: inline-block;
 }
 
 .bottom-nav {
-  background-color: #f4f4f4;
+  z-index: 999;
+  background: #f4f4f4;
   border-top: 1px solid #e0e0e0;
   justify-content: space-around;
   align-items: center;
@@ -235,110 +270,5 @@ button {
 .bottom-nav a .material-icons {
   margin-bottom: .25rem;
   font-size: 1.5rem;
-}
-
-.slider-actions {
-  justify-content: center;
-  gap: 1rem;
-  margin-top: 1rem;
-  display: flex;
-}
-
-.btn-action {
-  color: #fff;
-  text-transform: none;
-  background-color: #252525;
-  border-radius: 20px;
-  padding: .5rem 1rem;
-  font-size: .9rem;
-  transition: background-color .3s;
-}
-
-.btn-action:hover {
-  background-color: #1b1b1b;
-}
-
-@media (width >= 800px) {
-  .balance-section {
-    margin-bottom: 0;
-  }
-}
-
-.sidebar {
-  z-index: 1000;
-  background: #fff;
-  width: 260px;
-  height: 100%;
-  padding: 1rem;
-  transition: left .3s;
-  position: fixed;
-  top: 0;
-  left: -260px;
-  box-shadow: 2px 0 8px #0000001a;
-}
-
-.sidebar.open {
-  left: 0;
-}
-
-.close-btn {
-  float: right;
-  cursor: pointer;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-}
-
-.sidebar h2 {
-  margin-top: 0;
-}
-
-.sidebar-btn {
-  color: #fff;
-  text-align: left;
-  background: #252525;
-  border-radius: 6px;
-  margin: .5rem 0;
-  padding: .75rem 1rem;
-  display: block;
-}
-
-.sidebar-btn:hover {
-  background: #1b1b1b;
-}
-
-.hamburger {
-  z-index: 1001;
-  cursor: pointer;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  position: fixed;
-  top: 1rem;
-  left: 1rem;
-}
-
-.header {
-  justify-content: center;
-  align-items: center;
-  padding: 1rem 2rem;
-  display: flex;
-  position: relative;
-}
-
-.welcome-message {
-  margin: 0 auto;
-  font-size: 1.2rem;
-}
-
-.notification-button {
-  z-index: 1001;
-  cursor: pointer;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
 }
 /*# sourceMappingURL=home.c779873a.css.map */

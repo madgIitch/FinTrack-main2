@@ -883,8 +883,7 @@ async function loadMonthlyChart(userId) {
                     type: 'logarithmic',
                     beginAtZero: false,
                     title: {
-                        display: true,
-                        text: "\u20AC"
+                        display: true
                     },
                     ticks: {
                         callback: (v)=>{

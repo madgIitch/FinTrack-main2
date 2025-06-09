@@ -1,32 +1,80 @@
 /* ========================================
-   Reset y estilos base
+   Reset y base
    ======================================== */
 html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
+  margin: 0; padding: 0;
+  width: 100%; height: 100%;
   font-family: Arial, sans-serif;
   background: linear-gradient(to bottom, #e0e0e0, #f4f4f4);
-  color: #333;
-  box-sizing: border-box;
+  color: #333; box-sizing: border-box;
 }
-*, *::before, *::after {
-  box-sizing: inherit;
+*, *::before, *::after { box-sizing: inherit; }
+a { text-decoration: none; color: inherit; }
+button { font-family: inherit; border: none; background: none; cursor: pointer; }
+
+/* ========================================
+   Sidebar (se mueve con sidebar.js)
+   ======================================== */
+.sidebar {
+  position: fixed; top: 0; left: 0;
+  transform: translateX(-100%);
+  width: 260px; height: 100%;
+  background: #fff; box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+  padding: 1rem; transition: transform .3s ease;
+  z-index: 1000;
 }
-a {
-  text-decoration: none;
-  color: inherit;
+.sidebar.open { transform: translateX(0); }
+.close-btn {
+  position: absolute; top: 1rem; right: 1rem;
+  font-size: 1.5rem; background: none; border: none; cursor: pointer;
 }
-button {
-  font-family: inherit;
-  border: none;
-  background: none;
-  cursor: pointer;
+.sidebar h2 { margin-top: 0; }
+.sidebar-btn {
+  display: block;
+  padding: .75rem 1rem;
+  margin: .5rem 0;
+  background: #252525;
+  color: #fff;
+  border-radius: 6px;
+  text-align: left;
+}
+.sidebar-btn:hover { background: #1b1b1b; }
+
+/* ========================================
+   Header (idéntico a transactions.html)
+   ======================================== */
+.header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 60px;
+  padding: 0 2rem;
+}
+.hamburger, .notification-button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.5rem;
+  color: #252525;
+}
+.hamburger { left: 1rem; }
+.notification-button { right: 1rem; }
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.welcome-message {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.logo-icon-img {
+  width: 32px; height: 32px;
 }
 
 /* ========================================
-   Grid de dos columnas en pantallas anchas
+   Grid de dos columnas en desktop
    ======================================== */
 @media (min-width: 800px) {
   .grid-2 {
@@ -38,300 +86,91 @@ button {
 }
 
 /* ========================================
-   Cabecera
-   ======================================== */
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-}
-.welcome-message {
-  font-size: 1.2rem;
-  flex: 1;
-  text-align: center;
-}
-
-/* ========================================
    Saldo Actual: Slider de tarjetas
    ======================================== */
 .balance-section {
-  width: 90%;
-  max-width: 600px;
-  margin: 0 auto 1.5rem;
+  width: 90%; max-width: 600px;
+  margin: 1rem auto;
 }
 .balance-section h2 {
-  margin-bottom: 0.5rem;
-  font-size: 1.4em;
-  color: #333;
+  margin-bottom: .5rem;
+  font-size: 1.4em; color: #333;
 }
 .balance-slider-container {
-  position: relative;
-  overflow: hidden;
-  width: 100%;
-  max-width: 400px;
-  margin: 0 auto;
+  position: relative; overflow: hidden;
+  width: 100%; max-width: 400px; margin: 0 auto;
 }
 .balance-slider {
-  display: flex;
-  transition: transform 0.3s ease;
+  display: flex; transition: transform .3s ease;
 }
-.balance-slide {
-  min-width: 100%;
-  box-sizing: border-box;
-}
+.balance-slide { min-width: 100%; box-sizing: border-box; }
 .balance-slide .card {
-  background-color: #fff;
-  border-radius: 12px;
-  padding: 1.25rem;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  text-align: center;
-  width: 90%;
-  max-width: 350px;
-  margin: 0 auto;
+  background: #fff; border-radius: 12px;
+  padding: 1.25rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  text-align: center; width: 90%; max-width: 350px; margin: 0 auto;
+}
+.card-logo {
+  display: block; width: 48px; margin: 0 auto .75rem;
+  border-radius: 4px;
 }
 .slider-btn {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(255,255,255,0.8);
-  border-radius: 50%;
-  padding: 0.5rem;
-  cursor: pointer;
-  z-index: 2;
+  position: absolute; top: 50%; transform: translateY(-50%);
+  background: rgba(255,255,255,0.8); border-radius: 50%;
+  padding: .5rem; cursor: pointer; z-index: 2;
 }
 .slider-btn.prev { left: 1.5rem; }
 .slider-btn.next { right: 1.5rem; }
 .slider-dots {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+  display: flex; justify-content: center;
+  gap: .5rem; margin-top: .5rem;
 }
 .slider-dot {
-  width: 0.625rem;
-  height: 0.625rem;
-  background: #ccc;
-  border-radius: 50%;
+  width: .625rem; height: .625rem;
+  background: #ccc; border-radius: 50%;
   cursor: pointer;
 }
-.slider-dot.active {
-  background: #555;
-}
-.card-logo {
-  display: block;
-  width: 48px;
-  margin: 0 auto 0.75rem;
-  border-radius: 4px;
-}
+.slider-dot.active { background: #555; }
 
 /* ========================================
-   Contenedor de resumen mensual
+   Resumen Mensual
    ======================================== */
 .chart-section {
-  width: 90%;
-  max-width: 600px;
-  margin: 0 auto;
+  width: 90%; max-width: 600px;
+  margin: 1rem auto;
 }
 .chart-section h2 {
-  font-size: 1.4em;
-  color: #333;
+  margin-bottom: 1rem;
+  font-size: 1.4em; color: #333;
+}
+.month-summaries {
+  display: flex; gap: 1rem;
+  overflow-x: auto; padding: .5rem 0;
   margin-bottom: 1rem;
 }
 #monthlyChart {
-  width: 100%;
-  height: 300px;
+  width: 100%; height: 300px;
 }
-
-/* ========================================
-   Mini‐cards resumen por mes
-   ======================================== */
-.month-summaries {
-  display: flex;
-  gap: 1rem;
-  overflow-x: auto;
-  padding: 0.5rem 0;
-  margin-bottom: 1rem;
-}
-.summary-card {
-  flex: 0 0 auto;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  min-width: 120px;
-  padding: 0.75rem;
-  text-align: center;
-}
-.summary-card h4 {
-  margin: 0 0 0.5rem;
-  font-size: 1rem;
-  color: #333;
-}
-.summary-card p {
-  margin: 0.25rem 0;
-  font-size: 0.9rem;
-  color: #444;
-}
-.summary-card .dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 4px;
-  vertical-align: middle;
-}
-.summary-card .dot.gastos   { background: #FF6384; }
-.summary-card .dot.ingresos { background: #36A2EB; }
-
-/* ========================================
-   Botón de acción bajo la gráfica
-   ======================================== */
 .chart-footer {
-  text-align: center;
-  margin-top: 1rem;
+  text-align: center; margin-top: 1rem;
 }
 .chart-footer .btn-custom {
-  display: inline-block;
-  max-width: 200px;
-  padding: 0.5rem 1rem;
+  padding: .5rem 1rem; max-width: 200px;
 }
 
 /* ========================================
-   Barra de navegación inferior
+   Navegación inferior
    ======================================== */
 .bottom-nav {
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  background-color: #f4f4f4;
-  border-top: 1px solid #e0e0e0;
-  padding: 0.5rem 0;
-  position: fixed;
-  bottom: 0;
-  width: 100%;
+  display: flex; justify-content: space-around; align-items: center;
+  background: #f4f4f4; border-top: 1px solid #e0e0e0;
+  padding: .5rem 0; position: fixed; bottom: 0; width: 100%;
+  z-index: 999;
 }
 .bottom-nav a {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  color: #777;
-  font-size: 0.75rem;
+  display: flex; flex-direction: column; align-items: center;
+  color: #777; font-size: .75rem;
 }
-.bottom-nav a.active {
-  color: #333;
-}
+.bottom-nav a.active { color: #333; }
 .bottom-nav a .material-icons {
-  font-size: 1.5rem;
-  margin-bottom: 0.25rem;
-}
-
-
-/* ========================================
-   Acciones dentro del slider de saldos
-   ======================================== */
-.slider-actions {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-.btn-action {
-  background-color: #252525;
-  color: #fff;
-  border-radius: 20px;
-  padding: 0.5rem 1rem;
-  font-size: 0.9rem;
-  text-transform: none;
-  transition: background-color 0.3s ease;
-}
-.btn-action:hover {
-  background-color: #1b1b1b;
-}
-
-/* Ajuste responsivo para el grid y el balance-section */
-@media (min-width: 800px) {
-  .balance-section {
-    margin-bottom: 0;
-  }
-}
-
-
-/* Sidebar */
-.sidebar {
-  position: fixed;
-  top: 0;
-  left: -260px;        /* fuera del viewport */
-  width: 260px;
-  height: 100%;
-  background: #fff;
-  box-shadow: 2px 0 8px rgba(0,0,0,0.1);
-  padding: 1rem;
-  transition: left 0.3s ease;
-  z-index: 1000;
-}
-.sidebar.open {
-  left: 0;             /* visible */
-}
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  float: right;
-  cursor: pointer;
-}
-.sidebar h2 {
-  margin-top: 0;
-}
-.sidebar-btn {
-  display: block;
-  padding: 0.75rem 1rem;
-  margin: 0.5rem 0;
-  background: #252525;
-  color: #fff;
-  border-radius: 6px;
-  text-align: left;
-}
-.sidebar-btn:hover {
-  background: #1b1b1b;
-}
-
-/* ========================================
-   Posicionar el hamburger en la esquina
-   ======================================== */
-.hamburger {
-  position: fixed;
-  top: 1rem;
-  left: 1rem;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  z-index: 1001; /* por encima del header */
-  cursor: pointer;
-}
-
-/* Ajusta el header para que no desplace el hamburger */
-.header {
-  padding: 1rem 2rem; /* deja espacio a izquierda y derecha */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-
-/* Centramos el título sin que el hamburger lo desplace */
-.welcome-message {
-  margin: 0 auto;
-  font-size: 1.2rem;
-}
-
-/* Mantenemos el botón de notificaciones en la derecha */
-.notification-button {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  z-index: 1001;
-  cursor: pointer;
+  font-size: 1.5rem; margin-bottom: .25rem;
 }
