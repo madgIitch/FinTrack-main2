@@ -236,4 +236,109 @@ button {
   margin-bottom: .25rem;
   font-size: 1.5rem;
 }
+
+.slider-actions {
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  display: flex;
+}
+
+.btn-action {
+  color: #fff;
+  text-transform: none;
+  background-color: #252525;
+  border-radius: 20px;
+  padding: .5rem 1rem;
+  font-size: .9rem;
+  transition: background-color .3s;
+}
+
+.btn-action:hover {
+  background-color: #1b1b1b;
+}
+
+@media (width >= 800px) {
+  .balance-section {
+    margin-bottom: 0;
+  }
+}
+
+.sidebar {
+  z-index: 1000;
+  background: #fff;
+  width: 260px;
+  height: 100%;
+  padding: 1rem;
+  transition: left .3s;
+  position: fixed;
+  top: 0;
+  left: -260px;
+  box-shadow: 2px 0 8px #0000001a;
+}
+
+.sidebar.open {
+  left: 0;
+}
+
+.close-btn {
+  float: right;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+}
+
+.sidebar h2 {
+  margin-top: 0;
+}
+
+.sidebar-btn {
+  color: #fff;
+  text-align: left;
+  background: #252525;
+  border-radius: 6px;
+  margin: .5rem 0;
+  padding: .75rem 1rem;
+  display: block;
+}
+
+.sidebar-btn:hover {
+  background: #1b1b1b;
+}
+
+.hamburger {
+  z-index: 1001;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+}
+
+.header {
+  justify-content: center;
+  align-items: center;
+  padding: 1rem 2rem;
+  display: flex;
+  position: relative;
+}
+
+.welcome-message {
+  margin: 0 auto;
+  font-size: 1.2rem;
+}
+
+.notification-button {
+  z-index: 1001;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+}
 /*# sourceMappingURL=home.c779873a.css.map */

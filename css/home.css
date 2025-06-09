@@ -224,3 +224,114 @@ button {
   font-size: 1.5rem;
   margin-bottom: 0.25rem;
 }
+
+
+/* ========================================
+   Acciones dentro del slider de saldos
+   ======================================== */
+.slider-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.btn-action {
+  background-color: #252525;
+  color: #fff;
+  border-radius: 20px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  text-transform: none;
+  transition: background-color 0.3s ease;
+}
+.btn-action:hover {
+  background-color: #1b1b1b;
+}
+
+/* Ajuste responsivo para el grid y el balance-section */
+@media (min-width: 800px) {
+  .balance-section {
+    margin-bottom: 0;
+  }
+}
+
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: -260px;        /* fuera del viewport */
+  width: 260px;
+  height: 100%;
+  background: #fff;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+  padding: 1rem;
+  transition: left 0.3s ease;
+  z-index: 1000;
+}
+.sidebar.open {
+  left: 0;             /* visible */
+}
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  float: right;
+  cursor: pointer;
+}
+.sidebar h2 {
+  margin-top: 0;
+}
+.sidebar-btn {
+  display: block;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+  background: #252525;
+  color: #fff;
+  border-radius: 6px;
+  text-align: left;
+}
+.sidebar-btn:hover {
+  background: #1b1b1b;
+}
+
+/* ========================================
+   Posicionar el hamburger en la esquina
+   ======================================== */
+.hamburger {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  z-index: 1001; /* por encima del header */
+  cursor: pointer;
+}
+
+/* Ajusta el header para que no desplace el hamburger */
+.header {
+  padding: 1rem 2rem; /* deja espacio a izquierda y derecha */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* Centramos el título sin que el hamburger lo desplace */
+.welcome-message {
+  margin: 0 auto;
+  font-size: 1.2rem;
+}
+
+/* Mantenemos el botón de notificaciones en la derecha */
+.notification-button {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  z-index: 1001;
+  cursor: pointer;
+}
