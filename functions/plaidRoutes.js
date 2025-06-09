@@ -1,11 +1,22 @@
 // plaidRoutes.js
 
-require('dotenv').config();            // Carga variables de entorno
+require('dotenv').config();
 const express = require('express');
-const { admin, db } = require('./firebaseAdmin');  // db = admin.firestore()
+const { admin, db } = require('./firebaseAdmin'); // db = admin.firestore()
 const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
 
 const router = express.Router();
+
+// Función de ayuda para normalizar cadenas (quita acentos y diacríticos)
+function normalizeKey(str) {
+  return str
+    .toString()
+    .normalize('NFD')               // Descompone acentos
+    .replace(/[\u0300-\u036f]/g, '')// Elimina marcas diacríticas
+    .toLowerCase()
+    .replace(/\s+/g, '_')          // Espacios → guiones bajos
+    .replace(/[^\w_]/g, '');       // Quita caracteres no alfanuméricos/underscore
+}
 
 // ── CORS ────────────────────────────────────────────────────────────────────────
 router.use((req, res, next) => {
@@ -48,7 +59,7 @@ router.post('/create_link_token', async (req, res) => {
     });
     res.json({ link_token: resp.data.link_token });
   } catch (err) {
-    console.error('[PLAIDROUTES] Error creating link token:', err.response?.data || err);
+    console.error('[PLAIDROUTES] Error creating link token:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -80,7 +91,7 @@ router.post('/exchange_public_token', async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error('[PLAIDROUTES] Error exchanging public token:', err.response?.data || err);
+    console.error('[PLAIDROUTES] Error exchanging public token:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -96,8 +107,8 @@ router.post('/get_account_details', async (req, res) => {
     const accsResp = await plaidClient.accountsGet({ access_token: accessToken });
     const itemResp = await plaidClient.itemGet({ access_token: accessToken });
 
-    const instId = itemResp.data.item.institution_id;
     let institution = null;
+    const instId = itemResp.data.item.institution_id;
     if (instId) {
       const inst = await plaidClient.institutionsGetById({
         institution_id: instId,
@@ -112,7 +123,7 @@ router.post('/get_account_details', async (req, res) => {
       institution
     });
   } catch (err) {
-    console.error('[PLAIDROUTES] Error in get_account_details:', err.response?.data || err);
+    console.error('[PLAIDROUTES] Error in get_account_details:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -167,12 +178,12 @@ router.post('/get_transactions', async (req, res) => {
 
     res.json({ transactions: cleaned });
   } catch (err) {
-    console.error('[PLAIDROUTES] Error in get_transactions:', err.response?.data || err);
+    console.error('[PLAIDROUTES] Error in get_transactions:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── Sync transactions and store (with historyCategorias) ─────────────────────
+// ── Sync transactions and store ───────────────────────────────────────────────
 router.post('/sync_transactions_and_store', async (req, res) => {
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
@@ -185,14 +196,16 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     }
 
     // 1) Leer límites de gasto desde settings.budgets
-    const settings     = userSnap.data().settings || {};
-    const budgetsMap   = settings.budgets || {}; // e.g. { 'Ocio': 100, 'Transporte': 200 }
+    const settings   = userSnap.data().settings || {};
+    const budgetsMap = settings.budgets || {};
     console.log('[sync] budgetsMap:', budgetsMap);
 
-    // 2) Fetch transacciones Plaid últimos 30 días
+    // 2) Fetch todas las transacciones de los últimos 30 días
     const accounts = userSnap.data().plaid?.accounts || [];
     const endDate   = new Date().toISOString().slice(0,10);
-    const startDate = new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
+    const startDate = new Date(Date.now() - 30*24*60*60*1000)
+                        .toISOString().slice(0,10);
+
     let allTxs = [];
     for (const { accessToken } of accounts) {
       const txRes = await plaidClient.transactionsGet({
@@ -210,10 +223,10 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     allTxs.sort((a,b) => new Date(b.date) - new Date(a.date));
     console.log('[sync] fetched', allTxs.length, 'transactions');
 
-    // 3) Agrupar por mes
+    // 3) Agrupar transacciones por mes (YYYY-MM)
     const txsPorMes = {};
     allTxs.forEach(tx => {
-      const mes = tx.date.slice(0,7); // '2025-06'
+      const mes = tx.date.slice(0,7);
       (txsPorMes[mes] = txsPorMes[mes]||[]).push(tx);
     });
     console.log('[sync] months:', Object.keys(txsPorMes));
@@ -221,56 +234,69 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     // 4) Leer categoryGroups → mapa subcat_key → grupoEspañol
     const catGroupsSnap = await db.collection('categoryGroups').get();
     const catToGroupMap = {};
+
     catGroupsSnap.forEach(docSnap => {
-      const rawId = docSnap.id;                        // 'Loan Payments'
-      const key   = rawId.toLowerCase().replace(/\s+/g,'_');
-      const grupo = docSnap.data().grupo || rawId;     // 'Finanzas y Seguros'
-      catToGroupMap[key] = grupo;
+      const rawId     = docSnap.id;                    // e.g. "Food and Drink"
+      const data      = docSnap.data();
+      // Primero intentamos el campo 'group' (inglés), luego 'grupo' (español antiguo), y si no existe usamos el ID
+      const display   = data.group || data.grupo || rawId;
+
+      // Normalizamos la clave del documento
+      const docKey    = normalizeKey(rawId);
+      catToGroupMap[docKey] = display;
+
+      // Si tienes subcategorías en un array, también las mapeamos:
+      if (Array.isArray(data.subcategories)) {
+        data.subcategories.forEach(rawCat => {
+          const subKey = normalizeKey(rawCat);
+          catToGroupMap[subKey] = display;
+        });
+      }
+
+      console.log(`[sync] mapped categoryGroup "${rawId}" → "${display}"`);
     });
     console.log('[sync] catToGroupMap:', catToGroupMap);
 
-    // 5) Batch para writes
+
+    // 5) Preparamos un batch para todos los writes
     const batch = db.batch();
 
-    // Para cada mes...
     for (const [mes, txs] of Object.entries(txsPorMes)) {
       console.log(`[sync] processing month ${mes} (${txs.length} txs)`);
-      const histCatRef   = userRef.collection('historyCategorias').doc(mes);
-      const histLimitsRef= userRef.collection('historyLimits').doc(mes);
+      const histCatRef    = userRef.collection('historyCategorias').doc(mes);
+      const histLimitsRef = userRef.collection('historyLimits').doc(mes);
 
-      // acumuladores de gasto por grupo
       const spentByGroup = {};
 
       for (const tx of txs) {
-        const raw = tx.personal_finance_category?.primary || tx.category || '';
-        const key = raw.toString().toLowerCase();                // 'loan_payments'
-        const grp = catToGroupMap[key] || 'Otros';               // 'Finanzas y Seguros' o 'Otros'
-        const amt = tx.amount < 0 ? Math.abs(tx.amount) : 0;     // solo gastos
+        // Normalizamos la clave de la categoría de la tx
+        const raw   = tx.personal_finance_category?.primary || tx.category || '';
+        const key   = normalizeKey(raw);
+        const group = catToGroupMap[key] || 'Otros';
+        const amt   = tx.amount < 0 ? Math.abs(tx.amount) : 0;
 
-        // → historyCategorias (igual que antes)
-        const docCat = histCatRef.collection(grp).doc(tx.transaction_id);
+        // — historyCategorias
+        const docCat = histCatRef.collection(group).doc(tx.transaction_id);
         batch.set(docCat, { amount: tx.amount }, { merge: true });
 
-        // acumular gasto
-        spentByGroup[grp] = (spentByGroup[grp]||0) + amt;
+        // Acumulamos gasto
+        spentByGroup[group] = (spentByGroup[group]||0) + amt;
+
+        console.log(`[sync] TxID=${tx.transaction_id} → raw="${raw}" key="${key}" group="${group}" amt=${amt}`);
       }
 
       console.log(`[sync] spentByGroup for ${mes}:`, spentByGroup);
 
-      // → historyLimits: solo grupos con límite en budgetsMap
-      Object.entries(budgetsMap).forEach(([grpName, limit]) => {
-        // grpName coincide con clave de budgetsMap (mismo texto)
+      // — historyLimits: solo grupos con presupuesto
+      for (const [grpName, limit] of Object.entries(budgetsMap)) {
         const spent = spentByGroup[grpName] || 0;
         const docLim = histLimitsRef.collection('groups').doc(grpName);
-        batch.set(docLim, {
-          limit: limit,
-          spent: spent
-        }, { merge: true });
-        console.log(`[sync] set limit for ${mes}/${grpName} →`, { limit, spent });
-      });
+        batch.set(docLim, { limit, spent }, { merge: true });
+        console.log(`[sync] set limit for ${mes}/${grpName} → limit=${limit}, spent=${spent}`);
+      }
     }
 
-    // ejecutar batch
+    // 6) Ejecutamos el batch
     await batch.commit();
     console.log('[sync] batch committed');
 
