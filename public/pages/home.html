@@ -4,35 +4,32 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>FinTrack – Inicio</title>
-  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/FinTrack-main.558d9a0b.css">
   <link rel="stylesheet" href="/home.c779873a.css">
-  <link rel="stylesheet" href="/home.8129f27b.css"> 
-  <link rel="stylesheet" href="/FinTrack-main.406065e9.css">
-
-  <!-- Chart.js desde hosting propio -->
   <script type="importmap">{"imports":{"i551T":"/service-worker.js"}}</script><script type="module" src="/FinTrack-main.64dd720e.js"></script><script src="/home.16e028b0.js"></script>
-
   <script type="module" src="/home.a4cb3a81.js"></script>
   <script type="module" src="/home.659d772f.js"></script>
 </head>
 <body>
+  <div class="logo-container">
+    <img src="/logoFintonic.89fddae4.svg" alt="Logo FinTrack" class="logo">
+  </div>
+
   <div class="container">
     <header class="header">
-      <div class="header-left">
-        <img src="/logoFintonic.89fddae4.svg" alt="Logo FinTrack" class="logo-icon" id="logo-home">
-      </div>
-      <h1 class="welcome-message">Bienvenido, <span id="user-name"></span></h1>            
-      <div class="header-right">
-        <button class="notification-button">
-          <i class="material-icons">notifications</i>
-        </button>
-      </div>
+      <button id="open-sidebar" class="logo-icon">
+        <i class="material-icons">menu</i>
+      </button>
+      <h1 class="welcome-message">Bienvenido, <span id="user-name"></span></h1>
+      <button class="notification-button">
+        <i class="material-icons">notifications</i>
+      </button>
     </header>
 
-    <main class="content">
-      <!-- === SLIDER DE SALDOS === -->
-      <section id="balance-section" class="balance-section">
+    <main class="content grid-2">
+      <!-- Slider saldos -->
+      <section class="card balance-section">
+        <h2>Saldo Actual</h2>
         <div class="balance-slider-container">
           <button id="balance-prev" class="slider-btn prev">
             <i class="material-icons">chevron_left</i>
@@ -44,29 +41,35 @@
         </div>
         <div id="balance-dots" class="slider-dots"></div>
       </section>
-      <!-- === FIN SLIDER DE SALDOS === -->
 
-      <!-- === GRÁFICA MENSUAL === -->
-      <section class="chart-section">
-        <h2>Resumen mensual</h2>
+      <!-- Gráfica mensual + mini resumen -->
+      <section class="card chart-section">
+        <h2>Resumen Mensual</h2>
+
+        <!-- Mini-cards últimos 12 meses -->
+        <div class="month-summaries">
+          <!-- Se llenan dinámicamente con JS -->
+        </div>
+
         <canvas id="monthlyChart"></canvas>
-      </section>
-      <!-- === FIN GRÁFICA MENSUAL === -->
 
+        <div class="chart-footer">
+          <button class="btn-custom" onclick="location.href='transactions.html'">
+            Ver todas las transacciones →
+          </button>
+        </div>
+      </section>
     </main>
 
     <nav class="bottom-nav">
       <a href="/pages/home.html" class="nav-item active">
-        <i class="material-icons">home</i>
-        <span>Home</span>
+        <i class="material-icons">home</i><span>Home</span>
       </a>
       <a href="/pages/transactions.html" class="nav-item">
-        <i class="material-icons">swap_horiz</i>
-        <span>Transactions</span>
+        <i class="material-icons">swap_horiz</i><span>Transactions</span>
       </a>
       <a href="/pages/analisys.html" class="nav-item">
-        <i class="material-icons">pie_chart</i>
-        <span>Analisys</span>
+        <i class="material-icons">pie_chart</i><span>Analysis</span>
       </a>
     </nav>
 
@@ -75,7 +78,7 @@
       <h2>Menú</h2>
       <ul>
         <li><a href="/pages/profile.html" class="btn-custom sidebar-btn">Perfil</a></li>
-        <li><a href="#" class="btn-custom sidebar-btn" id="logout-link">Cerrar Sesión</a></li>
+        <li><a href="#" id="logout-link" class="btn-custom sidebar-btn">Cerrar Sesión</a></li>
       </ul>
     </aside>
   </div>

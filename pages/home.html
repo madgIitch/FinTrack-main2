@@ -1,38 +1,35 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FinTrack – Inicio</title>
-  <link rel="manifest" href="../manifest.json">
-  <link rel="stylesheet" href="../css/styles.css">
-  <link rel="stylesheet" href="../css/home.css">
-  <link rel="stylesheet" href="../css/sidebar.css"> 
-  <link rel="stylesheet" href="../css/responsive.css">
-
-  <!-- Chart.js desde hosting propio -->
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/home.css" />
   <script src="../js/chart.min.js"></script>
-
   <script type="module" src="../js/home.js"></script>
   <script type="module" src="../js/sidebar.js"></script>
 </head>
 <body>
+  <div class="logo-container">
+    <img src="../img/logoFintonic.svg" alt="Logo FinTrack" class="logo" />
+  </div>
+
   <div class="container">
     <header class="header">
-      <div class="header-left">
-        <img src="../img/logoFintonic.svg" alt="Logo FinTrack" class="logo-icon" id="logo-home">
-      </div>
-      <h1 class="welcome-message">Bienvenido, <span id="user-name"></span></h1>            
-      <div class="header-right">
-        <button class="notification-button">
-          <i class="material-icons">notifications</i>
-        </button>
-      </div>
+      <button id="open-sidebar" class="logo-icon">
+        <i class="material-icons">menu</i>
+      </button>
+      <h1 class="welcome-message">Bienvenido, <span id="user-name"></span></h1>
+      <button class="notification-button">
+        <i class="material-icons">notifications</i>
+      </button>
     </header>
 
-    <main class="content">
-      <!-- === SLIDER DE SALDOS === -->
-      <section id="balance-section" class="balance-section">
+    <main class="content grid-2">
+      <!-- Slider saldos -->
+      <section class="card balance-section">
+        <h2>Saldo Actual</h2>
         <div class="balance-slider-container">
           <button id="balance-prev" class="slider-btn prev">
             <i class="material-icons">chevron_left</i>
@@ -44,29 +41,35 @@
         </div>
         <div id="balance-dots" class="slider-dots"></div>
       </section>
-      <!-- === FIN SLIDER DE SALDOS === -->
 
-      <!-- === GRÁFICA MENSUAL === -->
-      <section class="chart-section">
-        <h2>Resumen mensual</h2>
+      <!-- Gráfica mensual + mini resumen -->
+      <section class="card chart-section">
+        <h2>Resumen Mensual</h2>
+
+        <!-- Mini-cards últimos 12 meses -->
+        <div class="month-summaries">
+          <!-- Se llenan dinámicamente con JS -->
+        </div>
+
         <canvas id="monthlyChart"></canvas>
-      </section>
-      <!-- === FIN GRÁFICA MENSUAL === -->
 
+        <div class="chart-footer">
+          <button class="btn-custom" onclick="location.href='transactions.html'">
+            Ver todas las transacciones →
+          </button>
+        </div>
+      </section>
     </main>
 
     <nav class="bottom-nav">
       <a href="home.html" class="nav-item active">
-        <i class="material-icons">home</i>
-        <span>Home</span>
+        <i class="material-icons">home</i><span>Home</span>
       </a>
       <a href="transactions.html" class="nav-item">
-        <i class="material-icons">swap_horiz</i>
-        <span>Transactions</span>
+        <i class="material-icons">swap_horiz</i><span>Transactions</span>
       </a>
       <a href="analisys.html" class="nav-item">
-        <i class="material-icons">pie_chart</i>
-        <span>Analisys</span>
+        <i class="material-icons">pie_chart</i><span>Analysis</span>
       </a>
     </nav>
 
@@ -75,7 +78,7 @@
       <h2>Menú</h2>
       <ul>
         <li><a href="profile.html" class="btn-custom sidebar-btn">Perfil</a></li>
-        <li><a href="#" class="btn-custom sidebar-btn" id="logout-link">Cerrar Sesión</a></li>
+        <li><a href="#" id="logout-link" class="btn-custom sidebar-btn">Cerrar Sesión</a></li>
       </ul>
     </aside>
   </div>

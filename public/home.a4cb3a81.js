@@ -678,11 +678,11 @@ if ('serviceWorker' in navigator) window.addEventListener('load', async ()=>{
         console.log('[SW] Registered with scope:', reg.scope);
         if ('periodicSync' in reg) try {
             await reg.periodicSync.register('sync-transactions', {
-                minInterval: 86400000 // 24 h en ms
+                minInterval: 86400000 // 24h
             });
             console.log('[SYNC] periodicSync registered');
         } catch (err) {
-            console.warn('[SYNC] Could not register periodicSync:', err);
+            console.warn('[SYNC] periodicSync failed:', err);
         }
     } catch (err) {
         console.error('[SW] Registration failed:', err);
@@ -701,7 +701,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
         console.log("[HOME] onAuthStateChanged \u2192 user:", user);
         if (!user) {
-            console.log('[HOME] No user logged in, redirecting to index.html');
             window.location.href = '../index.html';
             return;
         }
@@ -710,66 +709,52 @@ document.addEventListener('DOMContentLoaded', ()=>{
         try {
             const snap = await (0, _firestore.getDoc)(uRef);
             const data = snap.exists() ? snap.data() : {};
-            console.log('[HOME] Firestore user data:', data);
+            console.log('[HOME] user data:', data);
             const name = [
                 data.firstName,
                 data.lastName
             ].filter(Boolean).join(' ') || 'Usuario';
             updateWelcome(name);
-            // ── Sincronización manual al inicio ────────────────────────────────
-            console.log('[HOME] Starting manual sync');
+            console.log('[HOME] Manual sync');
             await doManualSync(user.uid);
-            // ── Carga de saldos ────────────────────────────────────────────────
-            console.log('[HOME] Loading balances');
+            console.log('[HOME] Load balances');
             await loadBalances(user.uid);
-            // ── Guardar UID en IndexedDB para Periodic Sync ───────────────────
-            console.log('[HOME] Saving UID to IndexedDB');
+            console.log('[HOME] Save UID to IndexedDB');
             await saveUIDToIndexedDB(user.uid);
-            // ── Cargar gráfica mensual ────────────────────────────────────────
-            console.log('[HOME] Loading monthly chart');
+            console.log('[HOME] Load monthly chart');
             await loadMonthlyChart(user.uid);
-        } catch (e) {
-            console.error('[HOME] Error loading user from Firestore:', e);
+        } catch (err) {
+            console.error('[HOME] Error initializing home:', err);
             updateWelcome('Usuario');
         }
     });
     closeSidebar.addEventListener('click', ()=>{
-        console.log('[HOME] closeSidebar clicked');
         sidebar.classList.remove('open');
     });
     logoutLink.addEventListener('click', async (e)=>{
         e.preventDefault();
-        console.log('[HOME] logoutLink clicked, signing out');
-        try {
-            await (0, _auth.signOut)((0, _firebaseJs.auth));
-            console.log('[HOME] User signed out');
-            window.location.href = '../index.html';
-        } catch (err) {
-            console.error('[HOME] Error signing out:', err);
-        }
+        await (0, _auth.signOut)((0, _firebaseJs.auth));
+        window.location.href = '../index.html';
     });
 });
-// ── Función para cargar saldos (sin cambios) ─────────────────────────────
+// ── Carga de saldos ─────────────────────────────────────────────────────────
 async function loadBalances(userId) {
-    console.log("[DEBUG] loadBalances \u2192 userId:", userId);
+    console.log("[BALANCE] loadBalances \u2192", userId);
     const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
     const uRef = (0, _firestore.doc)(db, 'users', userId);
     let accounts = [];
     try {
         const snap = await (0, _firestore.getDoc)(uRef);
         accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
-        console.log('[DEBUG] Firestore accounts list:', accounts);
+        console.log('[BALANCE] accounts:', accounts);
     } catch (err) {
-        console.error('[DEBUG] Error fetching Firestore user document for balances:', err);
+        console.error('[BALANCE] Error fetching accounts:', err);
     }
     const slider = document.querySelector('.balance-slider');
-    if (!slider) {
-        console.warn("[DEBUG] loadBalances \u2192 .balance-slider not found in DOM");
-        return;
-    }
+    if (!slider) return;
     slider.innerHTML = '';
     for (const [i, { accessToken }] of accounts.entries()){
-        console.log(`[DEBUG] Processing account #${i}, accessToken:`, accessToken);
+        console.log(`[BALANCE] account #${i}, token:`, accessToken);
         try {
             const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
                 method: 'POST',
@@ -780,59 +765,47 @@ async function loadBalances(userId) {
                     accessToken
                 })
             });
-            const data = await res.json();
-            console.log(`[DEBUG] get_account_details response for account #${i}:`, data);
-            const { accounts: accs = [], institution } = data;
+            const { accounts: accs = [], institution } = await res.json();
             const acc = accs[0] || {};
             const name = acc.name || 'Cuenta';
             const bal = acc.balances?.current ?? 0;
-            let logoSrc = '/img/default_bank.png';
-            if (institution?.logo) logoSrc = `data:image/png;base64,${institution.logo}`;
-            else if (institution?.url) logoSrc = `${institution.url.replace(/\/$/, '')}/favicon.ico`;
+            let logo = '/img/default_bank.png';
+            if (institution?.logo) logo = `data:image/png;base64,${institution.logo}`;
+            else if (institution?.url) logo = `${institution.url.replace(/\/$/, '')}/favicon.ico`;
             const slide = document.createElement('div');
             slide.className = 'balance-slide';
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.innerHTML = `
-        <img src="${logoSrc}" class="card-logo" alt="Logo">
-        <p class="card-title">${name}</p>
-        <p class="card-subtitle">Saldo actual</p>
-        <p class="card-balance">${bal.toFixed(2)} \u{20AC}</p>
+            slide.innerHTML = `
+        <div class="card">
+          <img src="${logo}" class="card-logo" alt="Logo">
+          <p class="card-title">${name}</p>
+          <p class="card-subtitle">Saldo actual</p>
+          <p class="card-balance">${bal.toFixed(2)} \u{20AC}</p>
+        </div>
       `;
-            slide.appendChild(card);
             slider.appendChild(slide);
-            console.log(`[DEBUG] Added slide for account #${i} (${name}) with balance ${bal}`);
         } catch (err) {
-            console.error(`[ERROR] get_account_details for account #${i}:`, err);
+            console.error('[BALANCE] Error for account #' + i, err);
         }
     }
     initBalanceSlider();
 }
-// ── Inicializa el slider de saldos ────────────────────────────────────────
 function initBalanceSlider() {
-    console.log('[SLIDER] initBalanceSlider start');
     const slider = document.querySelector('.balance-slider');
     const slides = Array.from(slider.children);
     const prev = document.getElementById('balance-prev');
     const next = document.getElementById('balance-next');
     const dots = document.getElementById('balance-dots');
-    if (!slider || !prev || !next || !dots) {
-        console.warn('[SLIDER] Missing DOM elements for slider');
-        return;
-    }
-    let idx = 0;
-    const total = slides.length;
-    console.log('[SLIDER] total slides:', total);
-    if (total < 2) return;
+    if (!slider || !prev || !next || !dots) return;
+    let idx = 0, total = slides.length;
     dots.innerHTML = '';
     slides.forEach((_, i)=>{
-        const d = document.createElement('div');
-        d.className = 'slider-dot' + (i === 0 ? ' active' : '');
-        d.addEventListener('click', ()=>{
+        const dot = document.createElement('div');
+        dot.className = 'slider-dot' + (i === 0 ? ' active' : '');
+        dot.addEventListener('click', ()=>{
             idx = i;
             update();
         });
-        dots.appendChild(d);
+        dots.appendChild(dot);
     });
     prev.addEventListener('click', ()=>{
         idx = (idx - 1 + total) % total;
@@ -844,103 +817,87 @@ function initBalanceSlider() {
     });
     function update() {
         slider.style.transform = `translateX(-${idx * 100}%)`;
-        dots.childNodes.forEach((dot, i)=>dot.classList.toggle('active', i === idx));
-        console.log("[SLIDER] update \u2192 current index:", idx);
+        Array.from(dots.children).forEach((d, i)=>d.classList.toggle('active', i === idx));
     }
     update();
 }
-// ── Sincronización manual de transacciones a Firestore ─────────────────────
+// ── Manual Sync ───────────────────────────────────────────────────────────────
 async function doManualSync(uid) {
-    console.log('[SYNC] doManualSync start for', uid);
-    const lastKey = `lastSync_${uid}`;
-    const last = localStorage.getItem(lastKey);
+    console.log("[SYNC] doManualSync \u2192", uid);
+    const key = `lastSync_${uid}`;
+    const last = parseInt(localStorage.getItem(key) || '0', 10);
     const now = Date.now();
-    console.log('[SYNC] last:', last, 'now:', now);
-    if (!last || now - parseInt(last) > 86400000) {
-        console.log('[SYNC] Performing manual sync');
-        try {
-            const res = await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    userId: uid
-                })
-            });
-            const result = await res.json();
-            console.log('[SYNC] sync_transactions_and_store response:', result);
-            if (res.ok && result.success) {
-                localStorage.setItem(lastKey, now.toString());
-                console.log('[SYNC] sync successful');
-            }
-        } catch (err) {
-            console.error('[SYNC] Error in manual sync:', err);
-        }
-    } else console.log('[SYNC] Already synced within 24h');
-}
-// ── Guarda UID en IndexedDB ────────────────────────────────────────────────
-async function saveUIDToIndexedDB(uid) {
-    console.log("[DB] saveUIDToIndexedDB \u2192 uid:", uid);
-    if (!('indexedDB' in window)) {
-        console.warn('[DB] IndexedDB not supported');
-        return;
+    if (!last || now - last > 86400000) try {
+        const res = await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId: uid
+            })
+        });
+        const json = await res.json();
+        console.log('[SYNC] result:', json);
+        if (res.ok) localStorage.setItem(key, now.toString());
+    } catch (err) {
+        console.error('[SYNC] failed:', err);
     }
-    const openReq = indexedDB.open('fintrack-db', 1);
-    openReq.onupgradeneeded = ()=>{
-        console.log('[DB] onupgradeneeded, creating store "metadata"');
-        openReq.result.createObjectStore('metadata');
-    };
-    openReq.onsuccess = ()=>{
-        const db = openReq.result;
+    else console.log('[SYNC] skipped, synced recently');
+}
+// ── IndexedDB UID ────────────────────────────────────────────────────────────
+async function saveUIDToIndexedDB(uid) {
+    console.log("[DB] saveUIDToIndexedDB \u2192", uid);
+    if (!('indexedDB' in window)) return;
+    const req = indexedDB.open('fintrack-db', 1);
+    req.onupgradeneeded = ()=>req.result.createObjectStore('metadata');
+    req.onsuccess = ()=>{
+        const db = req.result;
         const tx = db.transaction('metadata', 'readwrite');
         tx.objectStore('metadata').put(uid, 'userId');
-        tx.oncomplete = ()=>{
-            console.log('[DB] UID stored');
-            db.close();
-        };
+        tx.oncomplete = ()=>db.close();
     };
-    openReq.onerror = ()=>console.error('[DB] IndexedDB error:', openReq.error);
 }
 // ── Cargar y dibujar gráfica mensual con escala logarítmica ──────────────
 async function loadMonthlyChart(userId) {
-    console.log("[CHART] loadMonthlyChart \u2192 userId:", userId);
+    console.log("[CHART] loadMonthlyChart \u2192", userId);
     const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
-    const historyCol = (0, _firestore.collection)(db, 'users', userId, 'history');
-    console.log('[CHART] Querying:', historyCol.path);
-    let monthsSnap;
+    const col = (0, _firestore.collection)(db, 'users', userId, 'history');
+    let snap;
     try {
-        monthsSnap = await (0, _firestore.getDocsFromServer)(historyCol);
+        snap = await (0, _firestore.getDocsFromServer)(col);
     } catch  {
-        monthsSnap = await (0, _firestore.getDocs)(historyCol);
+        snap = await (0, _firestore.getDocs)(col);
     }
-    console.log('[CHART] monthsSnap empty?', monthsSnap.empty);
-    console.log('[CHART] monthsSnap docs:', monthsSnap.docs.map((d)=>d.id));
-    const months = monthsSnap.docs.map((d)=>d.id).sort();
-    console.log('[CHART] months sorted:', months);
+    const allMonths = snap.docs.map((d)=>d.id).sort();
+    console.log('[CHART] allMonths:', allMonths);
+    // filtrar últimos 12 meses
+    const limit = new Date();
+    limit.setMonth(limit.getMonth() - 11);
+    const months = allMonths.filter((m)=>{
+        const [y, mo] = m.split('-').map(Number);
+        return new Date(y, mo - 1, 1) >= limit;
+    });
+    console.log('[CHART] filtered months:', months);
     const expenses = [], incomes = [];
-    for (const month of months){
-        console.log('[CHART] processing month:', month);
-        const itemsCol = (0, _firestore.collection)(db, 'users', userId, 'history', month, 'items');
+    for (const m of months){
+        let e = 0, i = 0;
         let itemsSnap;
+        const itemsCol = (0, _firestore.collection)(db, 'users', userId, 'history', m, 'items');
         try {
             itemsSnap = await (0, _firestore.getDocsFromServer)(itemsCol);
         } catch  {
             itemsSnap = await (0, _firestore.getDocs)(itemsCol);
         }
-        console.log(`[CHART] ${month} items count:`, itemsSnap.size);
-        let e = 0, i = 0;
-        itemsSnap.forEach((docSnap)=>{
-            const tx = docSnap.data();
-            const amt = tx.amount ?? 0;
+        itemsSnap.forEach((doc)=>{
+            const amt = doc.data().amount || 0;
             if (amt < 0) e += Math.abs(amt);
             else i += amt;
         });
-        console.log(`[CHART] ${month} \u{2192} expenses: ${e}, incomes: ${i}`);
+        console.log(`[CHART] ${m} e=${e}, i=${i}`);
         expenses.push(e);
         incomes.push(i);
     }
-    // Dibujar gráfica logarítmica
     const ctx = document.getElementById('monthlyChart').getContext('2d');
     new Chart(ctx, {
         type: 'bar',
@@ -950,12 +907,14 @@ async function loadMonthlyChart(userId) {
                 {
                     label: 'Gastos',
                     data: expenses,
-                    backgroundColor: '#FF6384'
+                    backgroundColor: '#FF6384',
+                    yAxisID: 'y'
                 },
                 {
                     label: 'Ingresos',
                     data: incomes,
-                    backgroundColor: '#36A2EB'
+                    backgroundColor: '#36A2EB',
+                    yAxisID: 'y'
                 }
             ]
         },
@@ -964,16 +923,14 @@ async function loadMonthlyChart(userId) {
             scales: {
                 y: {
                     type: 'logarithmic',
-                    beginAtZero: false,
                     title: {
                         display: true,
-                        text: "\u20AC (escala log)"
+                        text: "\u20AC"
                     },
                     ticks: {
                         callback: (v)=>{
-                            // Sólo mostrar potencias de 10
-                            const remain = v / 10 ** Math.floor(Math.log10(v));
-                            return remain === 1 ? `${v} \u{20AC}` : '';
+                            const p = 10 ** Math.floor(Math.log10(v));
+                            return v % p === 0 ? `${v}\u{20AC}` : '';
                         }
                     }
                 }
@@ -990,7 +947,7 @@ async function loadMonthlyChart(userId) {
             }
         }
     });
-    console.log('[CHART] Logarithmic chart rendered');
+    console.log('[CHART] Log chart rendered');
 }
 
 },{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","f49e69e7fb1d94f5":"170CW"}],"170CW":[function(require,module,exports,__globalThis) {

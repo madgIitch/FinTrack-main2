@@ -1,19 +1,70 @@
 /* ========================================
+   Reset y estilos base
+   ======================================== */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(to bottom, #e0e0e0, #f4f4f4);
+  color: #333;
+  box-sizing: border-box;
+}
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+a {
+  text-decoration: none;
+  color: inherit;
+}
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+/* ========================================
+   Grid de dos columnas en pantallas anchas
+   ======================================== */
+@media (min-width: 800px) {
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: flex-start;
+  }
+}
+
+/* ========================================
+   Cabecera
+   ======================================== */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+}
+.welcome-message {
+  font-size: 1.2rem;
+  flex: 1;
+  text-align: center;
+}
+
+/* ========================================
    Saldo Actual: Slider de tarjetas
    ======================================== */
-
 .balance-section {
   width: 90%;
   max-width: 600px;
-  margin: 0 auto 20px;
+  margin: 0 auto 1.5rem;
 }
-
 .balance-section h2 {
-  margin-bottom: 10px;
+  margin-bottom: 0.5rem;
   font-size: 1.4em;
   color: #333;
 }
-
 .balance-slider-container {
   position: relative;
   overflow: hidden;
@@ -21,76 +72,155 @@
   max-width: 400px;
   margin: 0 auto;
 }
-
 .balance-slider {
   display: flex;
   transition: transform 0.3s ease;
 }
-
 .balance-slide {
   min-width: 100%;
   box-sizing: border-box;
 }
-
 .balance-slide .card {
-  /* Ajustes específicos para cada tarjeta dentro del slider */
   background-color: #fff;
   border-radius: 12px;
-  padding: 20px;
+  padding: 1.25rem;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   text-align: center;
   width: 90%;
   max-width: 350px;
   margin: 0 auto;
 }
-
 .slider-btn {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   background: rgba(255,255,255,0.8);
-  border: none;
   border-radius: 50%;
-  padding: 8px;
+  padding: 0.5rem;
   cursor: pointer;
   z-index: 2;
 }
-
-.slider-btn.prev {
-  left: 30px;
-}
-
-.slider-btn.next {
-  right: 30px;
-}
-
+.slider-btn.prev { left: 1.5rem; }
+.slider-btn.next { right: 1.5rem; }
 .slider-dots {
   display: flex;
   justify-content: center;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
-
 .slider-dot {
-  width: 10px;
-  height: 10px;
+  width: 0.625rem;
+  height: 0.625rem;
   background: #ccc;
   border-radius: 50%;
   cursor: pointer;
 }
-
 .slider-dot.active {
   background: #555;
 }
-
-/* ========================================
-   Logo dentro de tarjetas genéricas
-   ======================================== */
-
 .card-logo {
   display: block;
   width: 48px;
-  height: auto;
-  margin: 0 auto 12px;
+  margin: 0 auto 0.75rem;
   border-radius: 4px;
+}
+
+/* ========================================
+   Contenedor de resumen mensual
+   ======================================== */
+.chart-section {
+  width: 90%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.chart-section h2 {
+  font-size: 1.4em;
+  color: #333;
+  margin-bottom: 1rem;
+}
+#monthlyChart {
+  width: 100%;
+  height: 300px;
+}
+
+/* ========================================
+   Mini‐cards resumen por mes
+   ======================================== */
+.month-summaries {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+  margin-bottom: 1rem;
+}
+.summary-card {
+  flex: 0 0 auto;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  min-width: 120px;
+  padding: 0.75rem;
+  text-align: center;
+}
+.summary-card h4 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  color: #333;
+}
+.summary-card p {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+  color: #444;
+}
+.summary-card .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.summary-card .dot.gastos   { background: #FF6384; }
+.summary-card .dot.ingresos { background: #36A2EB; }
+
+/* ========================================
+   Botón de acción bajo la gráfica
+   ======================================== */
+.chart-footer {
+  text-align: center;
+  margin-top: 1rem;
+}
+.chart-footer .btn-custom {
+  display: inline-block;
+  max-width: 200px;
+  padding: 0.5rem 1rem;
+}
+
+/* ========================================
+   Barra de navegación inferior
+   ======================================== */
+.bottom-nav {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background-color: #f4f4f4;
+  border-top: 1px solid #e0e0e0;
+  padding: 0.5rem 0;
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+}
+.bottom-nav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #777;
+  font-size: 0.75rem;
+}
+.bottom-nav a.active {
+  color: #333;
+}
+.bottom-nav a .material-icons {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
 }
