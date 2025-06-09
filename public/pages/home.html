@@ -9,7 +9,11 @@
   <link rel="stylesheet" href="/home.c779873a.css">
   <link rel="stylesheet" href="/home.8129f27b.css"> 
   <link rel="stylesheet" href="/FinTrack-main.406065e9.css">
-  <script type="importmap">{"imports":{"i551T":"/service-worker.js"}}</script><script type="module" src="/FinTrack-main.64dd720e.js"></script><script type="module" src="/home.a4cb3a81.js"></script>
+
+  <!-- Chart.js desde hosting propio -->
+  <script type="importmap">{"imports":{"i551T":"/service-worker.js"}}</script><script type="module" src="/FinTrack-main.64dd720e.js"></script><script src="/home.16e028b0.js"></script>
+
+  <script type="module" src="/home.a4cb3a81.js"></script>
   <script type="module" src="/home.659d772f.js"></script>
 </head>
 <body>
@@ -40,7 +44,15 @@
         </div>
         <div id="balance-dots" class="slider-dots"></div>
       </section>
-      <!-- Puedes añadir aquí más secciones bajo el slider -->
+      <!-- === FIN SLIDER DE SALDOS === -->
+
+      <!-- === GRÁFICA MENSUAL === -->
+      <section class="chart-section">
+        <h2>Resumen mensual</h2>
+        <canvas id="monthlyChart"></canvas>
+      </section>
+      <!-- === FIN GRÁFICA MENSUAL === -->
+
     </main>
 
     <nav class="bottom-nav">

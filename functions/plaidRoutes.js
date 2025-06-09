@@ -135,13 +135,10 @@ router.post('/get_transactions', async (req, res) => {
 
   try {
     const userDoc = await db.collection('users').doc(userId).get();
-    if (!userDoc.exists) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
-    }
+    if (!userDoc.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
+
     const accounts = userDoc.data().plaid?.accounts || [];
-    if (accounts.length === 0) {
-      return res.json({ transactions: [] });
-    }
+    if (accounts.length === 0) return res.json({ transactions: [] });
 
     const start = startDate
       || new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
@@ -155,16 +152,15 @@ router.post('/get_transactions', async (req, res) => {
         start_date:   start,
         end_date:     end,
         options: {
-          count:  500,
+          count: 500,
           offset: 0,
           include_personal_finance_category: true
         }
       });
-      allTxs = allTxs.concat(txRes.data.transactions);
+      allTxs.push(...txRes.data.transactions);
     }
 
     allTxs.sort((a,b) => new Date(b.date) - new Date(a.date));
-
     const cleaned = allTxs.map(tx => ({
       id:                         tx.transaction_id,
       account_id:                 tx.account_id,
@@ -191,14 +187,11 @@ router.post('/sync_transactions_and_store', async (req, res) => {
   try {
     const userRef  = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
-    if (!userSnap.exists) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
-    }
+    if (!userSnap.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
 
     // 1) Leer límites de gasto desde settings.budgets
     const settings   = userSnap.data().settings || {};
     const budgetsMap = settings.budgets || {};
-    console.log('[sync] budgetsMap:', budgetsMap);
 
     // 2) Fetch todas las transacciones de los últimos 30 días
     const accounts = userSnap.data().plaid?.accounts || [];
@@ -221,7 +214,6 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       allTxs.push(...txRes.data.transactions);
     }
     allTxs.sort((a,b) => new Date(b.date) - new Date(a.date));
-    console.log('[sync] fetched', allTxs.length, 'transactions');
 
     // 3) Agrupar transacciones por mes (YYYY-MM)
     const txsPorMes = {};
@@ -229,81 +221,72 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       const mes = tx.date.slice(0,7);
       (txsPorMes[mes] = txsPorMes[mes]||[]).push(tx);
     });
-    console.log('[sync] months:', Object.keys(txsPorMes));
 
     // 4) Leer categoryGroups → mapa subcat_key → grupoEspañol
     const catGroupsSnap = await db.collection('categoryGroups').get();
     const catToGroupMap = {};
-
     catGroupsSnap.forEach(docSnap => {
-      const rawId     = docSnap.id;                    // e.g. "Food and Drink"
-      const data      = docSnap.data();
-      // Primero intentamos el campo 'group' (inglés), luego 'grupo' (español antiguo), y si no existe usamos el ID
-      const display   = data.group || data.grupo || rawId;
-
-      // Normalizamos la clave del documento
-      const docKey    = normalizeKey(rawId);
+      const rawId   = docSnap.id;
+      const data    = docSnap.data();
+      const display = data.group || data.grupo || rawId;
+      const docKey  = normalizeKey(rawId);
       catToGroupMap[docKey] = display;
-
-      // Si tienes subcategorías en un array, también las mapeamos:
       if (Array.isArray(data.subcategories)) {
         data.subcategories.forEach(rawCat => {
-          const subKey = normalizeKey(rawCat);
-          catToGroupMap[subKey] = display;
+          catToGroupMap[normalizeKey(rawCat)] = display;
         });
       }
-
-      console.log(`[sync] mapped categoryGroup "${rawId}" → "${display}"`);
     });
-    console.log('[sync] catToGroupMap:', catToGroupMap);
 
-
-    // 5) Preparamos un batch para todos los writes
+    // 5) Prepara batch
     const batch = db.batch();
-
     for (const [mes, txs] of Object.entries(txsPorMes)) {
-      console.log(`[sync] processing month ${mes} (${txs.length} txs)`);
+      // a) Documento padre history mes
+      const histRef = userRef.collection('history').doc(mes);
+      batch.set(histRef, { updatedAt: admin.firestore.Timestamp.now() }, { merge: true });
+
+      // b) Summary mensual
+      const sumRef = userRef.collection('historySummary').doc(mes);
+      let totalExpenses = 0, totalIncomes = 0;
+      txs.forEach(tx => {
+        if (tx.amount < 0) totalExpenses += Math.abs(tx.amount);
+        else               totalIncomes  += tx.amount;
+      });
+      batch.set(sumRef, {
+        totalExpenses,
+        totalIncomes,
+        updatedAt: admin.firestore.Timestamp.now()
+      }, { merge: true });
+
+      // c) historyCategorias & historyLimits
       const histCatRef    = userRef.collection('historyCategorias').doc(mes);
       const histLimitsRef = userRef.collection('historyLimits').doc(mes);
+      const spentByGroup  = {};
 
-      const spentByGroup = {};
-
-      for (const tx of txs) {
-        // Normalizamos la clave de la categoría de la tx
+      txs.forEach(tx => {
         const raw   = tx.personal_finance_category?.primary || tx.category || '';
         const key   = normalizeKey(raw);
         const group = catToGroupMap[key] || 'Otros';
         const amt   = tx.amount < 0 ? Math.abs(tx.amount) : 0;
-
-        // — historyCategorias
         const docCat = histCatRef.collection(group).doc(tx.transaction_id);
         batch.set(docCat, { amount: tx.amount }, { merge: true });
-
-        // Acumulamos gasto
         spentByGroup[group] = (spentByGroup[group]||0) + amt;
+      });
 
-        console.log(`[sync] TxID=${tx.transaction_id} → raw="${raw}" key="${key}" group="${group}" amt=${amt}`);
-      }
-
-      console.log(`[sync] spentByGroup for ${mes}:`, spentByGroup);
-
-      // — historyLimits: solo grupos con presupuesto
-      for (const [grpName, limit] of Object.entries(budgetsMap)) {
+      Object.entries(budgetsMap).forEach(([grpName, limit]) => {
         const spent = spentByGroup[grpName] || 0;
         const docLim = histLimitsRef.collection('groups').doc(grpName);
         batch.set(docLim, { limit, spent }, { merge: true });
-        console.log(`[sync] set limit for ${mes}/${grpName} → limit=${limit}, spent=${spent}`);
-      }
+      });
     }
 
-    // 6) Ejecutamos el batch
+    // 6) Ejecuta batch
     await batch.commit();
-    console.log('[sync] batch committed');
+    res.json({ success: true });
 
-    return res.json({ success: true });
   } catch (err) {
     console.error('[sync] error:', err);
-    return res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
