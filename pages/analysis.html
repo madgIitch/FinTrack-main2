@@ -1,57 +1,98 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FinTrack - Inicio</title>
-    <link rel="manifest" href="../manifest.json">
-    <link rel="stylesheet" href="../css/styles.css" rel ="stylesheet">
-    <link rel="stylesheet" href="../css/home.css">
-    <link rel="stylesheet" href="../css/sidebar.css"> 
-    <link rel="stylesheet" href="../css/responsive.css">
-    <script type="module" src="../js/home.js"></script>
-    <script type="module" src="../js/sidebar.js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>FinTrack - Analysis</title>
+    <link rel="manifest" href="../manifest.json" />
+    <!-- Mismos CSS que en el resto de la PWA -->
+    <link rel="stylesheet" href="../css/styles.css" />
+    <link rel="stylesheet" href="../css/sidebar.css" />
+    <link rel="stylesheet" href="../css/analysis.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="module" src="../js/sidebar.js" defer></script>
+    <script type="module" src="../js/analysis.js" defer></script>
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <div class="header-left">
-                <img src="../img/logoFintonic.svg" alt="Logo Fintonic" class="logo-icon" id="logo-home">
-            </div>
-            <h1 class="welcome-message">Bienvenido, <span id="user-name"></span></h1>            
-            <div class="header-right">
-                <button class="notification-button">
-                    <i class="material-icons">notifications</i>
-                </button>
-            </div>
-        </header>
+  <div class="container">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar">
+      <button id="close-sidebar" class="close-btn">&times;</button>
+      <h2>Menú</h2>
+      <ul>
+        <li><a href="profile.html" class="btn-custom sidebar-btn">Perfil</a></li>
+        <li><a href="#" id="logout-link" class="btn-custom sidebar-btn">Cerrar Sesión</a></li>
+      </ul>
+    </aside>
 
-        <main class="content">
-            </main>
+    <!-- Header -->
+    <header class="header">
+      <button id="open-sidebar" class="menu-btn">
+        <i class="material-icons">menu</i>
+      </button>
+      <h1 class="welcome-message">Analysis</h1>
+      <button class="notification-button">
+        <i class="material-icons">notifications</i>
+      </button>
+    </header>
 
-        <nav class="bottom-nav">
-            <a href="home.html" class="nav-item ">
-                <i class="material-icons">home</i>
-                <span>Home</span>
-            </a>
-            <a href="transactions.html" class="nav-item">
-                <i class="material-icons">swap_horiz</i>
-                <span>Transactions</span>
-            </a>
-            <a href="analysis.html" class="nav-item active">
-                <i class="material-icons">pie_chart</i>
-                <span>Analysis</span>
-            </a>
-            
-        </nav>
-        <aside id="sidebar" class="sidebar">
-            <button class="close-btn" id="close-sidebar">&times;</button>
-            <h2>Menú</h2>
-            <ul>
-                <li><a href="profile.html" class="btn-custom sidebar-btn">Perfil</a></li>
-                <li><a href="#" class="btn-custom sidebar-btn" id="logout-link">Cerrar Sesión</a></li>
-            </ul>
-        </aside>
-    </div>
+    <!-- Contenido principal -->
+    <main class="content">
+      <!-- Filtros / Periodo -->
+      <div class="card filter-bar">
+        <div class="filters">
+          <button class="filter-btn active" data-filter="overview">Overview</button>
+          <button class="filter-btn" data-filter="growth">Growth</button>
+          <button class="filter-btn" data-filter="compare">Compare</button>
+        </div>
+        <select id="period-select" class="period-select">
+          <option value="week">This Week</option>
+          <option value="month">This Month</option>
+          <option value="year">This Year</option>
+        </select>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="kpi-group">
+        <div class="card kpi-card">
+          <h2>Revenue</h2>
+          <p id="kpi-revenue" class="kpi-value">€0</p>
+          <p id="kpi-revenue-change" class="kpi-change">+0% vs last</p>
+        </div>
+        <div class="card kpi-card">
+          <h2>Spend</h2>
+          <p id="kpi-spend" class="kpi-value">€0</p>
+          <p id="kpi-spend-change" class="kpi-change">+0% vs last</p>
+        </div>
+      </div>
+
+      <!-- Gráficas -->
+      <div class="card">
+        <canvas id="trendChart"></canvas>
+      </div>
+      <div class="card">
+        <canvas id="barChart"></canvas>
+      </div>
+      <div class="card">
+        <canvas id="pieChart"></canvas>
+      </div>
+    </main>
+
+    <!-- Navegación inferior -->
+    <nav class="bottom-nav">
+      <a href="home.html" class="nav-item">
+        <i class="material-icons">home</i>
+        <span>Home</span>
+      </a>
+      <a href="transactions.html" class="nav-item">
+        <i class="material-icons">swap_horiz</i>
+        <span>Transactions</span>
+      </a>
+      <a href="analysis.html" class="nav-item active">
+        <i class="material-icons">pie_chart</i>
+        <span>Analysis</span>
+      </a>
+    </nav>
+  </div>
 </body>
 </html>

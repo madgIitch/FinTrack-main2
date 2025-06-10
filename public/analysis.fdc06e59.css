@@ -1,0 +1,75 @@
+.filter-bar {
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: .5rem 1rem;
+  display: flex;
+}
+
+.filters {
+  gap: .5rem;
+  display: flex;
+}
+
+.filter-btn {
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  border: none;
+  border-radius: 20px;
+  padding: .4rem .8rem;
+  transition: background .2s;
+}
+
+.filter-btn.active, .filter-btn:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
+.period-select {
+  border: 1px solid var(--divider);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 5px;
+  padding: .4rem;
+}
+
+.kpi-group {
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+  display: flex;
+}
+
+.kpi-card {
+  text-align: center;
+  flex: 140px;
+}
+
+.kpi-card h2 {
+  color: var(--text-muted);
+  margin-bottom: .4rem;
+  font-size: .9rem;
+}
+
+.kpi-value {
+  margin-bottom: .2rem;
+  font-size: 1.4rem;
+}
+
+.kpi-change {
+  color: var(--text-muted);
+  font-size: .8rem;
+}
+
+.card canvas {
+  width: 100% !important;
+  height: 220px !important;
+}
+
+@media (width >= 768px) {
+  .card canvas {
+    height: 300px !important;
+  }
+}
+/*# sourceMappingURL=analysis.fdc06e59.css.map */

@@ -1,0 +1,74 @@
+/* analysis.css */
+/* Extiende estilos globales de styles.css y responsive.css */
+
+/* — Filtro / periodo dentro de card para homogeneidad — */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+}
+.filters {
+  display: flex;
+  gap: 0.5rem;
+}
+.filter-btn {
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.filter-btn.active,
+.filter-btn:hover {
+  background: var(--primary);
+  color: #fff;
+}
+.period-select {
+  padding: 0.4rem;
+  border: 1px solid var(--divider);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* — KPI Cards alineadas — */
+.kpi-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.kpi-card {
+  flex: 1 1 140px;
+  text-align: center;
+}
+.kpi-card h2 {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+}
+.kpi-value {
+  font-size: 1.4rem;
+  margin-bottom: 0.2rem;
+}
+.kpi-change {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* — Ajustes de canvas para rellenar el card — */
+.card canvas {
+  width: 100% !important;
+  height: 220px !important;
+}
+
+/* En pantallas grandes aumenta la altura de las gráficas */
+@media (min-width: 768px) {
+  .card canvas {
+    height: 300px !important;
+  }
+}
