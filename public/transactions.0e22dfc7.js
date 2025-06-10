@@ -895,6 +895,13 @@ async function loadTransactions(userId) {
         window.location.href = '../index.html';
         return;
     }
+    const nameSpan = document.getElementById('user-name');
+    const uSnap = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', user.uid));
+    const uData = uSnap.exists() ? uSnap.data() : {};
+    nameSpan.textContent = [
+        uData.firstName,
+        uData.lastName
+    ].filter(Boolean).join(' ') || 'Usuario';
     document.getElementById('toggle-view').addEventListener('change', ()=>loadTransactions(user.uid));
     loadTransactions(user.uid);
 });
