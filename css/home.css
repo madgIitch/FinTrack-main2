@@ -12,33 +12,7 @@ html, body {
 a { text-decoration: none; color: inherit; }
 button { font-family: inherit; border: none; background: none; cursor: pointer; }
 
-/* ========================================
-   Sidebar (se mueve con sidebar.js)
-   ======================================== */
-.sidebar {
-  position: fixed; top: 0; left: 0;
-  transform: translateX(-100%);
-  width: 260px; height: 100%;
-  background: #fff; box-shadow: 2px 0 8px rgba(0,0,0,0.1);
-  padding: 1rem; transition: transform .3s ease;
-  z-index: 1000;
-}
-.sidebar.open { transform: translateX(0); }
-.close-btn {
-  position: absolute; top: 1rem; right: 1rem;
-  font-size: 1.5rem; background: none; border: none; cursor: pointer;
-}
-.sidebar h2 { margin-top: 0; }
-.sidebar-btn {
-  display: block;
-  padding: .75rem 1rem;
-  margin: .5rem 0;
-  background: #252525;
-  color: #fff;
-  border-radius: 6px;
-  text-align: left;
-}
-.sidebar-btn:hover { background: #1b1b1b; }
+
 
 /* ========================================
    Header (idéntico a transactions.html)

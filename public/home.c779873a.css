@@ -25,52 +25,6 @@ button {
   font-family: inherit;
 }
 
-.sidebar {
-  z-index: 1000;
-  background: #fff;
-  width: 260px;
-  height: 100%;
-  padding: 1rem;
-  transition: transform .3s;
-  position: fixed;
-  top: 0;
-  left: 0;
-  transform: translateX(-100%);
-  box-shadow: 2px 0 8px #0000001a;
-}
-
-.sidebar.open {
-  transform: translateX(0);
-}
-
-.close-btn {
-  cursor: pointer;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-}
-
-.sidebar h2 {
-  margin-top: 0;
-}
-
-.sidebar-btn {
-  color: #fff;
-  text-align: left;
-  background: #252525;
-  border-radius: 6px;
-  margin: .5rem 0;
-  padding: .75rem 1rem;
-  display: block;
-}
-
-.sidebar-btn:hover {
-  background: #1b1b1b;
-}
-
 .header {
   justify-content: center;
   align-items: center;
