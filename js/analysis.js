@@ -11,7 +11,6 @@ import {
 
 console.log('[ANALYSIS] loaded');
 
-// API URL (igual que en home.js y transactions.js)
 const apiUrl = window.location.hostname === 'localhost'
   ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
   : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
@@ -19,129 +18,138 @@ const apiUrl = window.location.hostname === 'localhost'
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[ANALYSIS] DOMContentLoaded');
 
-  // Sidebar toggle & logout (mismo patrón que en home.js/transactions.js)
-  const sidebar = document.getElementById('sidebar');
-  const openSidebar = document.getElementById('open-sidebar');
+  // Lógica del sidebar
+  const sidebar      = document.getElementById('sidebar');
+  const openSidebar  = document.getElementById('open-sidebar');
   const closeSidebar = document.getElementById('close-sidebar');
-  const logoutBtn = document.getElementById('logout-link');
+  const logoutBtn    = document.getElementById('logout-link');
 
-  openSidebar.addEventListener('click', () => sidebar.classList.add('open'));
+  openSidebar.addEventListener('click',  () => sidebar.classList.add('open'));
   closeSidebar.addEventListener('click', () => sidebar.classList.remove('open'));
-  logoutBtn.addEventListener('click', async (e) => {
+  logoutBtn.addEventListener('click', async e => {
     e.preventDefault();
     await signOut(auth);
     window.location.href = '../index.html';
   });
 
-  // Filtros / periodo (demo)
+  // Filters (demo)
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelector('.filter-btn.active').classList.remove('active');
       btn.classList.add('active');
-      // Aquí recargarías datos según btn.dataset.filter
+      // recargar datos según btn.dataset.filter
     });
   });
   document.getElementById('period-select').addEventListener('change', e => {
-    console.log('Periodo seleccionado en Analysis:', e.target.value);
-    // Aquí recargarías datos según periodo (week/month/year)
+    console.log('Periodo:', e.target.value);
+    // recargar datos según periodo
   });
 
-  // Autenticación y carga de datos
+  // Auth + load
   onAuthStateChanged(auth, user => {
-    if (!user) {
-      window.location.href = '../index.html';
-      return;
-    }
-    loadAnalysis(user.uid).catch(err => console.error('[ANALYSIS] error:', err));
+    if (!user) return window.location.href = '../index.html';
+    loadAnalysis(user.uid).catch(console.error);
   });
 });
 
-/**
- * Carga datos de análisis desde Firestore y renderiza KPIs y gráficos
- */
 async function loadAnalysis(userId) {
   const db = getFirestore(app);
 
-  // 1) Recuperar últimos 7 periodos de history
-  const historyCol = collection(db, 'users', userId, 'history');
-  let snapHistory;
-  try { snapHistory = await getDocsFromServer(historyCol); }
-  catch { snapHistory = await getDocs(historyCol); }
-  const allPeriods = snapHistory.docs.map(d => d.id).sort();
-  const last7 = allPeriods.slice(-7);
+  // 1) Fetch last 7 periods
+  const histCol = collection(db, 'users', userId, 'history');
+  let snap;
+  try { snap = await getDocsFromServer(histCol); }
+  catch { snap = await getDocs(histCol); }
+  const periods = snap.docs.map(d => d.id).sort().slice(-7);
 
-  const labels = [];
+  const labels  = [];
   const revenue = [];
-  const spend = [];
-  for (const period of last7) {
-    labels.push(period);
+  const spend   = [];
+
+  for (const p of periods) {
+    labels.push(p);
+    const itemsCol = collection(db, 'users', userId, 'history', p, 'items');
+    let itemsSnap;
+    try { itemsSnap = await getDocsFromServer(itemsCol); }
+    catch { itemsSnap = await getDocs(itemsCol); }
+
+    let rev = 0, spd = 0;
+    itemsSnap.forEach(doc => {
+      const amt = doc.data().amount || 0;
+      amt >= 0 ? rev += amt : spd += Math.abs(amt);
+    });
+    revenue.push(+rev.toFixed(2));
+    spend.push(+spd.toFixed(2));
+  }
+
+  // 2) Actualizar KPIs
+  const totalRev = revenue.reduce((a,b) => a+b, 0);
+  const totalSpd = spend.reduce((a,b) => a+b, 0);
+  document.getElementById('kpi-revenue').textContent      = `€${totalRev.toFixed(2)}`;
+  document.getElementById('kpi-spend').textContent        = `€${totalSpd.toFixed(2)}`;
+  document.getElementById('kpi-revenue-change').textContent = totalRev
+    ? `+${((revenue.at(-1) / (totalRev - revenue.at(-1)) -1)*100).toFixed(1)}% vs last` 
+    : '+0% vs last';
+  document.getElementById('kpi-spend-change').textContent = totalSpd
+    ? `+${((spend.at(-1) / (totalSpd - spend.at(-1)) -1)*100).toFixed(1)}% vs last`
+    : '+0% vs last';
+
+  // 3) ApexCharts: Line (trend)
+  console.log('Trend:', { labels, revenue, spend });
+  new ApexCharts(document.querySelector("#trendChart"), {
+    chart: { type: 'line', height: 240, toolbar: { show: false } },
+    series: [
+      { name: 'Ingresos', data: revenue },
+      { name: 'Gastos',   data: spend   }
+    ],
+    xaxis: { categories: labels },
+    stroke: { curve: 'smooth', width: 2 },
+    grid: { borderColor: '#eee' }
+  }).render();
+
+  // 4) ApexCharts: Bar (contador de transactions)
+  const txCounts = [];
+  for (const period of periods) {
     const itemsCol = collection(db, 'users', userId, 'history', period, 'items');
     let snapItems;
     try { snapItems = await getDocsFromServer(itemsCol); }
     catch { snapItems = await getDocs(itemsCol); }
-    let rev = 0, spd = 0;
+    txCounts.push(snapItems.docs.length);
+  }
+  console.log('Bar (real tx counts):', { labels, txCounts });
+
+  new ApexCharts(document.querySelector("#barChart"), {
+    chart: { type: 'bar', height: 200, toolbar: { show: false } },
+    series: [{ name: 'Transactions', data: txCounts }],
+    xaxis: { categories: labels },
+    plotOptions: { bar: { borderRadius: 4 } },
+    dataLabels: {
+      enabled: true,
+      style: { colors: ['#fff'] },
+      formatter: v => v
+    },
+    grid: { borderColor: '#eee' }
+  }).render();
+
+  // 5) ApexCharts: Pie (por category)
+  const catMap = {};
+  for (const p of periods) {
+    const colItems = collection(db, 'users', userId, 'history', p, 'items');
+    let snapItems;
+    try { snapItems = await getDocsFromServer(colItems); }
+    catch { snapItems = await getDocs(colItems); }
     snapItems.forEach(doc => {
-      const amt = doc.data().amount || 0;
-      if (amt >= 0) rev += amt;
-      else spd += Math.abs(amt);
-    });
-    revenue.push(rev);
-    spend.push(spd);
-  }
-
-  // 2) KPIs
-  const totalRev = revenue.reduce((a,b) => a + b, 0);
-  const totalSpd = spend.reduce((a,b) => a + b, 0);
-  document.getElementById('kpi-revenue').textContent = `€${totalRev.toFixed(2)}`;
-  document.getElementById('kpi-spend').textContent   = `€${totalSpd.toFixed(2)}`;
-  document.getElementById('kpi-revenue-change').textContent = totalRev
-    ? `+${((revenue[revenue.length-1] / (totalRev - revenue[revenue.length-1]) - 1) * 100).toFixed(1)}% vs last`
-    : '+0% vs last';
-  document.getElementById('kpi-spend-change').textContent = totalSpd
-    ? `+${((spend[spend.length-1] / (totalSpd - spend[spend.length-1]) - 1) * 100).toFixed(1)}% vs last`
-    : '+0% vs last';
-
-  // 3) Chart.js ya cargado vía <script src="../js/chart.min.js">
-  // Línea de tendencia
-  new Chart(
-    document.getElementById('trendChart').getContext('2d'),
-    {
-      type: 'line',
-      data: { labels, datasets: [
-        { label: 'Ingresos', data: revenue, borderWidth:2, fill:false, tension:0.3 },
-        { label: 'Gastos',   data: spend,   borderWidth:2, fill:false, tension:0.3 }
-      ]},
-      options: { responsive:true, scales:{ y:{ beginAtZero:true } } }
-    }
-  );
-
-  // 4) Barras
-  const txCounts = labels.map(_ => Math.floor(Math.random() * 20) + 5);
-  new Chart(
-    document.getElementById('barChart').getContext('2d'),
-    {
-      type: 'bar',
-      data: { labels, datasets:[{ label:'Transactions', data:txCounts, borderWidth:1 }] },
-      options: { responsive:true, scales:{ y:{ beginAtZero:true } } }
-    }
-  );
-
-  // 5) Pastel por categoría
-  const catSums = {};
-  for (const period of last7) {
-    const itemsCol = collection(db, 'users', userId, 'history', period, 'items');
-    let snap;
-    try { snap = await getDocsFromServer(itemsCol); }
-    catch { snap = await getDocs(itemsCol); }
-    snap.forEach(doc => {
       const { amount=0, category='Other' } = doc.data();
-      catSums[category] = (catSums[category] || 0) + Math.abs(amount);
+      catMap[category] = (catMap[category]||0) + Math.abs(amount);
     });
   }
-  const catLabels = Object.keys(catSums);
-  const catData   = catLabels.map(c => catSums[c]);
-  new Chart(
-    document.getElementById('pieChart').getContext('2d'),
-    { type:'pie', data:{ labels:catLabels, datasets:[{ data:catData, borderWidth:1 }] }, options:{ responsive:true } }
-  );
+  const catLabels = Object.keys(catMap);
+  const catData   = catLabels.map(c => +catMap[c].toFixed(2));
+  console.log('Pie:', { catLabels, catData });
+  new ApexCharts(document.querySelector("#pieChart"), {
+    chart: { type: 'pie', height: 220 },
+    series: catData,
+    labels: catLabels,
+    legend: { position: 'bottom' }
+  }).render();
 }

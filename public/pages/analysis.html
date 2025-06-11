@@ -1,17 +1,15 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FinTrack - Analysis</title>
-    <link rel="manifest" href="/manifest.webmanifest">
-    <!-- Mismos CSS que en el resto de la PWA -->
-    <link rel="stylesheet" href="/FinTrack-main.558d9a0b.css">
-    <link rel="stylesheet" href="/home.8129f27b.css">
-    <link rel="stylesheet" href="/analysis.fdc06e59.css">
-    <script type="module" src="/FinTrack-main.64dd720e.js"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script type="module" src="/home.659d772f.js" defer=""></script>
-    <script type="module" src="/analysis.d262e0ca.js" defer=""></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinTrack - Analysis</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/FinTrack-main.558d9a0b.css">
+  <link rel="stylesheet" href="/home.8129f27b.css">
+  <link rel="stylesheet" href="/analysis.fdc06e59.css">
+  <script type="module" src="/FinTrack-main.64dd720e.js"></script><script src="/home.564f75aa.js" defer=""></script>
+  <script type="module" src="/analysis.d262e0ca.js" defer=""></script>
 </head>
 <body>
   <div class="container">
@@ -27,33 +25,31 @@
 
     <!-- Header -->
     <header class="header">
-      <button id="open-sidebar" class="menu-btn">
-        <i class="material-icons">menu</i>
-      </button>
-      <h1 class="welcome-message">Analysis</h1>
-      <button class="notification-button">
-        <i class="material-icons">notifications</i>
-      </button>
+      <button id="open-sidebar" class="menu-btn"><i class="material-icons">menu</i></button>
+      <h1 class="page-title">Analysis</h1>
+      <button class="notification-button"><i class="material-icons">notifications</i></button>
     </header>
 
-    <!-- Contenido principal -->
-    <main class="content">
-      <!-- Filtros / Periodo -->
-      <div class="card filter-bar">
+    <!-- Main contenido ajustado al viewport -->
+    <main class="analysis-fullscreen">
+      <!-- Filtros encima -->
+      <div class="filter-card">
         <div class="filters">
           <button class="filter-btn active" data-filter="overview">Overview</button>
           <button class="filter-btn" data-filter="growth">Growth</button>
           <button class="filter-btn" data-filter="compare">Compare</button>
         </div>
-        <select id="period-select" class="period-select">
-          <option value="week">This Week</option>
-          <option value="month">This Month</option>
-          <option value="year">This Year</option>
-        </select>
+        <div class="period-select-wrapper">
+          <select id="period-select" class="period-select">
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+            <option value="year">This Year</option>
+          </select>
+        </div>
       </div>
 
-      <!-- KPI Cards -->
-      <div class="kpi-group">
+      <!-- KPIs justo debajo -->
+      <section class="kpi-row">
         <div class="card kpi-card">
           <h2>Revenue</h2>
           <p id="kpi-revenue" class="kpi-value">€0</p>
@@ -64,34 +60,21 @@
           <p id="kpi-spend" class="kpi-value">€0</p>
           <p id="kpi-spend-change" class="kpi-change">+0% vs last</p>
         </div>
-      </div>
+      </section>
 
-      <!-- Gráficas -->
-      <div class="card">
-        <canvas id="trendChart"></canvas>
-      </div>
-      <div class="card">
-        <canvas id="barChart"></canvas>
-      </div>
-      <div class="card">
-        <canvas id="pieChart"></canvas>
-      </div>
+      <!-- Gráficas en 3 columnas, cada una muy compacta -->
+      <section class="charts-row">
+        <div class="card chart-card" id="trendChart"></div>
+        <div class="card chart-card" id="barChart"></div>
+        <div class="card chart-card" id="pieChart"></div>
+      </section>
     </main>
 
-    <!-- Navegación inferior -->
+    <!-- Bottom Nav -->
     <nav class="bottom-nav">
-      <a href="/pages/home.html" class="nav-item">
-        <i class="material-icons">home</i>
-        <span>Home</span>
-      </a>
-      <a href="/pages/transactions.html" class="nav-item">
-        <i class="material-icons">swap_horiz</i>
-        <span>Transactions</span>
-      </a>
-      <a href="/pages/analysis.html" class="nav-item active">
-        <i class="material-icons">pie_chart</i>
-        <span>Analysis</span>
-      </a>
+      <a href="/pages/home.html" class="nav-item"><i class="material-icons">home</i><span>Home</span></a>
+      <a href="/pages/transactions.html" class="nav-item"><i class="material-icons">swap_horiz</i><span>Transactions</span></a>
+      <a href="/pages/analysis.html" class="nav-item active"><i class="material-icons">pie_chart</i><span>Analysis</span></a>
     </nav>
   </div>
 </body>

@@ -669,7 +669,7 @@ var _auth = require("firebase/auth");
 console.log('[HOME] loaded');
 // API URL
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
-// Register service worker & periodicSync
+// Registrar service worker & periodicSync
 if ('serviceWorker' in navigator) window.addEventListener('load', async ()=>{
     try {
         const reg = await navigator.serviceWorker.register(require("f49e69e7fb1d94f5"), {
@@ -693,6 +693,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const closeSidebar = document.getElementById('close-sidebar');
     const logoutBtn = document.getElementById('logout-link');
     const userNameSpan = document.getElementById('user-name');
+    // Lógica del sidebar
     openSidebar.addEventListener('click', ()=>sidebar.classList.add('open'));
     closeSidebar.addEventListener('click', ()=>sidebar.classList.remove('open'));
     logoutBtn.addEventListener('click', async (e)=>{
@@ -723,7 +724,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
         await loadMonthlyChart(user.uid);
     });
 });
-// Load balances slider
+// Slider de cargar balances
 async function loadBalances(userId) {
     const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
     const uRef = (0, _firestore.doc)(db, 'users', userId);
@@ -824,10 +825,12 @@ async function saveUIDToIndexedDB(uid) {
         tx.oncomplete = ()=>db.close();
     };
 }
-// Load & render chart
+//Cargar y renderizar el gráfico
 async function loadMonthlyChart(userId) {
+    console.log("[CHART] loadMonthlyChart \u2192", userId);
     const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
     const col = (0, _firestore.collection)(db, 'users', userId, 'history');
+    // 1) Obtén los meses
     let snap;
     try {
         snap = await (0, _firestore.getDocsFromServer)(col);
@@ -835,12 +838,14 @@ async function loadMonthlyChart(userId) {
         snap = await (0, _firestore.getDocs)(col);
     }
     const allMonths = snap.docs.map((d)=>d.id).sort();
-    const limit = new Date();
-    limit.setMonth(limit.getMonth() - 11);
+    // 2) Filtra últimos 12 meses
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 11);
     const months = allMonths.filter((m)=>{
-        const [y, mo] = m.split('-').map(Number);
-        return new Date(y, mo - 1, 1) >= limit;
+        const [y, M] = m.split('-').map(Number);
+        return new Date(y, M - 1, 1) >= cutoff;
     });
+    // 3) Calcula gastos e ingresos
     const expenses = [], incomes = [];
     for (const m of months){
         const itemsCol = (0, _firestore.collection)(db, 'users', userId, 'history', m, 'items');
@@ -858,53 +863,88 @@ async function loadMonthlyChart(userId) {
         expenses.push(e);
         incomes.push(i);
     }
-    const ctx = document.getElementById('monthlyChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: months,
-            datasets: [
-                {
-                    label: 'Gastos',
-                    data: expenses,
-                    backgroundColor: '#FF6384'
-                },
-                {
-                    label: 'Ingresos',
-                    data: incomes,
-                    backgroundColor: '#36A2EB'
-                }
-            ]
+    // 4) Opciones ApexCharts minimalistas
+    const options = {
+        chart: {
+            type: 'bar',
+            height: 350,
+            toolbar: {
+                show: false
+            }
         },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    type: 'logarithmic',
-                    beginAtZero: false,
-                    title: {
-                        display: true
-                    },
-                    ticks: {
-                        callback: (v)=>{
-                            const p = 10 ** Math.floor(Math.log10(v));
-                            return v % p === 0 ? `${v}\u{20AC}` : '';
-                        }
-                    }
-                }
+        series: [
+            {
+                name: 'Gastos',
+                data: expenses
             },
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                },
-                tooltip: {
-                    callbacks: {
-                        label: (c)=>`${c.dataset.label}: ${c.parsed.y.toFixed(2)} \u{20AC}`
-                    }
+            {
+                name: 'Ingresos',
+                data: incomes
+            }
+        ],
+        colors: [
+            '#e74c3c',
+            '#3498db'
+        ],
+        dataLabels: {
+            enabled: true,
+            formatter: (v)=>v.toFixed(2),
+            style: {
+                colors: [
+                    '#333'
+                ]
+            }
+        },
+        xaxis: {
+            categories: months,
+            labels: {
+                style: {
+                    colors: '#555'
                 }
             }
+        },
+        yaxis: {
+            logarithmic: true,
+            title: {
+                text: "\u20AC (escala log)",
+                style: {
+                    color: '#555'
+                }
+            },
+            labels: {
+                formatter: (v)=>`${v.toFixed(2)} \u{20AC}`,
+                style: {
+                    colors: '#555'
+                }
+            }
+        },
+        plotOptions: {
+            bar: {
+                borderRadius: 4,
+                horizontal: false,
+                columnWidth: '40%'
+            }
+        },
+        tooltip: {
+            y: {
+                formatter: (v)=>`${v.toFixed(2)} \u{20AC}`
+            }
+        },
+        legend: {
+            position: 'bottom',
+            labels: {
+                colors: '#666'
+            }
+        },
+        grid: {
+            borderColor: '#eee'
         }
-    });
+    };
+    // 5) Renderiza el gráfico
+    const chartEl = document.querySelector('#monthlyChart');
+    chartEl.innerHTML = '';
+    const chart = new ApexCharts(chartEl, options);
+    chart.render();
 }
 
 },{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","f49e69e7fb1d94f5":"170CW"}],"170CW":[function(require,module,exports,__globalThis) {

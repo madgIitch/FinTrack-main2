@@ -1,23 +1,34 @@
-.filter-bar {
+.analysis-fullscreen {
+  flex-direction: column;
+  gap: 12px;
+  height: calc(100vh - 112px);
+  padding: 8px 16px;
+  display: flex;
+  overflow: hidden;
+}
+
+.filter-card {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: 8px;
   justify-content: space-between;
   align-items: center;
-  gap: 1rem;
-  padding: .5rem 1rem;
+  padding: 8px 12px;
   display: flex;
 }
 
 .filters {
-  gap: .5rem;
+  gap: 8px;
   display: flex;
 }
 
 .filter-btn {
-  background: var(--surface);
-  color: var(--text-muted);
   cursor: pointer;
+  background: none;
   border: none;
-  border-radius: 20px;
-  padding: .4rem .8rem;
+  border-radius: 16px;
+  padding: 4px 8px;
+  font-size: .85rem;
   transition: background .2s;
 }
 
@@ -26,50 +37,81 @@
   color: #fff;
 }
 
-.period-select {
-  border: 1px solid var(--divider);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 5px;
-  padding: .4rem;
+.period-select-wrapper {
+  background: var(--grey-light);
+  border-radius: 16px;
+  padding: 4px 8px;
 }
 
-.kpi-group {
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin: 1rem 0;
+.period-select {
+  background: none;
+  border: none;
+  outline: none;
+  font-size: .85rem;
+}
+
+.kpi-row {
+  justify-content: center;
+  gap: 12px;
   display: flex;
 }
 
 .kpi-card {
+  background: var(--surface);
   text-align: center;
-  flex: 140px;
+  max-width: 200px;
+  box-shadow: var(--shadow-sm);
+  border-radius: 8px;
+  flex: 1;
+  padding: 12px;
 }
 
 .kpi-card h2 {
   color: var(--text-muted);
-  margin-bottom: .4rem;
+  margin-bottom: 4px;
   font-size: .9rem;
 }
 
 .kpi-value {
-  margin-bottom: .2rem;
-  font-size: 1.4rem;
+  color: var(--text);
+  margin-bottom: 2px;
+  font-size: 1.3rem;
 }
 
 .kpi-change {
   color: var(--text-muted);
-  font-size: .8rem;
+  font-size: .75rem;
 }
 
-.card canvas {
+.charts-row {
+  flex: 1;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  display: grid;
+}
+
+.chart-card {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.chart-card > div, .chart-card > svg {
+  max-height: 120px;
   width: 100% !important;
-  height: 220px !important;
+  height: 100% !important;
 }
 
-@media (width >= 768px) {
-  .card canvas {
-    height: 300px !important;
+@media (width >= 600px) {
+  .chart-card > div, .chart-card > svg {
+    max-height: 140px;
+  }
+}
+
+@media (width >= 900px) {
+  .chart-card > div, .chart-card > svg {
+    max-height: 160px;
   }
 }
 /*# sourceMappingURL=analysis.fdc06e59.css.map */
