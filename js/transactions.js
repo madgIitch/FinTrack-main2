@@ -16,11 +16,9 @@ const STORE_NAME = 'transactions';
 const DB_VERSION = 1;
 
 async function initDB() {
-  console.debug('[DEBUG] initDB → openDB');
   return openDB(DB_NAME, DB_VERSION, {
     upgrade(db) {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
-        console.debug('[DEBUG] initDB → creating store');
         db.createObjectStore(STORE_NAME, { keyPath: 'transaction_id' });
       }
     }
@@ -28,28 +26,20 @@ async function initDB() {
 }
 
 async function cacheTransactions(idb, txs) {
-  console.debug(`[DEBUG] cacheTransactions → ${txs.length} items`);
-  for (const [idx, t] of txs.entries()) {
+  for (const t of txs) {
     const id = t.transaction_id || t.id;
-    console.debug(`[DEBUG] cacheTransactions[${idx}] → computed id:`, id);
-    if (!id) {
-      console.warn(`[WARN] cacheTransactions[${idx}] → missing id, skipping`, t);
-      continue;
-    }
+    if (!id) continue;
     t.transaction_id = id;
     try {
       await idb.put(STORE_NAME, t);
-      console.debug(`[DEBUG] cacheTransactions[${idx}] → saved ${id}`);
     } catch (e) {
-      console.error(`[ERROR] cacheTransactions[${idx}] → failed saving ${id}`, e, t);
+      console.error('cacheTransactions failed for', id, e);
     }
   }
 }
 
 async function readCachedTransactions(idb) {
-  const all = await idb.getAll(STORE_NAME);
-  console.debug('[DEBUG] readCachedTransactions → got', all.length);
-  return all;
+  return idb.getAll(STORE_NAME);
 }
 
 function groupByCategory(txs) {
@@ -61,14 +51,12 @@ function groupByCategory(txs) {
 }
 
 function renderChrono(txs) {
-  console.debug('[DEBUG] renderChrono');
   const list = document.getElementById('transactions-list');
   list.innerHTML = '';
   txs.forEach(tx => list.appendChild(renderTxItem(tx)));
 }
 
 function renderGrouped(txs) {
-  console.debug('[DEBUG] renderGrouped');
   const list = document.getElementById('transactions-list');
   list.innerHTML = '';
   const groups = groupByCategory(txs);
@@ -111,7 +99,6 @@ function hideLoading() {
 }
 
 async function fetchTransactionsFromPlaid(userId) {
-  console.debug('[DEBUG] fetchTransactionsFromPlaid', userId);
   const res = await fetch(`${apiUrl}/plaid/get_transactions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -129,7 +116,6 @@ async function fetchTransactionsFromPlaid(userId) {
 }
 
 async function fetchTestTransactions(userId) {
-  console.debug('[DEBUG] fetchTestTransactions', userId);
   const txs = [];
   const historySnap = await getDocs(collection(db, 'users', userId, 'history'));
   for (const monthDoc of historySnap.docs) {
@@ -144,12 +130,10 @@ async function fetchTestTransactions(userId) {
       txs.push(data);
     });
   }
-  console.debug('[DEBUG] fetchTestTransactions → count:', txs.length);
   return txs;
 }
 
 async function buildAccountMap(userId) {
-  console.debug('[DEBUG] buildAccountMap', userId);
   const snap = await getDoc(doc(db, 'users', userId));
   const list = snap.exists() ? snap.data().plaid?.accounts || [] : [];
   const map = {};
@@ -163,18 +147,19 @@ async function buildAccountMap(userId) {
       if (!res.ok) continue;
       const { accounts: accs } = await res.json();
       accs.forEach(a => { map[a.account_id] = a.name || 'Cuenta sin nombre'; });
-    } catch (_) {}
+    } catch {}
   }
   return map;
 }
 
+// ── Flujo principal con orden cronológico ───────────────────────────────────
 async function loadTransactions(userId) {
-  console.debug('[DEBUG] loadTransactions', userId);
   const idb        = await initDB();
   const accountMap = await buildAccountMap(userId);
 
-  // 1) Caché
-  const cached = await readCachedTransactions(idb);
+  // 1) Mostrar caché ordenado
+  let cached = await readCachedTransactions(idb);
+  cached = cached.sort((a,b) => new Date(b.date) - new Date(a.date));
   if (cached.length) {
     cached.forEach(tx => tx.accountName = accountMap[tx.account_id] || 'Desconocida');
     (document.getElementById('toggle-view').checked ? renderGrouped : renderChrono)(cached);
@@ -185,33 +170,40 @@ async function loadTransactions(userId) {
     return;
   }
 
-  // 2) Opcional: sincronizar Firestore
+  // 2) Opcional: sync Firestore
   try {
     await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId })
     });
-  } catch (_) {}
+  } catch {}
 
   hideOffline();
   showLoading();
 
-  // 3) Fetch / combinar / deduplicar / render / cache
+  // 3) Fetch, combinar, ordenar, render, cache
   try {
     const [plaidTxs, testTxs] = await Promise.all([
       fetchTransactionsFromPlaid(userId),
       fetchTestTransactions(userId)
     ]);
     const combined = [...plaidTxs, ...testTxs];
-    const mapTx    = new Map(combined.map(tx => [tx.transaction_id, tx]));
-    const allTxs   = Array.from(mapTx.values());
+    // Orden por fecha descendente
+    combined.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    // Deduplicar
+    const mapTx = new Map();
+    combined.forEach(tx => mapTx.set(tx.transaction_id, tx));
+    const allTxs = Array.from(mapTx.values());
+
     allTxs.forEach(tx => tx.accountName = accountMap[tx.account_id] || 'Desconocida');
 
     (document.getElementById('toggle-view').checked ? renderGrouped : renderChrono)(allTxs);
+
     await cacheTransactions(idb, allTxs);
   } catch (e) {
-    console.error('[ERROR] loadTransactions', e);
+    console.error('loadTransactions error:', e);
     showOffline('Error al actualizar, mostrando caché.');
   } finally {
     hideLoading();
