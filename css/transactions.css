@@ -1,155 +1,147 @@
 /* ========================================
-   Sección de Transacciones
+   RESET Y FONDO GLOBAL FIJO
    ======================================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
+/* FONDO GRIS CLARO IGUAL QUE EN HOME, FIJO AL VIEWPORT */
+html, body {
+  height: 100%;
+  width: 100%;
+  background-color: #f0f0f0;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: cover;
+  font-family: Arial, sans-serif;
+  color: #333;
+}
+
+/* Contenedor principal transparente para dejar ver el gris fijo */
+.container,
+main.content {
+  background: transparent;
+}
+
+/* ========================================
+   SECCIÓN DE TRANSACCIONES
+   ======================================== */
 #transactions-section {
   width: 90%;
   max-width: 600px;
-  margin: 0 auto 20px;
-  padding-bottom: 60px; /* espacio para la barra inferior */
+  margin: 20px auto 60px;
+  padding: 0;
+  position: relative;
 }
 
-/* Header interno con título y switch debajo */
+/* TÍTULO Y SWITCH */
 .transactions-header {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  margin-bottom: 16px;
-}
-
-.transactions-header h2 {
-  margin: 0;
-  font-size: 1.4em;
-  margin-bottom: 8px;
-}
-
-/* Contenedor del switch y etiqueta */
-.switch-container {
-  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  padding: 0 8px 16px;
+}
+.transactions-header h2 {
+  font-size: 1.4em;
+  color: #222;
+}
+.toggle-label {
+  margin-left: 8px;
+  font-size: 0.9em;
+  color: #555;
 }
 
-/* ================================
-   Switch “Material-purple”
-   ================================ */
-
+/* ========================================
+   SWITCH PERSONALIZADO
+   ======================================== */
 .switch {
   position: relative;
-  display: inline-block;
   width: 36px;
   height: 20px;
+  display: inline-block;
 }
-
 .switch input {
   opacity: 0;
-  width: 0;
-  height: 0;
+  width: 0; height: 0;
   position: absolute;
 }
-
 .switch .slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0; left: 0; right: 0; bottom: 0;
+  position: absolute; inset: 0;
   background-color: #888;
-  transition: background-color 0.2s;
   border-radius: 10px;
+  transition: background-color 0.2s;
 }
-
-.switch .slider:before {
-  position: absolute;
+.switch .slider::before {
   content: "";
-  height: 16px;
-  width: 16px;
-  left: 2px;
-  bottom: 2px;
-  background-color: #fff;
+  position: absolute;
+  width: 16px; height: 16px;
+  left: 2px; bottom: 2px;
+  background: #fff;
   border-radius: 50%;
   transition: transform 0.2s;
 }
-
 .switch input:checked + .slider {
   background-color: #8e44ad;
 }
-
-.switch input:checked + .slider:before {
+.switch input:checked + .slider::before {
   transform: translateX(16px);
 }
-
 .switch:hover .slider {
   background-color: #9b59b6;
 }
-
 .switch input:focus + .slider {
-  box-shadow: 0 0 0 3px rgba(142, 68, 173, 0.4);
+  box-shadow: 0 0 0 3px rgba(142,68,173,0.4);
 }
 
-.switch input:disabled + .slider {
-  background-color: #444;
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* Etiqueta del switch */
-.toggle-label {
-  font-size: 0.9em;
-  color: #555;
-  user-select: none;
-}
-
-/* ================================
-   Indicadores de estado
-   ================================ */
-
+/* ========================================
+   INDICADORES DE ESTADO
+   ======================================== */
 .offline-indicator {
   background: #ffeb3b;
   color: #333;
   padding: 8px;
   border-radius: 4px;
   text-align: center;
-  margin-bottom: 10px;
+  margin: 0 8px 10px;
 }
-
 .loading {
   text-align: center;
   color: #666;
   padding: 20px 0;
 }
 
-/* ================================
-   Agrupación de categorías
-   ================================ */
-
+/* ========================================
+   AGRUPACIÓN POR CATEGORÍA
+   ======================================== */
 .category-group {
-  margin-bottom: 20px;
+  margin: 0 8px 20px;
 }
-
 .category-group h3 {
-  margin-bottom: 10px;
+  font-size: 1.1em;
+  color: #444;
   border-bottom: 1px solid #ddd;
   padding-bottom: 4px;
-  font-size: 1.1em;
+  margin-bottom: 8px;
 }
 
-/* ================================
-   Ítems de transacción
-   ================================ */
-
+/* ========================================
+   TARJETAS DE TRANSACCIÓN
+   ======================================== */
 .transaction-item {
   background: #fff;
+  margin: 0 8px 8px;
   padding: 12px;
-  margin-bottom: 8px;
   border-radius: 6px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 
   display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto auto;
-  grid-template-areas:
-    "account amount"
-    "desc    amount"
-    "date    date";
+  grid-template:
+    "account amount" auto
+    "desc    amount" auto
+    "date    date"   auto
+    / 1fr auto;
   gap: 4px 12px;
 }
 
@@ -158,43 +150,38 @@
   font-size: 0.85em;
   color: #555;
 }
-
 .transaction-item .desc {
   grid-area: desc;
   font-weight: 500;
+  color: #222;
 }
-
 .transaction-item .date {
   grid-area: date;
   font-size: 0.85em;
   color: #666;
 }
-
 .transaction-item .amount {
   grid-area: amount;
   font-weight: bold;
   align-self: center;
   justify-self: end;
 }
-
 .transaction-item .amount.debit {
   color: #e53935;
 }
-
 .transaction-item .amount.credit {
   color: #43a047;
 }
 
 /* ========================================
-   Responsive: colapsar grid en móvil
+   RESPONSIVE PARA MÓVILES
    ======================================== */
-
 @media (max-width: 360px) {
   .transaction-item {
     display: block;
   }
   .transaction-item .amount {
-    position: static;
     margin-top: 6px;
+    justify-self: start;
   }
 }

@@ -1,26 +1,48 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  color: #333;
+  background-color: #f0f0f0;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+  width: 100%;
+  height: 100%;
+  font-family: Arial, sans-serif;
+}
+
+.container, main.content {
+  background: none;
+}
+
 #transactions-section {
   width: 90%;
   max-width: 600px;
-  margin: 0 auto 20px;
-  padding-bottom: 60px;
+  margin: 20px auto 60px;
+  padding: 0;
+  position: relative;
 }
 
 .transactions-header {
-  flex-direction: column;
-  align-items: flex-start;
-  margin-bottom: 16px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8px 16px;
   display: flex;
 }
 
 .transactions-header h2 {
-  margin: 0 0 8px;
+  color: #222;
   font-size: 1.4em;
 }
 
-.switch-container {
-  align-items: center;
-  gap: 8px;
-  display: flex;
+.toggle-label {
+  color: #555;
+  margin-left: 8px;
+  font-size: .9em;
 }
 
 .switch {
@@ -38,7 +60,6 @@
 }
 
 .switch .slider {
-  cursor: pointer;
   background-color: #888;
   border-radius: 10px;
   transition: background-color .2s;
@@ -48,7 +69,7 @@
 
 .switch .slider:before {
   content: "";
-  background-color: #fff;
+  background: #fff;
   border-radius: 50%;
   width: 16px;
   height: 16px;
@@ -74,25 +95,12 @@
   box-shadow: 0 0 0 3px #8e44ad66;
 }
 
-.switch input:disabled + .slider {
-  opacity: .6;
-  cursor: not-allowed;
-  background-color: #444;
-}
-
-.toggle-label {
-  color: #555;
-  -webkit-user-select: none;
-  user-select: none;
-  font-size: .9em;
-}
-
 .offline-indicator {
   color: #333;
   text-align: center;
   background: #ffeb3b;
   border-radius: 4px;
-  margin-bottom: 10px;
+  margin: 0 8px 10px;
   padding: 8px;
 }
 
@@ -103,12 +111,13 @@
 }
 
 .category-group {
-  margin-bottom: 20px;
+  margin: 0 8px 20px;
 }
 
 .category-group h3 {
+  color: #444;
   border-bottom: 1px solid #ddd;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   padding-bottom: 4px;
   font-size: 1.1em;
 }
@@ -121,7 +130,7 @@
                  "date date"
                  / 1fr auto;
   gap: 4px 12px;
-  margin-bottom: 8px;
+  margin: 0 8px 8px;
   padding: 12px;
   display: grid;
   box-shadow: 0 1px 3px #0000001a;
@@ -134,6 +143,7 @@
 }
 
 .transaction-item .desc {
+  color: #222;
   grid-area: desc;
   font-weight: 500;
 }
@@ -164,8 +174,8 @@
   }
 
   .transaction-item .amount {
+    justify-self: start;
     margin-top: 6px;
-    position: static;
   }
 }
 /*# sourceMappingURL=transactions.a40e28dd.css.map */
