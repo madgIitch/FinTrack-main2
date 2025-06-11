@@ -1,0 +1,402 @@
+[
+  {
+    "Document ID": "ACH",
+    "group": "Finanzas y Seguros"
+  },
+  {
+    "Document ID": "ATM",
+    "group": "Finanzas y Seguros"
+  },
+  {
+    "Document ID": "ATMs",
+    "group": "Finanzas y Seguros"
+  },
+  {
+    "Document ID": "Accessories Store",
+    "group": "Compras y Retail"
+  },
+  {
+    "Document ID": "Accounting and Bookkeeping",
+    "group": "Finanzas y Seguros"
+  },
+  {
+    "Document ID": "Acorns",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Acupuncture",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Adult",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Adult Education",
+    "group": "Educación y Capacitación"
+  },
+  {
+    "Document ID": "Adult Entertainment",
+    "group": "Entretenimiento y Ocio"
+  },
+  {
+    "Document ID": "Advertising Agencies and Media Buyers",
+    "group": "Servicios Profesionales"
+  },
+  {
+    "Document ID": "Advertising and Marketing",
+    "group": "Compras y Retail"
+  },
+  {
+    "Document ID": "Afghan",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "African",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Agriculture and Forestry",
+    "group": "Arte y Cultura"
+  },
+  {
+    "Document ID": "Airlines and Aviation Services",
+    "group": "Viajes y Hostelería"
+  },
+  {
+    "Document ID": "Airports",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Alternative Medicine",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "American",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Anesthesiologists",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Animal Shelter",
+    "group": "Mascotas y Animales"
+  },
+  {
+    "Document ID": "Antiques",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Apartments, Condos and Houses",
+    "group": "Bienes Raíces y Vivienda"
+  },
+  {
+    "Document ID": "Apparel and Fabric Products",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Aquarium",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Arcades and Amusement Parks",
+    "group": "Entretenimiento y Ocio"
+  },
+  {
+    "Document ID": "Architects",
+    "group": "Tecnología e Internet"
+  },
+  {
+    "Document ID": "Art Dealers and Galleries",
+    "group": "Arte y Cultura"
+  },
+  {
+    "Document ID": "Art Restoration",
+    "group": "Arte y Cultura"
+  },
+  {
+    "Document ID": "Art School",
+    "group": "Educación y Capacitación"
+  },
+  {
+    "Document ID": "Art and Graphic Design",
+    "group": "Arte y Cultura"
+  },
+  {
+    "Document ID": "Arts and Crafts",
+    "group": "Arte y Cultura"
+  },
+  {
+    "Document ID": "Arts and Entertainment",
+    "group": "Entretenimiento y Ocio"
+  },
+  {
+    "Document ID": "Asian",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Assisted Living Services",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Athletic Fields",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Auctions",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Audiovisual",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Australian",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Auto Oil and Lube",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Auto Smog Check",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Auto Tires",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Auto Transmission",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Automation and Control Systems",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Automotive",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Bagel Shop",
+    "group": "Compras y Retail"
+  },
+  {
+    "Document ID": "Bakery",
+    "group": "Alimentos y Restauración"
+  },
+  {
+    "Document ID": "Bank Fees",
+    "group": "Finanzas y Seguros"
+  },
+  {
+    "Document ID": "Banking and Finance",
+    "group": "Finanzas y Seguros"
+  },
+  {
+    "Document ID": "Bar",
+    "group": "Alimentos y Restauración"
+  },
+  {
+    "Document ID": "Barbecue",
+    "group": "Alimentos y Restauración"
+  },
+  {
+    "Document ID": "Baseball",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Basketball",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Batting Cages",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Beaches",
+    "group": "Finanzas y Seguros"
+  },
+  {
+    "Document ID": "Beauty Products",
+    "group": "Belleza y Cuidado Personal"
+  },
+  {
+    "Document ID": "Bed and Breakfasts",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Beer, Wine and Spirits",
+    "group": "Tecnología e Internet"
+  },
+  {
+    "Document ID": "Benefits",
+    "group": "Tecnología e Internet"
+  },
+  {
+    "Document ID": "Betterment",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Bicycles",
+    "group": "Deportes y Recreación"
+  },
+  {
+    "Document ID": "Billiards and Pool",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Billpay",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Blood Banks and Centers",
+    "group": "Finanzas y Seguros"
+  },
+  {
+    "Document ID": "Boarding Houses",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Boat",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Boat Dealers",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Boating",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Bookstores",
+    "group": "Compras y Retail"
+  },
+  {
+    "Document ID": "Boutique",
+    "group": "Compras y Retail"
+  },
+  {
+    "Document ID": "Bowling",
+    "group": "Entretenimiento y Ocio"
+  },
+  {
+    "Document ID": "Brazilian",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Breakfast Spot",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Breweries",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Building and Land Surveyors",
+    "group": "Agricultura y Medio Ambiente"
+  },
+  {
+    "Document ID": "Buildings and Structures",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Burgers",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Burrito",
+    "group": "Tecnología e Internet"
+  },
+  {
+    "Document ID": "Bus Stations",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Business Brokers and Franchises",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Business Services",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Business and Strategy Consulting",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Cable",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Cafe",
+    "group": "Alimentos y Restauración"
+  },
+  {
+    "Document ID": "Cajun",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Cameras",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Campgrounds and RV Parks",
+    "group": "Entretenimiento y Ocio"
+  },
+  {
+    "Document ID": "Canoes and Kayaks",
+    "group": "Otros"
+  },
+  {
+    "Document ID": "Car Appraisers",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Car Dealers and Leasing",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Car Parts and Accessories",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Car Service",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Car Wash and Detail",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Car and Truck Rentals",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Cardiologists",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Cards and Stationery",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Caretakers",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Caribbean",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Carpenters",
+    "group": "Automoción y Transporte"
+  },
+  {
+    "Document ID": "Carpet and Flooring",
+    "group": "Automoción y Transporte"
+  }
+]

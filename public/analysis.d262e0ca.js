@@ -731,7 +731,7 @@ async function loadAnalysis(userId) {
         revenue.push(+rev.toFixed(2));
         spend.push(+spd.toFixed(2));
     }
-    // 2) Update KPIs
+    // 2) Actualizar KPIs
     const totalRev = revenue.reduce((a, b)=>a + b, 0);
     const totalSpd = spend.reduce((a, b)=>a + b, 0);
     document.getElementById('kpi-revenue').textContent = `\u{20AC}${totalRev.toFixed(2)}`;
@@ -773,7 +773,7 @@ async function loadAnalysis(userId) {
             borderColor: '#eee'
         }
     }).render();
-    // 4) ApexCharts: Bar (transactions count)
+    // 4) ApexCharts: Bar (contador de transactions)
     const txCounts = [];
     for (const period of periods){
         const itemsCol = (0, _firestore.collection)(db, 'users', userId, 'history', period, 'items');
@@ -824,7 +824,7 @@ async function loadAnalysis(userId) {
             borderColor: '#eee'
         }
     }).render();
-    // 5) ApexCharts: Pie (by category)
+    // 5) ApexCharts: Pie (por category)
     const catMap = {};
     for (const p of periods){
         const colItems = (0, _firestore.collection)(db, 'users', userId, 'history', p, 'items');
