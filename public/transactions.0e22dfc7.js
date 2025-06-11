@@ -667,73 +667,78 @@ var _auth = require("firebase/auth");
 var _firestore = require("firebase/firestore");
 var _idb = require("idb");
 console.log('transactions.js loaded');
-// ── API BASE URL ────────────────────────────────────────────────────────────
+// ── API URL ──────────────────────────────────────────────────────────────
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
-// ── IndexedDB CONFIG ─────────────────────────────────────────────────────────
+// ── IndexedDB Settings ──────────────────────────────────────────────────
 const DB_NAME = 'fintrack-cache';
 const STORE_NAME = 'transactions';
 const DB_VERSION = 1;
-// ── Inicializar IndexedDB ────────────────────────────────────────────────────
 async function initDB() {
-    const idb = await (0, _idb.openDB)(DB_NAME, DB_VERSION, {
+    console.debug("[DEBUG] initDB \u2192 openDB");
+    return (0, _idb.openDB)(DB_NAME, DB_VERSION, {
         upgrade (db) {
-            if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, {
-                keyPath: 'transaction_id'
-            });
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                console.debug("[DEBUG] initDB \u2192 creating store");
+                db.createObjectStore(STORE_NAME, {
+                    keyPath: 'transaction_id'
+                });
+            }
         }
     });
-    return idb;
 }
-// ── Guardar en caché con manejo de errores ───────────────────────────────────
 async function cacheTransactions(idb, txs) {
-    for (const t of txs){
+    console.debug(`[DEBUG] cacheTransactions \u{2192} ${txs.length} items`);
+    for (const [idx, t] of txs.entries()){
         const id = t.transaction_id || t.id;
+        console.debug(`[DEBUG] cacheTransactions[${idx}] \u{2192} computed id:`, id);
         if (!id) {
-            console.warn('cacheTransactions: sin transaction_id, salto:', t);
+            console.warn(`[WARN] cacheTransactions[${idx}] \u{2192} missing id, skipping`, t);
             continue;
         }
         t.transaction_id = id;
         try {
             await idb.put(STORE_NAME, t);
+            console.debug(`[DEBUG] cacheTransactions[${idx}] \u{2192} saved ${id}`);
         } catch (e) {
-            console.error('cacheTransactions: fallo al guardar', id, e, t);
+            console.error(`[ERROR] cacheTransactions[${idx}] \u{2192} failed saving ${id}`, e, t);
         }
     }
 }
-// ── Leer todas las transacciones de la caché ─────────────────────────────────
 async function readCachedTransactions(idb) {
-    return idb.getAll(STORE_NAME);
+    const all = await idb.getAll(STORE_NAME);
+    console.debug("[DEBUG] readCachedTransactions \u2192 got", all.length);
+    return all;
 }
-// ── Agrupar por categoría ────────────────────────────────────────────────────
 function groupByCategory(txs) {
-    return txs.reduce((groups, tx)=>{
-        const key = tx.category || "Sin categor\xeda";
-        (groups[key] = groups[key] || []).push(tx);
-        return groups;
+    return txs.reduce((acc, tx)=>{
+        const cat = tx.category || "Sin categor\xeda";
+        (acc[cat] = acc[cat] || []).push(tx);
+        return acc;
     }, {});
 }
-// ── Renderizado ─────────────────────────────────────────────────────────────
 function renderChrono(txs) {
+    console.debug('[DEBUG] renderChrono');
     const list = document.getElementById('transactions-list');
     list.innerHTML = '';
     txs.forEach((tx)=>list.appendChild(renderTxItem(tx)));
 }
 function renderGrouped(txs) {
+    console.debug('[DEBUG] renderGrouped');
     const list = document.getElementById('transactions-list');
     list.innerHTML = '';
     const groups = groupByCategory(txs);
     Object.entries(groups).forEach(([cat, items])=>{
-        const section = document.createElement('div');
-        section.className = 'category-group';
-        section.innerHTML = `<h3>${cat}</h3>`;
-        items.forEach((tx)=>section.appendChild(renderTxItem(tx)));
-        list.appendChild(section);
+        const sec = document.createElement('div');
+        sec.className = 'category-group';
+        sec.innerHTML = `<h3>${cat}</h3>`;
+        items.forEach((tx)=>sec.appendChild(renderTxItem(tx)));
+        list.appendChild(sec);
     });
 }
 function renderTxItem(tx) {
-    const item = document.createElement('div');
-    item.className = 'transaction-item';
-    item.innerHTML = `
+    const div = document.createElement('div');
+    div.className = 'transaction-item';
+    div.innerHTML = `
     <span class="account-label">${tx.accountName}</span>
     <div class="desc">${tx.description}</div>
     <span class="date">${new Date(tx.date).toLocaleDateString()}</span>
@@ -741,9 +746,8 @@ function renderTxItem(tx) {
       ${tx.amount < 0 ? "\u2212" : '+'}${Math.abs(tx.amount).toFixed(2)} \u{20AC}
     </span>
   `;
-    return item;
+    return div;
 }
-// ── Indicadores de estado ───────────────────────────────────────────────────
 function showOffline(msg = "Est\xe1s sin conexi\xf3n. Mostrando datos en cach\xe9.") {
     const ind = document.getElementById('offline-indicator');
     ind.textContent = msg;
@@ -758,8 +762,8 @@ function showLoading() {
 function hideLoading() {
     document.getElementById('transactions-loading').hidden = true;
 }
-// ── Obtener transacciones de Plaid ──────────────────────────────────────────
 async function fetchTransactionsFromPlaid(userId) {
+    console.debug('[DEBUG] fetchTransactionsFromPlaid', userId);
     const res = await fetch(`${apiUrl}/plaid/get_transactions`, {
         method: 'POST',
         headers: {
@@ -779,28 +783,29 @@ async function fetchTransactionsFromPlaid(userId) {
             transaction_id: tx.transaction_id || tx.id
         }));
 }
-// ── Obtener transacciones de prueba (Option A) ─────────────────────────────
 async function fetchTestTransactions(userId) {
+    console.debug('[DEBUG] fetchTestTransactions', userId);
     const txs = [];
     const historySnap = await (0, _firestore.getDocs)((0, _firestore.collection)((0, _firebaseJs.db), 'users', userId, 'history'));
     for (const monthDoc of historySnap.docs){
         const itemsSnap = await (0, _firestore.getDocs)((0, _firestore.collection)((0, _firebaseJs.db), 'users', userId, 'history', monthDoc.id, 'items'));
-        itemsSnap.forEach((itemDoc)=>{
-            const data = itemDoc.data();
-            const id = data.transaction_id || itemDoc.id;
+        itemsSnap.forEach((docSnap)=>{
+            const data = docSnap.data();
+            const id = data.transaction_id || docSnap.id;
             if (!id) return;
             data.transaction_id = id;
             txs.push(data);
         });
     }
+    console.debug("[DEBUG] fetchTestTransactions \u2192 count:", txs.length);
     return txs;
 }
-// ── Construir mapa account_id → nombre ───────────────────────────────────────
 async function buildAccountMap(userId) {
+    console.debug('[DEBUG] buildAccountMap', userId);
     const snap = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', userId));
-    const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
+    const list = snap.exists() ? snap.data().plaid?.accounts || [] : [];
     const map = {};
-    for (const { accessToken } of accounts)try {
+    for (const { accessToken } of list)try {
         const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
             method: 'POST',
             headers: {
@@ -815,14 +820,14 @@ async function buildAccountMap(userId) {
         accs.forEach((a)=>{
             map[a.account_id] = a.name || 'Cuenta sin nombre';
         });
-    } catch  {}
+    } catch (_) {}
     return map;
 }
-// ── Flujo principal ─────────────────────────────────────────────────────────
 async function loadTransactions(userId) {
+    console.debug('[DEBUG] loadTransactions', userId);
     const idb = await initDB();
     const accountMap = await buildAccountMap(userId);
-    // Mostrar caché
+    // 1) Caché
     const cached = await readCachedTransactions(idb);
     if (cached.length) {
         cached.forEach((tx)=>tx.accountName = accountMap[tx.account_id] || 'Desconocida');
@@ -833,7 +838,7 @@ async function loadTransactions(userId) {
         hideLoading();
         return;
     }
-    // Opcional: sincronizar Firestore
+    // 2) Opcional: sincronizar Firestore
     try {
         await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
             method: 'POST',
@@ -844,15 +849,15 @@ async function loadTransactions(userId) {
                 userId
             })
         });
-    } catch  {}
+    } catch (_) {}
     hideOffline();
     showLoading();
+    // 3) Fetch / combinar / deduplicar / render / cache
     try {
         const [plaidTxs, testTxs] = await Promise.all([
             fetchTransactionsFromPlaid(userId),
             fetchTestTransactions(userId)
         ]);
-        // Combinar y deduplicar
         const combined = [
             ...plaidTxs,
             ...testTxs
@@ -866,13 +871,12 @@ async function loadTransactions(userId) {
         (document.getElementById('toggle-view').checked ? renderGrouped : renderChrono)(allTxs);
         await cacheTransactions(idb, allTxs);
     } catch (e) {
-        console.error('loadTransactions error:', e);
+        console.error('[ERROR] loadTransactions', e);
         showOffline("Error al actualizar, mostrando cach\xe9.");
     } finally{
         hideLoading();
     }
 }
-// ── Iniciar al autenticar ───────────────────────────────────────────────────
 (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), (user)=>{
     if (!user) {
         window.location.href = '../index.html';
