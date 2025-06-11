@@ -24,15 +24,15 @@ app.use('/plaid', plaidRoutes);
 
 // Ruta para sembrar transacciones de prueba
 // POST /seed
-// Body JSON: { year: number, month: number, count: number }
+// Body JSON: { userId: string, year: number, month: number, count: number }
 app.post('/seed', async (req, res, next) => {
   try {
-    const { year, month, count } = req.body;
-    if (!year || !month || !count) {
-      return res.status(400).json({ error: 'Debes enviar year, month y count en el cuerpo.' });
+    const { userId, year, month, count } = req.body;
+    if (!userId || !year || !month || !count) {
+      return res.status(400).json({ error: 'Debes enviar userId, year, month y count en el cuerpo.' });
     }
 
-    await seed(count, year, month);
+    await seed(userId, count, year, month);
     return res.json({ success: true, inserted: count });
   } catch (err) {
     next(err);
