@@ -1,5 +1,3 @@
-// plaidRoutes.js
-
 require('dotenv').config();
 const express = require('express');
 const { admin, db } = require('./firebaseAdmin'); // db = admin.firestore()
@@ -7,8 +5,11 @@ const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
 
 const router = express.Router();
 
+console.log('[PLAIDROUTES] Initializing Plaid routes');
+
 // Función de ayuda para normalizar cadenas (quita acentos y diacríticos)
 function normalizeKey(str) {
+  console.log('[PLAIDROUTES] normalizeKey input:', str);
   return str
     .toString()
     .normalize('NFD')               // Descompone acentos
@@ -20,6 +21,7 @@ function normalizeKey(str) {
 
 // ── CORS ────────────────────────────────────────────────────────────────────────
 router.use((req, res, next) => {
+  console.log('[PLAIDROUTES] CORS middleware, method:', req.method, 'path:', req.path);
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
@@ -27,265 +29,250 @@ router.use((req, res, next) => {
 });
 
 // ── Inicializar Plaid ──────────────────────────────────────────────────────────
-const envName  = process.env.PLAID_ENV || 'sandbox';
+const envName = process.env.PLAID_ENV || 'sandbox';
 const plaidEnv = PlaidEnvironments[envName] || PlaidEnvironments.sandbox;
-const config   = new Configuration({
-  basePath:    plaidEnv,
+const config = new Configuration({
+  basePath: plaidEnv,
   baseOptions: {
     headers: {
       'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
-      'PLAID-SECRET':    process.env.PLAID_SECRET,
-      'Plaid-Version':   '2020-09-14'
+      'PLAID-SECRET': process.env.PLAID_SECRET,
+      'Plaid-Version': '2020-09-14'
     }
   }
 });
 const plaidClient = new PlaidApi(config);
+console.log('[PLAIDROUTES] Plaid client configured for env:', envName);
 
 // ── Health Check ───────────────────────────────────────────────────────────────
-router.get('/ping', (_req, res) => res.json({ message: 'pong' }));
+router.get('/ping', (req, res) => {
+  console.log('[PLAIDROUTES] GET /ping');
+  res.json({ message: 'pong' });
+});
 
 // ── Create Link Token ──────────────────────────────────────────────────────────
 router.post('/create_link_token', async (req, res) => {
+  console.log('[PLAIDROUTES] POST /create_link_token body:', req.body);
   const { userId } = req.body;
-  if (!userId) return res.status(400).json({ error: 'Falta userId' });
+  if (!userId) {
+    console.error('[PLAIDROUTES] Missing userId');
+    return res.status(400).json({ error: 'Falta userId' });
+  }
 
   try {
     const resp = await plaidClient.linkTokenCreate({
-      user:          { client_user_id: userId },
-      client_name:   'FinTrack',
-      products:      ['auth','transactions'],
-      country_codes: ['US','ES'],
-      language:      'es'
+      user: { client_user_id: userId },
+      client_name: 'FinTrack',
+      products: ['auth', 'transactions'],
+      country_codes: ['US', 'ES'],
+      language: 'es'
     });
+    console.log('[PLAIDROUTES] linkTokenCreate succeeded');
     res.json({ link_token: resp.data.link_token });
   } catch (err) {
-    console.error('[PLAIDROUTES] Error creating link token:', err);
+    console.error('[PLAIDROUTES] create_link_token error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 // ── Exchange Public Token ──────────────────────────────────────────────────────
 router.post('/exchange_public_token', async (req, res) => {
+  console.log('[PLAIDROUTES] POST /exchange_public_token body:', req.body);
   const { public_token, userId } = req.body;
   if (!public_token || !userId) {
+    console.error('[PLAIDROUTES] Missing public_token or userId');
     return res.status(400).json({ error: 'Falta public_token o userId' });
   }
 
   try {
-    const resp = await plaidClient.itemPublicTokenExchange({ public_token });
-    const accessToken = resp.data.access_token;
-    const itemId      = resp.data.item_id;
+    const { data } = await plaidClient.itemPublicTokenExchange({ public_token });
+    console.log('[PLAIDROUTES] itemPublicTokenExchange succeeded');
+    const accessToken = data.access_token;
+    const itemId = data.item_id;
 
     const userRef = db.collection('users').doc(userId);
     const userDoc = await userRef.get();
-    const accounts = userDoc.exists
-      ? userDoc.data().plaid?.accounts || []
-      : [];
+    const accounts = userDoc.exists ? userDoc.data().plaid?.accounts || [] : [];
+    console.log('[PLAIDROUTES] Existing accounts count:', accounts.length);
 
-    accounts.push({
-      accessToken,
-      itemId,
-      createdAt: admin.firestore.Timestamp.now()
-    });
+    accounts.push({ accessToken, itemId, createdAt: admin.firestore.Timestamp.now() });
     await userRef.set({ plaid: { accounts } }, { merge: true });
+    console.log('[PLAIDROUTES] User doc updated with new account');
 
     res.json({ success: true });
   } catch (err) {
-    console.error('[PLAIDROUTES] Error exchanging public token:', err);
+    console.error('[PLAIDROUTES] exchange_public_token error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 // ── Get Account Details ────────────────────────────────────────────────────────
 router.post('/get_account_details', async (req, res) => {
+  console.log('[PLAIDROUTES] POST /get_account_details body:', req.body);
   const { accessToken } = req.body;
   if (!accessToken) {
+    console.error('[PLAIDROUTES] Missing accessToken');
     return res.status(400).json({ error: 'Falta accessToken' });
   }
 
   try {
     const accsResp = await plaidClient.accountsGet({ access_token: accessToken });
     const itemResp = await plaidClient.itemGet({ access_token: accessToken });
+    console.log('[PLAIDROUTES] get_account_details succeeded');
 
-    let institution = null;
-    const instId = itemResp.data.item.institution_id;
-    if (instId) {
-      const inst = await plaidClient.institutionsGetById({
-        institution_id: instId,
-        country_codes:  ['US','ES'],
-        options:        { include_optional_metadata: true }
-      });
-      institution = inst.data.institution;
-    }
-
-    res.json({
-      accounts:    accsResp.data.accounts,
-      institution
-    });
+    const institution = itemResp.data.item.institution_id || null;
+    res.json({ accounts: accsResp.data.accounts, institution });
   } catch (err) {
-    console.error('[PLAIDROUTES] Error in get_account_details:', err);
+    console.error('[PLAIDROUTES] get_account_details error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 // ── Get Transactions ────────────────────────────────────────────────────────────
 router.post('/get_transactions', async (req, res) => {
+  console.log('[PLAIDROUTES] POST /get_transactions body:', req.body);
   const { userId, startDate, endDate } = req.body;
-  if (!userId) return res.status(400).json({ error: 'Falta userId' });
+  if (!userId) {
+    console.error('[PLAIDROUTES] Missing userId');
+    return res.status(400).json({ error: 'Falta userId' });
+  }
 
   try {
     const userDoc = await db.collection('users').doc(userId).get();
-    if (!userDoc.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (!userDoc.exists) throw new Error('Usuario no encontrado');
 
     const accounts = userDoc.data().plaid?.accounts || [];
-    if (accounts.length === 0) return res.json({ transactions: [] });
-
-    const start = startDate
-      || new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
-    const end   = endDate
-      || new Date().toISOString().slice(0,10);
+    console.log('[PLAIDROUTES] Accounts to fetch:', accounts.length);
+    const start = startDate || new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
+    const end = endDate || new Date().toISOString().slice(0,10);
+    console.log('[PLAIDROUTES] Fetching transactions from', start, 'to', end);
 
     let allTxs = [];
     for (const { accessToken } of accounts) {
-      const txRes = await plaidClient.transactionsGet({
+      const resp = await plaidClient.transactionsGet({
         access_token: accessToken,
-        start_date:   start,
-        end_date:     end,
-        options: {
-          count: 500,
-          offset: 0,
-          include_personal_finance_category: true
-        }
+        start_date: start,
+        end_date: end,
+        options: { count: 500, offset: 0, include_personal_finance_category: true }
       });
-      allTxs.push(...txRes.data.transactions);
+      console.log('[PLAIDROUTES] Fetched', resp.data.transactions.length, 'transactions');
+      allTxs.push(...resp.data.transactions);
     }
 
-    allTxs.sort((a,b) => new Date(b.date) - new Date(a.date));
+    allTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
     const cleaned = allTxs.map(tx => ({
-      id:                         tx.transaction_id,
-      account_id:                 tx.account_id,
-      date:                       tx.date,
-      description:                tx.name,
-      personal_finance_category:  tx.personal_finance_category || null,
-      category:                   tx.personal_finance_category?.primary || 'Sin categoría',
-      category_id:                tx.category_id || null,
-      amount:                     tx.amount
+      id: tx.transaction_id,
+      account_id: tx.account_id,
+      date: tx.date,
+      description: tx.name,
+      personal_finance_category: tx.personal_finance_category || null,
+      category: tx.personal_finance_category?.primary || 'Sin categoría',
+      category_id: tx.category_id || null,
+      amount: tx.amount
     }));
 
+    console.log('[PLAIDROUTES] Sending cleaned transactions count:', cleaned.length);
     res.json({ transactions: cleaned });
   } catch (err) {
-    console.error('[PLAIDROUTES] Error in get_transactions:', err);
+    console.error('[PLAIDROUTES] get_transactions error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 // ── Sync transactions and store ───────────────────────────────────────────────
 router.post('/sync_transactions_and_store', async (req, res) => {
+  console.log('[PLAIDROUTES] POST /sync_transactions_and_store body:', req.body);
   const { userId } = req.body;
-  if (!userId) return res.status(400).json({ error: 'Falta userId' });
+  if (!userId) {
+    console.error('[PLAIDROUTES] Missing userId');
+    return res.status(400).json({ error: 'Falta userId' });
+  }
 
   try {
-    const userRef  = db.collection('users').doc(userId);
+    const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
-    if (!userSnap.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (!userSnap.exists) throw new Error('Usuario no encontrado');
+    console.log('[PLAIDROUTES] User found for sync');
 
-    // 1) Leer límites de gasto desde settings.budgets
-    const settings   = userSnap.data().settings || {};
-    const budgetsMap = settings.budgets || {};
+    // 1) Leer budgets
+    const budgetsMap = userSnap.data().settings?.budgets || {};
+    console.log('[PLAIDROUTES] budgetsMap:', budgetsMap);
 
-    // 2) Fetch todas las transacciones de los últimos 30 días
+    // 2) Fetch Plaid transactions
     const accounts = userSnap.data().plaid?.accounts || [];
-    const endDate   = new Date().toISOString().slice(0,10);
-    const startDate = new Date(Date.now() - 30*24*60*60*1000)
-                        .toISOString().slice(0,10);
-
     let allTxs = [];
     for (const { accessToken } of accounts) {
-      const txRes = await plaidClient.transactionsGet({
+      const resp = await plaidClient.transactionsGet({
         access_token: accessToken,
-        start_date:   startDate,
-        end_date:     endDate,
-        options: {
-          count: 500,
-          offset: 0,
-          include_personal_finance_category: true
-        }
+        start_date: new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10),
+        end_date: new Date().toISOString().slice(0,10),
+        options: { count: 500, offset: 0, include_personal_finance_category: true }
       });
-      allTxs.push(...txRes.data.transactions);
+      allTxs.push(...resp.data.transactions);
     }
-    allTxs.sort((a,b) => new Date(b.date) - new Date(a.date));
+    console.log('[PLAIDROUTES] Total Plaid transactions:', allTxs.length);
 
-    // 3) Agrupar transacciones por mes (YYYY-MM)
-    const txsPorMes = {};
-    allTxs.forEach(tx => {
-      const mes = tx.date.slice(0,7);
-      (txsPorMes[mes] = txsPorMes[mes]||[]).push(tx);
-    });
+    // 3) Include Firestore transactions
+    const idToTx = new Map(allTxs.map(tx => [tx.transaction_id, tx]));
+    const monthRefs = await userRef.collection('history').listDocuments();
+    for (const mRef of monthRefs) {
+      const itemsSnap = await mRef.collection('items').get();
+      itemsSnap.forEach(docSnap => {
+        const data = docSnap.data();
+        const tx = {
+          transaction_id: docSnap.id,
+          date: data.date,
+          amount: data.amount,
+          personal_finance_category: data.personal_finance_category,
+          category: data.category,
+          category_id: data.category_id,
+          description: data.description || data.name || null
+        };
+        console.log('[PLAIDROUTES] tx from Firestore:', tx);
+        idToTx.set(tx.transaction_id, tx);
+      });
+    }
 
-    // 4) Leer categoryGroups → mapa subcat_key → grupoEspañol
+    // 4) Group by month
+    const txsByMonth = {};
+    for (const tx of idToTx.values()) {
+      const month = tx.date.slice(0,7);
+      (txsByMonth[month] = txsByMonth[month] || []).push(tx);
+    }
+    console.log('[PLAIDROUTES] Months to process:', Object.keys(txsByMonth));
+
+    // 5) Build category map
     const catGroupsSnap = await db.collection('categoryGroups').get();
-    const catToGroupMap = {};
-    catGroupsSnap.forEach(docSnap => {
-      const rawId   = docSnap.id;
-      const data    = docSnap.data();
-      const display = data.group || data.grupo || rawId;
-      const docKey  = normalizeKey(rawId);
-      catToGroupMap[docKey] = display;
-      if (Array.isArray(data.subcategories)) {
-        data.subcategories.forEach(rawCat => {
-          catToGroupMap[normalizeKey(rawCat)] = display;
-        });
-      }
+    const catToGroup = {};
+    catGroupsSnap.forEach(doc => {
+      const rawId = doc.id;
+      const display = doc.data().group || doc.data().grupo || rawId;
+      catToGroup[normalizeKey(rawId)] = display;
+      (doc.data().subcategories || []).forEach(sub => catToGroup[normalizeKey(sub)] = display);
     });
+    console.log('[PLAIDROUTES] Category groups loaded:', Object.keys(catToGroup));
 
-    // 5) Prepara batch
+    // 6) Batch write
     const batch = db.batch();
-    for (const [mes, txs] of Object.entries(txsPorMes)) {
-      // a) Documento padre history mes
-      const histRef = userRef.collection('history').doc(mes);
-      batch.set(histRef, { updatedAt: admin.firestore.Timestamp.now() }, { merge: true });
-
-      // b) Summary mensual
-      const sumRef = userRef.collection('historySummary').doc(mes);
-      let totalExpenses = 0, totalIncomes = 0;
+    for (const [month, txs] of Object.entries(txsByMonth)) {
+      console.log('[PLAIDROUTES] Writing month:', month);
+      const histCatRef = userRef.collection('historyCategorias').doc(month);
+      const spent = {};
       txs.forEach(tx => {
-        if (tx.amount < 0) totalExpenses += Math.abs(tx.amount);
-        else               totalIncomes  += tx.amount;
+        const key = normalizeKey(tx.personal_finance_category?.primary || tx.category || 'Otros');
+        const group = catToGroup[key] || 'Otros';
+        const amt = tx.amount < 0 ? Math.abs(tx.amount) : 0;
+        spent[group] = (spent[group] || 0) + amt;
+        const docRef = histCatRef.collection(group).doc(tx.transaction_id);
+        batch.set(docRef, { amount: tx.amount, date: tx.date, description: tx.description }, { merge: true });
       });
-      batch.set(sumRef, {
-        totalExpenses,
-        totalIncomes,
-        updatedAt: admin.firestore.Timestamp.now()
-      }, { merge: true });
-
-      // c) historyCategorias & historyLimits
-      const histCatRef    = userRef.collection('historyCategorias').doc(mes);
-      const histLimitsRef = userRef.collection('historyLimits').doc(mes);
-      const spentByGroup  = {};
-
-      txs.forEach(tx => {
-        const raw   = tx.personal_finance_category?.primary || tx.category || '';
-        const key   = normalizeKey(raw);
-        const group = catToGroupMap[key] || 'Otros';
-        const amt   = tx.amount < 0 ? Math.abs(tx.amount) : 0;
-        const docCat = histCatRef.collection(group).doc(tx.transaction_id);
-        batch.set(docCat, { amount: tx.amount }, { merge: true });
-        spentByGroup[group] = (spentByGroup[group]||0) + amt;
-      });
-
-      Object.entries(budgetsMap).forEach(([grpName, limit]) => {
-        const spent = spentByGroup[grpName] || 0;
-        const docLim = histLimitsRef.collection('groups').doc(grpName);
-        batch.set(docLim, { limit, spent }, { merge: true });
-      });
+      batch.set(histCatRef, spent, { merge: true });
     }
-
-    // 6) Ejecuta batch
     await batch.commit();
+    console.log('[PLAIDROUTES] sync_transactions_and_store succeeded');
     res.json({ success: true });
-
   } catch (err) {
-    console.error('[sync] error:', err);
+    console.error('[PLAIDROUTES] sync_transactions_and_store error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
