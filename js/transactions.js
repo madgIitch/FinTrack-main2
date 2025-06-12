@@ -13,8 +13,9 @@ const apiUrl = window.location.hostname === 'localhost'
 
 // IndexedDB settings
 const DB_NAME    = 'fintrack-cache';
+// Bump version so upgrade runs and recreates the store with the correct keyPath:
+const DB_VERSION = 2;
 const STORE_NAME = 'transactions';
-const DB_VERSION = 1;
 
 // Pagination and filters
 const PAGE_SIZE  = 20;
@@ -23,32 +24,41 @@ let allTxsGlobal = [];
 
 // ——— Initialize IndexedDB —————————————————————————
 async function initDB() {
-  console.log('[DB] Initializing IndexedDB');
+  console.log('[DB] Initializing IndexedDB v' + DB_VERSION);
   return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        console.log('[DB] Creating object store:', STORE_NAME);
-        db.createObjectStore(STORE_NAME, { keyPath: 'transaction_id' });
+    upgrade(db, oldVersion) {
+      // On first run or version bump, delete + recreate store to ensure correct keyPath
+      if (db.objectStoreNames.contains(STORE_NAME)) {
+        console.log('[DB] Deleting existing store to re-create with keyPath');
+        db.deleteObjectStore(STORE_NAME);
       }
+      console.log('[DB] Creating object store:', STORE_NAME, 'with keyPath "transaction_id"');
+      db.createObjectStore(STORE_NAME, { keyPath: 'transaction_id' });
     }
   });
 }
 
 // ——— Cache transactions ———————————————————————————
 async function cacheTransactions(idb, txs) {
-  console.log(`[Cache] Caching ${txs.length} transactions`);
-  for (const tx of txs) {
+  // filter out any tx without an ID
+  const toCache = txs.filter(tx => {
     const id = tx.transaction_id || tx.id;
     if (!id) {
       console.warn('[Cache] Skipping tx with no ID', tx);
-      continue;
+      return false;
     }
     tx.transaction_id = id;
+    return true;
+  });
+
+  console.log(`[Cache] Caching ${toCache.length} transactions`);
+  for (const tx of toCache) {
     try {
+      // inline keyPath will pick up tx.transaction_id
       await idb.put(STORE_NAME, tx);
-      console.log(`[Cache] Stored tx ${id}`);
+      console.log(`[Cache] Stored tx ${tx.transaction_id}`);
     } catch (e) {
-      console.error(`[Cache] Failed for ${id}`, e);
+      console.error(`[Cache] Failed for ${tx.transaction_id}`, e);
     }
   }
 }
@@ -77,7 +87,10 @@ async function buildAccountMap(userId) {
       });
       if (!res.ok) continue;
       const { accounts } = await res.json();
-      accounts.forEach(a => { map[a.account_id] = a.name || 'Cuenta sin nombre'; });
+      accounts.forEach(a => {
+        map[a.account_id] = a.name || 'Cuenta sin nombre';
+      });
+      console.log('[Accounts] Fetched', accounts.length, 'accounts for token');
     } catch (e) {
       console.error('[Accounts] Error fetching account details', e);
     }
@@ -182,8 +195,8 @@ function getFilteredTxs() {
   return filtered;
 }
 function updatePaginationControls() {
-  const total = getFilteredTxs().length;
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const total  = getFilteredTxs().length;
+  const pages  = Math.max(1, Math.ceil(total / PAGE_SIZE));
   console.log(`[Page] ${currentPage}/${pages} of ${total}`);
   document.getElementById('prev-page').disabled = currentPage <= 1;
   document.getElementById('next-page').disabled = currentPage >= pages;
@@ -191,7 +204,7 @@ function updatePaginationControls() {
 }
 function showPage() {
   console.log('[Nav] showPage()');
-  const arr = getFilteredTxs();
+  const arr   = getFilteredTxs();
   const start = (currentPage - 1) * PAGE_SIZE;
   const slice = arr.slice(start, start + PAGE_SIZE);
   console.log('[Nav] displaying', slice.length, 'items', start, 'to', start + slice.length);
@@ -247,7 +260,7 @@ function setupEventListeners() {
 // ——— Main load ———————————————————————————————
 async function loadTransactions(userId) {
   console.log('[Main] loadTransactions(', userId, ')');
-  const idb = await initDB();
+  const idb        = await initDB();
   const accountMap = await buildAccountMap(userId);
 
   // 1) cache first
@@ -265,7 +278,7 @@ async function loadTransactions(userId) {
   if (!navigator.onLine) {
     console.log('[Main] offline, showing cache only');
     document.getElementById('offline-indicator').hidden = false;
-    document.getElementById('transactions-loading').hidden = true;
+    document.getElementById('transactions-loading').hidden = true;  
     return;
   }
 
@@ -275,7 +288,9 @@ async function loadTransactions(userId) {
   document.getElementById('transactions-loading').hidden = false;
   try {
     await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
-      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({userId})
+      method:'POST', 
+      headers:{'Content-Type':'application/json'}, 
+      body:JSON.stringify({userId})
     });
     console.log('[Main] sync done');
   } catch(e) {
@@ -300,11 +315,12 @@ async function loadTransactions(userId) {
     currentPage = 1;
     showPage();
     await cacheTransactions(idb, allTxsGlobal);
+    console.log('[Main] Transactions cached');
   } catch(e) {
     console.error('[Main] fetch error', e);
     const ind = document.getElementById('offline-indicator');
-    ind.textContent = 'Error al actualizar, mostrando caché.';
-    ind.hidden = false;
+    ind.textContent = 'Error al actualizar, mostrando caché.';  
+    ind.hidden = false;  
   } finally {
     document.getElementById('transactions-loading').hidden = true;
     console.log('[Main] loadTransactions complete');
@@ -326,7 +342,7 @@ onAuthStateChanged(auth, user => {
   loadTransactions(user.uid);
 });
 
-// ——— Retry on online ————————————————————————————
+// ——— Retry on online ————————————————————————————  
 window.addEventListener('online', () => {
   console.log('[Network] back online');
   if (auth.currentUser) loadTransactions(auth.currentUser.uid);

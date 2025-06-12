@@ -672,42 +672,49 @@ console.log('[Init] transactions.js loaded');
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 // IndexedDB settings
 const DB_NAME = 'fintrack-cache';
+// Bump version so upgrade runs and recreates the store with the correct keyPath:
+const DB_VERSION = 2;
 const STORE_NAME = 'transactions';
-const DB_VERSION = 1;
 // Pagination and filters
 const PAGE_SIZE = 20;
 let currentPage = 1;
 let allTxsGlobal = [];
 // ——— Initialize IndexedDB —————————————————————————
 async function initDB() {
-    console.log('[DB] Initializing IndexedDB');
+    console.log('[DB] Initializing IndexedDB v' + DB_VERSION);
     return (0, _idb.openDB)(DB_NAME, DB_VERSION, {
-        upgrade (db) {
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                console.log('[DB] Creating object store:', STORE_NAME);
-                db.createObjectStore(STORE_NAME, {
-                    keyPath: 'transaction_id'
-                });
+        upgrade (db, oldVersion) {
+            // On first run or version bump, delete + recreate store to ensure correct keyPath
+            if (db.objectStoreNames.contains(STORE_NAME)) {
+                console.log('[DB] Deleting existing store to re-create with keyPath');
+                db.deleteObjectStore(STORE_NAME);
             }
+            console.log('[DB] Creating object store:', STORE_NAME, 'with keyPath "transaction_id"');
+            db.createObjectStore(STORE_NAME, {
+                keyPath: 'transaction_id'
+            });
         }
     });
 }
 // ——— Cache transactions ———————————————————————————
 async function cacheTransactions(idb, txs) {
-    console.log(`[Cache] Caching ${txs.length} transactions`);
-    for (const tx of txs){
+    // filter out any tx without an ID
+    const toCache = txs.filter((tx)=>{
         const id = tx.transaction_id || tx.id;
         if (!id) {
             console.warn('[Cache] Skipping tx with no ID', tx);
-            continue;
+            return false;
         }
         tx.transaction_id = id;
-        try {
-            await idb.put(STORE_NAME, tx);
-            console.log(`[Cache] Stored tx ${id}`);
-        } catch (e) {
-            console.error(`[Cache] Failed for ${id}`, e);
-        }
+        return true;
+    });
+    console.log(`[Cache] Caching ${toCache.length} transactions`);
+    for (const tx of toCache)try {
+        // inline keyPath will pick up tx.transaction_id
+        await idb.put(STORE_NAME, tx);
+        console.log(`[Cache] Stored tx ${tx.transaction_id}`);
+    } catch (e) {
+        console.error(`[Cache] Failed for ${tx.transaction_id}`, e);
     }
 }
 // ——— Read cached transactions ——————————————————————
@@ -739,6 +746,7 @@ async function buildAccountMap(userId) {
         accounts.forEach((a)=>{
             map[a.account_id] = a.name || 'Cuenta sin nombre';
         });
+        console.log('[Accounts] Fetched', accounts.length, 'accounts for token');
     } catch (e) {
         console.error('[Accounts] Error fetching account details', e);
     }
@@ -957,6 +965,7 @@ async function loadTransactions(userId) {
         currentPage = 1;
         showPage();
         await cacheTransactions(idb, allTxsGlobal);
+        console.log('[Main] Transactions cached');
     } catch (e) {
         console.error('[Main] fetch error', e);
         const ind = document.getElementById('offline-indicator');
@@ -984,7 +993,7 @@ async function loadTransactions(userId) {
     });
     loadTransactions(user.uid);
 });
-// ——— Retry on online ————————————————————————————
+// ——— Retry on online ————————————————————————————  
 window.addEventListener('online', ()=>{
     console.log('[Network] back online');
     if ((0, _firebaseJs.auth).currentUser) loadTransactions((0, _firebaseJs.auth).currentUser.uid);
