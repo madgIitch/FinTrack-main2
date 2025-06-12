@@ -58,8 +58,8 @@ router.post('/create_link_token', async (req, res) => {
     const resp = await plaidClient.linkTokenCreate({
       user: { client_user_id: userId },
       client_name: 'FinTrack',
-      products: ['auth','transactions'],
-      country_codes: ['US','ES'],
+      products: ['auth', 'transactions'],
+      country_codes: ['US', 'ES'],
       language: 'es'
     });
     console.log('[PLAIDROUTES] linkTokenCreate succeeded');
@@ -149,7 +149,7 @@ router.post('/get_transactions', async (req, res) => {
   }
 });
 
-// ── Sync transactions, historyCategorias & historyLimits ──────────────────────
+// ── Sync transactions, historyCategorias, historyLimits & historySummary ─────
 router.post('/sync_transactions_and_store', async (req, res) => {
   console.log('[PLAIDROUTES] POST /sync_transactions_and_store body:', req.body);
   const { userId } = req.body;
@@ -162,10 +162,10 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     const userSnap = await userRef.get();
     if (!userSnap.exists) throw new Error('Usuario no encontrado');
     console.log('[PLAIDROUTES] User found for sync');
-    // Leer budgets
+    // 1) Leer budgets
     const budgetsMap = userSnap.data().settings?.budgets || {};
     console.log('[PLAIDROUTES] budgetsMap:', budgetsMap);
-    // Fetch Plaid transactions
+    // 2) Fetch Plaid transactions
     const accounts = userSnap.data().plaid?.accounts || [];
     let allTxs = [];
     for (const { accessToken } of accounts) {
@@ -173,62 +173,69 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       allTxs.push(...resp.data.transactions);
     }
     console.log('[PLAIDROUTES] Total Plaid transactions:', allTxs.length);
-    // Include Firestore transactions
+    // 3) Include Firestore transactions
     const idToTx = new Map(allTxs.map(tx=>[tx.transaction_id,tx]));
     const monthRefs = await userRef.collection('history').listDocuments();
     for (const mRef of monthRefs) {
       const itemsSnap = await mRef.collection('items').get();
       itemsSnap.forEach(docSnap=>{
-        const d = docSnap.data();
-        const tx = { transaction_id: docSnap.id, date: d.date, amount: d.amount, personal_finance_category: d.personal_finance_category, category: d.category, category_id: d.category_id, description: d.description||d.name||null };
+        const d=docSnap.data();
+        const tx={ transaction_id:docSnap.id, date:d.date, amount:d.amount, personal_finance_category:d.personal_finance_category, category:d.category, category_id:d.category_id, description:d.description||d.name||null };
         console.log('[PLAIDROUTES] tx from Firestore:', tx);
         idToTx.set(tx.transaction_id, tx);
       });
     }
-    // Group by month
+    // 4) Group by month
     const txsByMonth = {};
     for (const tx of idToTx.values()) {
       const mon = tx.date.slice(0,7);
-      (txsByMonth[mon]=txsByMonth[mon]||[]).push(tx);
+      (txsByMonth[mon] = txsByMonth[mon]||[]).push(tx);
     }
-    console.log('[PLAIDROUTES] Months to process:',Object.keys(txsByMonth));
-    // Build category map
+    console.log('[PLAIDROUTES] Months to process:', Object.keys(txsByMonth));
+    // 5) Build category map
     const catGroupsSnap = await db.collection('categoryGroups').get();
     const catToGroup = {};
     catGroupsSnap.forEach(doc=>{
-      const rawId = doc.id;
-      const disp = doc.data().group||doc.data().grupo||rawId;
-      catToGroup[normalizeKey(rawId)] = disp;
+      const id = doc.id;
+      const disp = doc.data().group || doc.data().grupo || id;
+      catToGroup[normalizeKey(id)] = disp;
       (doc.data().subcategories||[]).forEach(sub=>catToGroup[normalizeKey(sub)] = disp);
     });
-    console.log('[PLAIDROUTES] Category groups loaded:',Object.keys(catToGroup));
-    // Batch write
+    console.log('[PLAIDROUTES] Category groups:', Object.keys(catToGroup));
+    // 6) Batch write
     const batch = db.batch();
-    for (const [mon,txs] of Object.entries(txsByMonth)) {
-      console.log('[PLAIDROUTES] Writing month:',mon);
+    for (const [mon, txs] of Object.entries(txsByMonth)) {
+      console.log('[PLAIDROUTES] Writing month:', mon);
+      const histRef = userRef.collection('history').doc(mon);
       const catRef = userRef.collection('historyCategorias').doc(mon);
       const limRef = userRef.collection('historyLimits').doc(mon);
+      const sumRef = userRef.collection('historySummary').doc(mon);
+      // accumulate summary
+      let totalExpenses = 0, totalIncomes = 0;
       const spentByGroup = {};
       txs.forEach(tx=>{
-        const key=normalizeKey(tx.personal_finance_category?.primary||tx.category||'Otros');
-        const grp=catToGroup[key]||'Otros';
-        const amt=tx.amount<0?Math.abs(tx.amount):0;
-        spentByGroup[grp]=(spentByGroup[grp]||0)+amt;
-        const detRef=catRef.collection(grp).doc(tx.transaction_id);
+        if (tx.amount < 0) totalExpenses += Math.abs(tx.amount); else totalIncomes += tx.amount;
+        const key = normalizeKey(tx.personal_finance_category?.primary||tx.category||'otros');
+        const grp = catToGroup[key] || 'Otros';
+        const amt = tx.amount < 0 ? Math.abs(tx.amount) : 0;
+        spentByGroup[grp] = (spentByGroup[grp]||0) + amt;
+        const detRef = catRef.collection(grp).doc(tx.transaction_id);
         batch.set(detRef,{amount:tx.amount,date:tx.date,description:tx.description},{merge:true});
       });
+      batch.set(histRef,{updatedAt:admin.firestore.Timestamp.now()},{merge:true});
+      batch.set(sumRef,{totalExpenses,totalIncomes,updatedAt:admin.firestore.Timestamp.now()},{merge:true});
       batch.set(catRef,spentByGroup,{merge:true});
-      Object.entries(budgetsMap).forEach(([grp,limit])=>{
-        const spent=spentByGroup[grp]||0;
-        const grpDoc=limRef.collection('groups').doc(grp);
-        batch.set(grpDoc,{limit,spent},{merge:true});
+      Object.entries(budgetsMap).forEach(([grp, lim])=>{
+        const spent = spentByGroup[grp] || 0;
+        const grpDoc = limRef.collection('groups').doc(grp);
+        batch.set(grpDoc,{limit: lim, spent},{merge:true});
       });
     }
     await batch.commit();
     console.log('[PLAIDROUTES] sync_transactions_and_store succeeded');
     res.json({ success:true });
   } catch(err) {
-    console.error('[PLAIDROUTES] sync_transactions_and_store error:',err.message);
+    console.error('[PLAIDROUTES] sync_transactions_and_store error:', err.message);
     res.status(500).json({ error:err.message });
   }
 });
