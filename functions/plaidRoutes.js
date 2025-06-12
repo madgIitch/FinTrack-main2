@@ -10,13 +10,12 @@ console.log('[PLAIDROUTES] Initializing Plaid routes');
 // Función de ayuda para normalizar cadenas (quita acentos y diacríticos)
 function normalizeKey(str) {
   console.log('[PLAIDROUTES] normalizeKey input:', str);
-  return str
-    .toString()
-    .normalize('NFD')               // Descompone acentos
-    .replace(/[\u0300-\u036f]/g, '')// Elimina marcas diacríticas
+  return str.toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/\s+/g, '_')          // Espacios → guiones bajos
-    .replace(/[^\w_]/g, '');       // Quita caracteres no alfanuméricos/underscore
+    .replace(/\s+/g, '_')
+    .replace(/[^\w_]/g, '');
 }
 
 // ── CORS ────────────────────────────────────────────────────────────────────────
@@ -31,17 +30,14 @@ router.use((req, res, next) => {
 // ── Inicializar Plaid ──────────────────────────────────────────────────────────
 const envName = process.env.PLAID_ENV || 'sandbox';
 const plaidEnv = PlaidEnvironments[envName] || PlaidEnvironments.sandbox;
-const config = new Configuration({
+const plaidClient = new PlaidApi(new Configuration({
   basePath: plaidEnv,
-  baseOptions: {
-    headers: {
-      'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
-      'PLAID-SECRET': process.env.PLAID_SECRET,
-      'Plaid-Version': '2020-09-14'
-    }
-  }
-});
-const plaidClient = new PlaidApi(config);
+  baseOptions: { headers: {
+    'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
+    'PLAID-SECRET':    process.env.PLAID_SECRET,
+    'Plaid-Version':   '2020-09-14'
+  }}
+}));
 console.log('[PLAIDROUTES] Plaid client configured for env:', envName);
 
 // ── Health Check ───────────────────────────────────────────────────────────────
@@ -58,13 +54,12 @@ router.post('/create_link_token', async (req, res) => {
     console.error('[PLAIDROUTES] Missing userId');
     return res.status(400).json({ error: 'Falta userId' });
   }
-
   try {
     const resp = await plaidClient.linkTokenCreate({
       user: { client_user_id: userId },
       client_name: 'FinTrack',
-      products: ['auth', 'transactions'],
-      country_codes: ['US', 'ES'],
+      products: ['auth','transactions'],
+      country_codes: ['US','ES'],
       language: 'es'
     });
     console.log('[PLAIDROUTES] linkTokenCreate succeeded');
@@ -83,22 +78,18 @@ router.post('/exchange_public_token', async (req, res) => {
     console.error('[PLAIDROUTES] Missing public_token or userId');
     return res.status(400).json({ error: 'Falta public_token o userId' });
   }
-
   try {
     const { data } = await plaidClient.itemPublicTokenExchange({ public_token });
     console.log('[PLAIDROUTES] itemPublicTokenExchange succeeded');
     const accessToken = data.access_token;
     const itemId = data.item_id;
-
     const userRef = db.collection('users').doc(userId);
     const userDoc = await userRef.get();
     const accounts = userDoc.exists ? userDoc.data().plaid?.accounts || [] : [];
     console.log('[PLAIDROUTES] Existing accounts count:', accounts.length);
-
     accounts.push({ accessToken, itemId, createdAt: admin.firestore.Timestamp.now() });
     await userRef.set({ plaid: { accounts } }, { merge: true });
     console.log('[PLAIDROUTES] User doc updated with new account');
-
     res.json({ success: true });
   } catch (err) {
     console.error('[PLAIDROUTES] exchange_public_token error:', err.message);
@@ -114,12 +105,10 @@ router.post('/get_account_details', async (req, res) => {
     console.error('[PLAIDROUTES] Missing accessToken');
     return res.status(400).json({ error: 'Falta accessToken' });
   }
-
   try {
     const accsResp = await plaidClient.accountsGet({ access_token: accessToken });
     const itemResp = await plaidClient.itemGet({ access_token: accessToken });
     console.log('[PLAIDROUTES] get_account_details succeeded');
-
     const institution = itemResp.data.item.institution_id || null;
     res.json({ accounts: accsResp.data.accounts, institution });
   } catch (err) {
@@ -136,41 +125,22 @@ router.post('/get_transactions', async (req, res) => {
     console.error('[PLAIDROUTES] Missing userId');
     return res.status(400).json({ error: 'Falta userId' });
   }
-
   try {
     const userDoc = await db.collection('users').doc(userId).get();
     if (!userDoc.exists) throw new Error('Usuario no encontrado');
-
     const accounts = userDoc.data().plaid?.accounts || [];
     console.log('[PLAIDROUTES] Accounts to fetch:', accounts.length);
-    const start = startDate || new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
+    const start = startDate || new Date(Date.now()-30*24*60*60*1000).toISOString().slice(0,10);
     const end = endDate || new Date().toISOString().slice(0,10);
     console.log('[PLAIDROUTES] Fetching transactions from', start, 'to', end);
-
     let allTxs = [];
     for (const { accessToken } of accounts) {
-      const resp = await plaidClient.transactionsGet({
-        access_token: accessToken,
-        start_date: start,
-        end_date: end,
-        options: { count: 500, offset: 0, include_personal_finance_category: true }
-      });
+      const resp = await plaidClient.transactionsGet({ access_token: accessToken, start_date: start, end_date: end, options: { count: 500, offset: 0, include_personal_finance_category: true } });
       console.log('[PLAIDROUTES] Fetched', resp.data.transactions.length, 'transactions');
       allTxs.push(...resp.data.transactions);
     }
-
-    allTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
-    const cleaned = allTxs.map(tx => ({
-      id: tx.transaction_id,
-      account_id: tx.account_id,
-      date: tx.date,
-      description: tx.name,
-      personal_finance_category: tx.personal_finance_category || null,
-      category: tx.personal_finance_category?.primary || 'Sin categoría',
-      category_id: tx.category_id || null,
-      amount: tx.amount
-    }));
-
+    allTxs.sort((a,b)=>new Date(b.date)-new Date(a.date));
+    const cleaned = allTxs.map(tx=>({ id: tx.transaction_id, account_id: tx.account_id, date: tx.date, description: tx.name, personal_finance_category: tx.personal_finance_category||null, category: tx.personal_finance_category?.primary||'Sin categoría', category_id: tx.category_id||null, amount: tx.amount }));
     console.log('[PLAIDROUTES] Sending cleaned transactions count:', cleaned.length);
     res.json({ transactions: cleaned });
   } catch (err) {
@@ -179,7 +149,7 @@ router.post('/get_transactions', async (req, res) => {
   }
 });
 
-// ── Sync transactions and store ───────────────────────────────────────────────
+// ── Sync transactions, historyCategorias & historyLimits ──────────────────────
 router.post('/sync_transactions_and_store', async (req, res) => {
   console.log('[PLAIDROUTES] POST /sync_transactions_and_store body:', req.body);
   const { userId } = req.body;
@@ -187,93 +157,79 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     console.error('[PLAIDROUTES] Missing userId');
     return res.status(400).json({ error: 'Falta userId' });
   }
-
   try {
     const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
     if (!userSnap.exists) throw new Error('Usuario no encontrado');
     console.log('[PLAIDROUTES] User found for sync');
-
-    // 1) Leer budgets
+    // Leer budgets
     const budgetsMap = userSnap.data().settings?.budgets || {};
     console.log('[PLAIDROUTES] budgetsMap:', budgetsMap);
-
-    // 2) Fetch Plaid transactions
+    // Fetch Plaid transactions
     const accounts = userSnap.data().plaid?.accounts || [];
     let allTxs = [];
     for (const { accessToken } of accounts) {
-      const resp = await plaidClient.transactionsGet({
-        access_token: accessToken,
-        start_date: new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10),
-        end_date: new Date().toISOString().slice(0,10),
-        options: { count: 500, offset: 0, include_personal_finance_category: true }
-      });
+      const resp = await plaidClient.transactionsGet({ access_token: accessToken, start_date: new Date(Date.now()-30*24*60*60*1000).toISOString().slice(0,10), end_date: new Date().toISOString().slice(0,10), options: { count: 500, offset: 0, include_personal_finance_category: true } });
       allTxs.push(...resp.data.transactions);
     }
     console.log('[PLAIDROUTES] Total Plaid transactions:', allTxs.length);
-
-    // 3) Include Firestore transactions
-    const idToTx = new Map(allTxs.map(tx => [tx.transaction_id, tx]));
+    // Include Firestore transactions
+    const idToTx = new Map(allTxs.map(tx=>[tx.transaction_id,tx]));
     const monthRefs = await userRef.collection('history').listDocuments();
     for (const mRef of monthRefs) {
       const itemsSnap = await mRef.collection('items').get();
-      itemsSnap.forEach(docSnap => {
-        const data = docSnap.data();
-        const tx = {
-          transaction_id: docSnap.id,
-          date: data.date,
-          amount: data.amount,
-          personal_finance_category: data.personal_finance_category,
-          category: data.category,
-          category_id: data.category_id,
-          description: data.description || data.name || null
-        };
+      itemsSnap.forEach(docSnap=>{
+        const d = docSnap.data();
+        const tx = { transaction_id: docSnap.id, date: d.date, amount: d.amount, personal_finance_category: d.personal_finance_category, category: d.category, category_id: d.category_id, description: d.description||d.name||null };
         console.log('[PLAIDROUTES] tx from Firestore:', tx);
         idToTx.set(tx.transaction_id, tx);
       });
     }
-
-    // 4) Group by month
+    // Group by month
     const txsByMonth = {};
     for (const tx of idToTx.values()) {
-      const month = tx.date.slice(0,7);
-      (txsByMonth[month] = txsByMonth[month] || []).push(tx);
+      const mon = tx.date.slice(0,7);
+      (txsByMonth[mon]=txsByMonth[mon]||[]).push(tx);
     }
-    console.log('[PLAIDROUTES] Months to process:', Object.keys(txsByMonth));
-
-    // 5) Build category map
+    console.log('[PLAIDROUTES] Months to process:',Object.keys(txsByMonth));
+    // Build category map
     const catGroupsSnap = await db.collection('categoryGroups').get();
     const catToGroup = {};
-    catGroupsSnap.forEach(doc => {
+    catGroupsSnap.forEach(doc=>{
       const rawId = doc.id;
-      const display = doc.data().group || doc.data().grupo || rawId;
-      catToGroup[normalizeKey(rawId)] = display;
-      (doc.data().subcategories || []).forEach(sub => catToGroup[normalizeKey(sub)] = display);
+      const disp = doc.data().group||doc.data().grupo||rawId;
+      catToGroup[normalizeKey(rawId)] = disp;
+      (doc.data().subcategories||[]).forEach(sub=>catToGroup[normalizeKey(sub)] = disp);
     });
-    console.log('[PLAIDROUTES] Category groups loaded:', Object.keys(catToGroup));
-
-    // 6) Batch write
+    console.log('[PLAIDROUTES] Category groups loaded:',Object.keys(catToGroup));
+    // Batch write
     const batch = db.batch();
-    for (const [month, txs] of Object.entries(txsByMonth)) {
-      console.log('[PLAIDROUTES] Writing month:', month);
-      const histCatRef = userRef.collection('historyCategorias').doc(month);
-      const spent = {};
-      txs.forEach(tx => {
-        const key = normalizeKey(tx.personal_finance_category?.primary || tx.category || 'Otros');
-        const group = catToGroup[key] || 'Otros';
-        const amt = tx.amount < 0 ? Math.abs(tx.amount) : 0;
-        spent[group] = (spent[group] || 0) + amt;
-        const docRef = histCatRef.collection(group).doc(tx.transaction_id);
-        batch.set(docRef, { amount: tx.amount, date: tx.date, description: tx.description }, { merge: true });
+    for (const [mon,txs] of Object.entries(txsByMonth)) {
+      console.log('[PLAIDROUTES] Writing month:',mon);
+      const catRef = userRef.collection('historyCategorias').doc(mon);
+      const limRef = userRef.collection('historyLimits').doc(mon);
+      const spentByGroup = {};
+      txs.forEach(tx=>{
+        const key=normalizeKey(tx.personal_finance_category?.primary||tx.category||'Otros');
+        const grp=catToGroup[key]||'Otros';
+        const amt=tx.amount<0?Math.abs(tx.amount):0;
+        spentByGroup[grp]=(spentByGroup[grp]||0)+amt;
+        const detRef=catRef.collection(grp).doc(tx.transaction_id);
+        batch.set(detRef,{amount:tx.amount,date:tx.date,description:tx.description},{merge:true});
       });
-      batch.set(histCatRef, spent, { merge: true });
+      batch.set(catRef,spentByGroup,{merge:true});
+      Object.entries(budgetsMap).forEach(([grp,limit])=>{
+        const spent=spentByGroup[grp]||0;
+        const grpDoc=limRef.collection('groups').doc(grp);
+        batch.set(grpDoc,{limit,spent},{merge:true});
+      });
     }
     await batch.commit();
     console.log('[PLAIDROUTES] sync_transactions_and_store succeeded');
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[PLAIDROUTES] sync_transactions_and_store error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.json({ success:true });
+  } catch(err) {
+    console.error('[PLAIDROUTES] sync_transactions_and_store error:',err.message);
+    res.status(500).json({ error:err.message });
   }
 });
 
