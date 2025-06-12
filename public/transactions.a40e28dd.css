@@ -6,13 +6,10 @@
 
 html, body {
   color: #333;
-  background-color: #f0f0f0;
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-attachment: fixed;
+  background: #f0f0f0 center / cover fixed;
   width: 100%;
   height: 100%;
-  font-family: Arial, sans-serif;
+  font-family: Roboto, sans-serif;
 }
 
 .container, main.content {
@@ -21,34 +18,66 @@ html, body {
 
 #transactions-section {
   width: 90%;
-  max-width: 600px;
+  max-width: 700px;
   margin: 20px auto 60px;
-  padding: 0;
-  position: relative;
 }
 
-.transactions-header {
-  justify-content: space-between;
+.transactions-title {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.transactions-title h2 {
+  color: #222;
+  font-size: 2em;
+  font-weight: 700;
+}
+
+.transactions-title hr {
+  border: none;
+  border-bottom: 1px solid #ddd;
+  margin-top: 8px;
+}
+
+.transactions-filters {
+  justify-content: center;
   align-items: center;
-  padding: 0 8px 16px;
+  gap: 12px;
+  margin-bottom: 20px;
   display: flex;
 }
 
-.transactions-header h2 {
-  color: #222;
-  font-size: 1.4em;
+.month-icon {
+  cursor: pointer;
+  color: #666;
+  z-index: 1;
+  border-radius: 4px;
+  padding: 4px;
+  font-size: 24px;
+  transition: color .2s, background .2s;
+  display: inline-block;
+  position: relative;
 }
 
-.toggle-label {
-  color: #555;
-  margin-left: 8px;
-  font-size: .9em;
+.month-icon:hover {
+  color: #8e44ad;
+  background: #8e44ad1a;
+}
+
+.month-icon > input[type="month"] {
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  position: absolute;
+  inset: 0;
 }
 
 .switch {
-  width: 36px;
-  height: 20px;
-  display: inline-block;
+  width: 40px;
+  height: 22px;
   position: relative;
 }
 
@@ -56,43 +85,47 @@ html, body {
   opacity: 0;
   width: 0;
   height: 0;
-  position: absolute;
 }
 
-.switch .slider {
-  background-color: #888;
-  border-radius: 10px;
-  transition: background-color .2s;
+.slider {
+  background: #bbb;
+  border-radius: 11px;
+  transition: background .2s;
   position: absolute;
   inset: 0;
 }
 
-.switch .slider:before {
+.slider:before {
   content: "";
   background: #fff;
   border-radius: 50%;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   transition: transform .2s;
   position: absolute;
-  bottom: 2px;
+  top: 2px;
   left: 2px;
 }
 
 .switch input:checked + .slider {
-  background-color: #8e44ad;
+  background: #8e44ad;
 }
 
 .switch input:checked + .slider:before {
-  transform: translateX(16px);
+  transform: translateX(18px);
 }
 
 .switch:hover .slider {
-  background-color: #9b59b6;
+  background: #9b59b6;
 }
 
 .switch input:focus + .slider {
   box-shadow: 0 0 0 3px #8e44ad66;
+}
+
+.toggle-label {
+  color: #555;
+  font-size: .95em;
 }
 
 .offline-indicator {
@@ -100,7 +133,8 @@ html, body {
   text-align: center;
   background: #ffeb3b;
   border-radius: 4px;
-  margin: 0 8px 10px;
+  max-width: 700px;
+  margin: 0 auto 10px;
   padding: 8px;
 }
 
@@ -110,72 +144,109 @@ html, body {
   padding: 20px 0;
 }
 
-.category-group {
-  margin: 0 8px 20px;
+#transactions-list {
+  flex-direction: column;
+  gap: 10px;
+  display: flex;
 }
 
 .category-group h3 {
   color: #444;
   border-bottom: 1px solid #ddd;
-  margin-bottom: 8px;
-  padding-bottom: 4px;
-  font-size: 1.1em;
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  font-size: 1.2em;
 }
 
 .transaction-item {
   background: #fff;
-  border-radius: 6px;
+  border-radius: 8px;
   grid-template: "account amount"
                  "desc amount"
                  "date date"
                  / 1fr auto;
-  gap: 4px 12px;
-  margin: 0 8px 8px;
-  padding: 12px;
+  gap: 6px 12px;
+  padding: 16px;
   display: grid;
-  box-shadow: 0 1px 3px #0000001a;
+  box-shadow: 0 2px 4px #0000001a;
 }
 
-.transaction-item .account-label {
+.account-label {
   color: #555;
   grid-area: account;
-  font-size: .85em;
+  font-size: .9em;
 }
 
-.transaction-item .desc {
+.desc {
   color: #222;
   grid-area: desc;
   font-weight: 500;
 }
 
-.transaction-item .date {
+.date {
   color: #666;
   grid-area: date;
   font-size: .85em;
 }
 
-.transaction-item .amount {
+.amount {
   grid-area: amount;
   place-self: center end;
-  font-weight: bold;
+  font-weight: 700;
 }
 
-.transaction-item .amount.debit {
+.amount.debit {
   color: #e53935;
 }
 
-.transaction-item .amount.credit {
+.amount.credit {
   color: #43a047;
 }
 
-@media (width <= 360px) {
+.pagination-controls {
+  justify-content: center;
+  gap: 12px;
+  margin-top: 20px;
+  display: flex;
+}
+
+.pagination-controls button {
+  color: #fff;
+  cursor: pointer;
+  background: #8e44ad;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  transition: background .2s;
+}
+
+.pagination-controls button:disabled {
+  cursor: default;
+  background: #ccc;
+}
+
+.pagination-controls button:not(:disabled):hover {
+  background: #9b59b6;
+}
+
+#page-info {
+  color: #555;
+  font-size: .95em;
+}
+
+@media (width <= 500px) {
+  .transactions-filters {
+    flex-direction: column;
+    gap: 8px;
+  }
+
   .transaction-item {
     display: block;
   }
 
-  .transaction-item .amount {
+  .amount {
     justify-self: start;
-    margin-top: 6px;
+    margin-top: 10px;
   }
 }
 /*# sourceMappingURL=transactions.a40e28dd.css.map */

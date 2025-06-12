@@ -662,111 +662,91 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"j59nl":[function(require,module,exports,__globalThis) {
+// transactions.js
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
 var _firestore = require("firebase/firestore");
 var _idb = require("idb");
+console.log('[Init] transactions.js loaded');
+// URL API
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
+// IndexedDB settings
 const DB_NAME = 'fintrack-cache';
 const STORE_NAME = 'transactions';
 const DB_VERSION = 1;
+// Pagination and filters
 const PAGE_SIZE = 20;
 let currentPage = 1;
 let allTxsGlobal = [];
-function setupEventListeners() {
-    document.getElementById('prev-page').addEventListener('click', ()=>{
-        if (currentPage > 1) {
-            currentPage--;
-            showPage();
-        }
-    });
-    document.getElementById('next-page').addEventListener('click', ()=>{
-        const totalPages = Math.ceil(allTxsGlobal.length / PAGE_SIZE);
-        if (currentPage < totalPages) {
-            currentPage++;
-            showPage();
-        }
-    });
-    document.getElementById('toggle-view').addEventListener('change', ()=>{
-        currentPage = 1;
-        showPage();
-    });
-}
+// ——— Initialize IndexedDB —————————————————————————
 async function initDB() {
+    console.log('[DB] Initializing IndexedDB');
     return (0, _idb.openDB)(DB_NAME, DB_VERSION, {
         upgrade (db) {
-            if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, {
-                keyPath: 'transaction_id'
-            });
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                console.log('[DB] Creating object store:', STORE_NAME);
+                db.createObjectStore(STORE_NAME, {
+                    keyPath: 'transaction_id'
+                });
+            }
         }
     });
 }
+// ——— Cache transactions ———————————————————————————
 async function cacheTransactions(idb, txs) {
-    for (const t of txs){
-        const id = t.transaction_id || t.id;
-        if (!id) continue;
-        t.transaction_id = id;
+    console.log(`[Cache] Caching ${txs.length} transactions`);
+    for (const tx of txs){
+        const id = tx.transaction_id || tx.id;
+        if (!id) {
+            console.warn('[Cache] Skipping tx with no ID', tx);
+            continue;
+        }
+        tx.transaction_id = id;
         try {
-            await idb.put(STORE_NAME, t);
+            await idb.put(STORE_NAME, tx);
+            console.log(`[Cache] Stored tx ${id}`);
         } catch (e) {
-            console.error('cacheTransactions failed for', id, e);
+            console.error(`[Cache] Failed for ${id}`, e);
         }
     }
 }
+// ——— Read cached transactions ——————————————————————
 async function readCachedTransactions(idb) {
-    return idb.getAll(STORE_NAME);
+    console.log('[Cache] Reading all cached transactions');
+    const all = await idb.getAll(STORE_NAME);
+    console.log(`[Cache] Retrieved ${all.length} transactions from cache`);
+    return all;
 }
-function groupByCategory(txs) {
-    return txs.reduce((acc, tx)=>{
-        const cat = tx.category || "Sin categor\xeda";
-        (acc[cat] = acc[cat] || []).push(tx);
-        return acc;
-    }, {});
+// ——— Build account map from Firestore ——————————
+async function buildAccountMap(userId) {
+    console.log('[Accounts] Building account map for user', userId);
+    const snap = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', userId));
+    const list = snap.exists() ? snap.data().plaid?.accounts || [] : [];
+    console.log('[Accounts] Found', list.length, 'Plaid accounts');
+    const map = {};
+    for (const { accessToken } of list)try {
+        const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                accessToken
+            })
+        });
+        if (!res.ok) continue;
+        const { accounts } = await res.json();
+        accounts.forEach((a)=>{
+            map[a.account_id] = a.name || 'Cuenta sin nombre';
+        });
+    } catch (e) {
+        console.error('[Accounts] Error fetching account details', e);
+    }
+    return map;
 }
-function renderChronoPage(txs) {
-    const list = document.getElementById('transactions-list');
-    list.innerHTML = '';
-    txs.forEach((tx)=>list.appendChild(renderTxItem(tx)));
-}
-function renderGroupedPage(txs) {
-    const list = document.getElementById('transactions-list');
-    list.innerHTML = '';
-    const groups = groupByCategory(txs);
-    Object.entries(groups).forEach(([cat, items])=>{
-        const sec = document.createElement('div');
-        sec.className = 'category-group';
-        sec.innerHTML = `<h3>${cat}</h3>`;
-        items.forEach((tx)=>sec.appendChild(renderTxItem(tx)));
-        list.appendChild(sec);
-    });
-}
-function renderTxItem(tx) {
-    const div = document.createElement('div');
-    div.className = 'transaction-item';
-    div.innerHTML = `
-    <span class="account-label">${tx.accountName}</span>
-    <div class="desc">${tx.description}</div>
-    <span class="date">${new Date(tx.date).toLocaleDateString()}</span>
-    <span class="amount ${tx.amount < 0 ? 'debit' : 'credit'}">
-      ${tx.amount < 0 ? "\u2212" : '+'}${Math.abs(tx.amount).toFixed(2)} \u{20AC}
-    </span>
-  `;
-    return div;
-}
-function updatePaginationControls() {
-    const totalPages = Math.ceil(allTxsGlobal.length / PAGE_SIZE) || 1;
-    document.getElementById('prev-page').disabled = currentPage <= 1;
-    document.getElementById('next-page').disabled = currentPage >= totalPages;
-    document.getElementById('page-info').textContent = `P\xe1gina ${currentPage} de ${totalPages}`;
-}
-function showPage() {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const pageTxs = allTxsGlobal.slice(start, start + PAGE_SIZE);
-    const grouped = document.getElementById('toggle-view').checked;
-    (grouped ? renderGroupedPage : renderChronoPage)(pageTxs);
-    updatePaginationControls();
-}
+// ——— Fetch Plaid transactions —————————————————————
 async function fetchTransactionsFromPlaid(userId) {
+    console.log('[Fetch] Fetching Plaid transactions for', userId);
     const res = await fetch(`${apiUrl}/plaid/get_transactions`, {
         method: 'POST',
         headers: {
@@ -781,12 +761,15 @@ async function fetchTransactionsFromPlaid(userId) {
         throw new Error(`Plaid error ${res.status}: ${err.error || res.statusText}`);
     }
     const { transactions } = await res.json();
+    console.log('[Fetch] Retrieved', transactions.length, 'Plaid txs');
     return transactions.map((tx)=>({
             ...tx,
             transaction_id: tx.transaction_id || tx.id
         }));
 }
+// ——— Fetch test transactions ——————————————————————
 async function fetchTestTransactions(userId) {
+    console.log('[Fetch] Fetching Firestore history for', userId);
     const txs = [];
     const historySnap = await (0, _firestore.getDocs)((0, _firestore.collection)((0, _firebaseJs.db), 'users', userId, 'history'));
     for (const monthDoc of historySnap.docs){
@@ -799,43 +782,141 @@ async function fetchTestTransactions(userId) {
             txs.push(data);
         });
     }
+    console.log('[Fetch] Retrieved', txs.length, 'test txs');
     return txs;
 }
-async function buildAccountMap(userId) {
-    const snap = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', userId));
-    const list = snap.exists() ? snap.data().plaid?.accounts || [] : [];
-    const map = {};
-    for (const { accessToken } of list)try {
-        const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                accessToken
-            })
-        });
-        if (!res.ok) continue;
-        const { accounts: accs } = await res.json();
-        accs.forEach((a)=>map[a.account_id] = a.name || 'Cuenta sin nombre');
-    } catch  {}
-    return map;
+// ——— Group by category ———————————————————————————
+function groupByCategory(txs) {
+    console.log('[Render] Grouping', txs.length, 'txs by category');
+    return txs.reduce((acc, tx)=>{
+        const cat = tx.category || "Sin categor\xeda";
+        (acc[cat] = acc[cat] || []).push(tx);
+        return acc;
+    }, {});
 }
+// ——— Render helpers —————————————————————————————
+function renderTxItem(tx) {
+    const div = document.createElement('div');
+    div.className = 'transaction-item';
+    div.innerHTML = `
+    <span class="account-label">${tx.accountName}</span>
+    <div class="desc">${tx.description}</div>
+    <span class="date">${new Date(tx.date).toLocaleDateString()}</span>
+    <span class="amount ${tx.amount < 0 ? 'debit' : 'credit'}">
+      ${tx.amount < 0 ? "\u2212" : '+'}${Math.abs(tx.amount).toFixed(2)} \u{20AC}
+    </span>
+  `;
+    return div;
+}
+function renderChronoPage(txs) {
+    console.log('[Render] Chrono:', txs.length, 'items');
+    const list = document.getElementById('transactions-list');
+    list.innerHTML = '';
+    txs.forEach((tx)=>list.appendChild(renderTxItem(tx)));
+}
+function renderGroupedPage(txs) {
+    console.log('[Render] Grouped:', txs.length, 'items');
+    const list = document.getElementById('transactions-list');
+    list.innerHTML = '';
+    const groups = groupByCategory(txs);
+    Object.entries(groups).forEach(([cat, items])=>{
+        const sec = document.createElement('div');
+        sec.className = 'category-group';
+        sec.innerHTML = `<h3>${cat}</h3>`;
+        items.forEach((tx)=>sec.appendChild(renderTxItem(tx)));
+        list.appendChild(sec);
+    });
+}
+// ——— Filter & paginate ——————————————————————————
+function getFilteredTxs() {
+    const val = document.getElementById('month-filter').value;
+    console.log('[Filter] Month value:', val);
+    if (!val) return allTxsGlobal;
+    const filtered = allTxsGlobal.filter((tx)=>new Date(tx.date).toISOString().slice(0, 7) === val);
+    console.log('[Filter] Count after filter:', filtered.length);
+    return filtered;
+}
+function updatePaginationControls() {
+    const total = getFilteredTxs().length;
+    const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    console.log(`[Page] ${currentPage}/${pages} of ${total}`);
+    document.getElementById('prev-page').disabled = currentPage <= 1;
+    document.getElementById('next-page').disabled = currentPage >= pages;
+    document.getElementById('page-info').textContent = `P\xe1gina ${currentPage} de ${pages}`;
+}
+function showPage() {
+    console.log('[Nav] showPage()');
+    const arr = getFilteredTxs();
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const slice = arr.slice(start, start + PAGE_SIZE);
+    console.log('[Nav] displaying', slice.length, 'items', start, 'to', start + slice.length);
+    document.getElementById('toggle-view').checked ? renderGroupedPage(slice) : renderChronoPage(slice);
+    updatePaginationControls();
+}
+// ——— UI event listeners —————————————————————————
+function setupEventListeners() {
+    console.log('[UI] setupEventListeners');
+    const monthFilter = document.getElementById('month-filter');
+    const monthIcon = document.querySelector('.month-icon');
+    // global click check
+    document.addEventListener('click', (e)=>{
+        if (e.target.closest('.month-icon')) console.log("\uD83D\uDCC5 [Global] calendar icon clicked");
+    });
+    monthIcon.addEventListener('click', ()=>{
+        console.log("\uD83D\uDCC5 [UI] month-icon clicked");
+        if (typeof monthFilter.showPicker === 'function') monthFilter.showPicker();
+        else monthFilter.focus();
+    });
+    monthFilter.addEventListener('change', ()=>{
+        console.log('[UI] month-filter change ->', monthFilter.value);
+        currentPage = 1;
+        showPage();
+    });
+    document.getElementById('prev-page').addEventListener('click', ()=>{
+        console.log('[UI] prev-page clicked');
+        if (currentPage > 1) {
+            currentPage--;
+            showPage();
+        }
+    });
+    document.getElementById('next-page').addEventListener('click', ()=>{
+        console.log('[UI] next-page clicked');
+        const pages = Math.ceil(getFilteredTxs().length / PAGE_SIZE);
+        if (currentPage < pages) {
+            currentPage++;
+            showPage();
+        }
+    });
+    document.getElementById('toggle-view').addEventListener('change', ()=>{
+        console.log('[UI] toggle-view changed ->', document.getElementById('toggle-view').checked);
+        currentPage = 1;
+        showPage();
+    });
+}
+// ——— Main load ———————————————————————————————
 async function loadTransactions(userId) {
+    console.log('[Main] loadTransactions(', userId, ')');
     const idb = await initDB();
     const accountMap = await buildAccountMap(userId);
+    // 1) cache first
     let cached = await readCachedTransactions(idb);
     cached.sort((a, b)=>new Date(b.date) - new Date(a.date));
     allTxsGlobal = cached.map((tx)=>({
             ...tx,
             accountName: accountMap[tx.account_id] || 'Desconocida'
         }));
+    console.log('[Main] cache loaded:', allTxsGlobal.length);
+    setupEventListeners();
     showPage();
+    // 2) offline?
     if (!navigator.onLine) {
+        console.log('[Main] offline, showing cache only');
         document.getElementById('offline-indicator').hidden = false;
         document.getElementById('transactions-loading').hidden = true;
         return;
     }
+    // 3) sync
+    console.log('[Main] syncing remote store');
     document.getElementById('offline-indicator').hidden = true;
     document.getElementById('transactions-loading').hidden = false;
     try {
@@ -848,22 +929,28 @@ async function loadTransactions(userId) {
                 userId
             })
         });
-    } catch  {}
+        console.log('[Main] sync done');
+    } catch (e) {
+        console.error('[Main] sync error', e);
+    }
+    // 4) fetch latest
     try {
-        const [plaidTxs, testTxs] = await Promise.all([
+        console.log('[Main] fetching latest txs');
+        const [plaid, test] = await Promise.all([
             fetchTransactionsFromPlaid(userId),
             fetchTestTransactions(userId)
         ]);
-        const combined = [
-            ...plaidTxs,
-            ...testTxs
+        let combined = [
+            ...plaid,
+            ...test
         ];
         combined.sort((a, b)=>new Date(b.date) - new Date(a.date));
-        const unique = Array.from(new Map(combined.map((tx)=>[
+        combined = Array.from(new Map(combined.map((tx)=>[
                 tx.transaction_id,
                 tx
             ])).values());
-        allTxsGlobal = unique.map((tx)=>({
+        console.log('[Main] unique combined count:', combined.length);
+        allTxsGlobal = combined.map((tx)=>({
                 ...tx,
                 accountName: accountMap[tx.account_id] || 'Desconocida'
             }));
@@ -871,26 +958,35 @@ async function loadTransactions(userId) {
         showPage();
         await cacheTransactions(idb, allTxsGlobal);
     } catch (e) {
-        console.error('loadTransactions error:', e);
-        document.getElementById('offline-indicator').textContent = "Error al actualizar, mostrando cach\xe9.";
-        document.getElementById('offline-indicator').hidden = false;
+        console.error('[Main] fetch error', e);
+        const ind = document.getElementById('offline-indicator');
+        ind.textContent = "Error al actualizar, mostrando cach\xe9.";
+        ind.hidden = false;
     } finally{
         document.getElementById('transactions-loading').hidden = true;
+        console.log('[Main] loadTransactions complete');
     }
 }
+// ——— Auth listener —————————————————————————————
 (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), (user)=>{
-    if (!user) return void (window.location.href = '../index.html');
+    console.log('[Auth] state changed:', user);
+    if (!user) {
+        window.location.href = '../index.html';
+        return;
+    }
     (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', user.uid)).then((snap)=>{
         const d = snap.exists() ? snap.data() : {};
-        document.getElementById('user-name').textContent = [
+        const name = [
             d.firstName,
             d.lastName
         ].filter(Boolean).join(' ') || 'Usuario';
+        document.getElementById('user-name').textContent = name;
     });
-    setupEventListeners();
     loadTransactions(user.uid);
 });
+// ——— Retry on online ————————————————————————————
 window.addEventListener('online', ()=>{
+    console.log('[Network] back online');
     if ((0, _firebaseJs.auth).currentUser) loadTransactions((0, _firebaseJs.auth).currentUser.uid);
 });
 

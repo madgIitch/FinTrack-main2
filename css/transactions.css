@@ -1,110 +1,134 @@
-/* ========================================
-   RESET Y FONDO GLOBAL FIJO
-   ======================================== */
+/* RESET Y FONDO GLOBAL */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
-
-/* FONDO GRIS CLARO IGUAL QUE EN HOME, FIJO AL VIEWPORT */
 html, body {
   height: 100%;
   width: 100%;
-  background-color: #f0f0f0;
-  background-attachment: fixed;
-  background-repeat: no-repeat;
-  background-size: cover;
-  font-family: Arial, sans-serif;
+  background: #f0f0f0 fixed center/cover;
+  font-family: 'Roboto', sans-serif;
   color: #333;
 }
-
-/* Contenedor principal transparente para dejar ver el gris fijo */
 .container,
 main.content {
   background: transparent;
 }
 
-/* ========================================
-   SECCIÓN DE TRANSACCIONES
-   ======================================== */
+/* SECCIÓN TRANSACCIONES */
 #transactions-section {
   width: 90%;
-  max-width: 600px;
+  max-width: 700px;
   margin: 20px auto 60px;
-  padding: 0;
-  position: relative;
 }
-
-/* TÍTULO Y SWITCH */
-.transactions-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px 16px;
+.transactions-title {
+  text-align: center;
+  margin-bottom: 10px;
 }
-.transactions-header h2 {
-  font-size: 1.4em;
+.transactions-title h2 {
+  font-size: 2em;
+  font-weight: 700;
   color: #222;
 }
-.toggle-label {
-  margin-left: 8px;
-  font-size: 0.9em;
-  color: #555;
+.transactions-title hr {
+  border: none;
+  border-bottom: 1px solid #ddd;
+  margin-top: 8px;
 }
 
-/* ========================================
-   SWITCH PERSONALIZADO
-   ======================================== */
+/* FILTROS */
+.transactions-filters {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+/* Icono de calendario, con input solo dentro */
+.month-icon {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  font-size: 24px;
+  color: #666;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color .2s, background .2s;
+  z-index: 1;
+}
+.month-icon:hover {
+  background: rgba(142,68,173,0.1);
+  color: #8e44ad;
+}
+/* El input cubre únicamente el icono */
+.month-icon > input[type="month"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+/* SWITCH */
 .switch {
   position: relative;
-  width: 36px;
-  height: 20px;
-  display: inline-block;
+  width: 40px;
+  height: 22px;
 }
 .switch input {
   opacity: 0;
-  width: 0; height: 0;
-  position: absolute;
+  width: 0;
+  height: 0;
 }
-.switch .slider {
-  position: absolute; inset: 0;
-  background-color: #888;
-  border-radius: 10px;
-  transition: background-color 0.2s;
-}
-.switch .slider::before {
-  content: "";
+.slider {
   position: absolute;
-  width: 16px; height: 16px;
-  left: 2px; bottom: 2px;
+  inset: 0;
+  background: #bbb;
+  border-radius: 11px;
+  transition: background .2s;
+}
+.slider::before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  top: 2px;
+  left: 2px;
   background: #fff;
   border-radius: 50%;
-  transition: transform 0.2s;
+  transition: transform .2s;
 }
 .switch input:checked + .slider {
-  background-color: #8e44ad;
+  background: #8e44ad;
 }
 .switch input:checked + .slider::before {
-  transform: translateX(16px);
+  transform: translateX(18px);
 }
 .switch:hover .slider {
-  background-color: #9b59b6;
+  background: #9b59b6;
 }
 .switch input:focus + .slider {
   box-shadow: 0 0 0 3px rgba(142,68,173,0.4);
 }
+.toggle-label {
+  font-size: .95em;
+  color: #555;
+}
 
-/* ========================================
-   INDICADORES DE ESTADO
-   ======================================== */
+/* ESTADO */
 .offline-indicator {
+  max-width: 700px;
+  margin: 0 auto 10px;
   background: #ffeb3b;
   color: #333;
   padding: 8px;
   border-radius: 4px;
   text-align: center;
-  margin: 0 8px 10px;
 }
 .loading {
   text-align: center;
@@ -112,76 +136,101 @@ main.content {
   padding: 20px 0;
 }
 
-/* ========================================
-   AGRUPACIÓN POR CATEGORÍA
-   ======================================== */
-.category-group {
-  margin: 0 8px 20px;
+/* LISTA */
+#transactions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .category-group h3 {
-  font-size: 1.1em;
+  font-size: 1.2em;
   color: #444;
   border-bottom: 1px solid #ddd;
-  padding-bottom: 4px;
-  margin-bottom: 8px;
+  padding-bottom: 6px;
+  margin: 0 0 10px;
 }
 
-/* ========================================
-   TARJETAS DE TRANSACCIÓN
-   ======================================== */
+/* TARJETAS */
 .transaction-item {
   background: #fff;
-  margin: 0 8px 8px;
-  padding: 12px;
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   display: grid;
   grid-template:
     "account amount" auto
     "desc    amount" auto
     "date    date"   auto
     / 1fr auto;
-  gap: 4px 12px;
+  gap: 6px 12px;
 }
-
-.transaction-item .account-label {
+.account-label {
   grid-area: account;
-  font-size: 0.85em;
+  font-size: .9em;
   color: #555;
 }
-.transaction-item .desc {
+.desc {
   grid-area: desc;
   font-weight: 500;
   color: #222;
 }
-.transaction-item .date {
+.date {
   grid-area: date;
-  font-size: 0.85em;
+  font-size: .85em;
   color: #666;
 }
-.transaction-item .amount {
+.amount {
   grid-area: amount;
-  font-weight: bold;
-  align-self: center;
+  font-weight: 700;
   justify-self: end;
+  align-self: center;
 }
-.transaction-item .amount.debit {
+.amount.debit {
   color: #e53935;
 }
-.transaction-item .amount.credit {
+.amount.credit {
   color: #43a047;
 }
 
-/* ========================================
-   RESPONSIVE PARA MÓVILES
-   ======================================== */
-@media (max-width: 360px) {
+/* PAGINACIÓN */
+.pagination-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+.pagination-controls button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  background: #8e44ad;
+  color: #fff;
+  cursor: pointer;
+  transition: background .2s;
+}
+.pagination-controls button:disabled {
+  background: #ccc;
+  cursor: default;
+}
+.pagination-controls button:not(:disabled):hover {
+  background: #9b59b6;
+}
+#page-info {
+  font-size: .95em;
+  color: #555;
+}
+
+/* RESPONSIVE */
+@media (max-width: 500px) {
+  .transactions-filters {
+    flex-direction: column;
+    gap: 8px;
+  }
   .transaction-item {
     display: block;
   }
-  .transaction-item .amount {
-    margin-top: 6px;
+  .amount {
+    margin-top: 10px;
     justify-self: start;
   }
 }

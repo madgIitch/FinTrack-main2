@@ -7,17 +7,15 @@
   <link rel="manifest" href="../manifest.json">
   <link rel="stylesheet" href="../css/styles.css">
   <link rel="stylesheet" href="../css/transactions.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
   <link rel="stylesheet" href="../css/sidebar.css">
   <link rel="stylesheet" href="../css/responsive.css">
-  <!-- idb para IndexedDB (IIFE) -->
   <script src="https://unpkg.com/idb/build/iife/index-min.js"></script>
-  <!-- Tus módulos -->
-  <script type="module" src="../js/transactions.js"></script>
-  <script type="module" src="../js/sidebar.js"></script>
 </head>
 <body>
   <div class="container">
-    <!-- === HEADER === -->
+
+    <!-- HEADER -->
     <header class="header">
       <div class="header-left">
         <img src="../img/logoFintonic.svg" class="logo-icon" alt="Logo">
@@ -32,47 +30,67 @@
       </div>
     </header>
 
-    <!-- === MAIN CONTENT === -->
+    <!-- MAIN CONTENT -->
     <main class="content">
       <section id="transactions-section">
-        <div class="transactions-header">
+
+        <!-- TÍTULO -->
+        <div class="transactions-title">
           <h2>Mis Transacciones</h2>
           <hr>
+        </div>
+
+        <!-- FILTROS -->
+        <div class="transactions-filters">
+          <label class="month-icon" title="Filtrar mes">
+            <i class="material-icons">calendar_today</i>
+            <input type="month" id="month-filter" />
+          </label>
+
           <label class="switch">
-            <input type="checkbox" id="toggle-view">
-            <span class="slider round"></span>
+            <input type="checkbox" id="toggle-view" />
+            <span class="slider"></span>
           </label>
           <span class="toggle-label">Por categoría</span>
         </div>
 
-        <!-- Indicador offline -->
+        <!-- OFFLINE INDICATOR -->
         <div id="offline-indicator" class="offline-indicator" hidden>
           Estás sin conexión. Mostrando datos en caché.
         </div>
 
-        <!-- Loading -->
-        <div id="transactions-loading" class="loading">Cargando transacciones…</div>
+        <!-- LOADING -->
+        <div id="transactions-loading" class="loading">
+          Cargando transacciones…
+        </div>
 
-        <!-- Donde se inyectan las transacciones -->
+        <!-- LISTA DE TRANSACCIONES -->
         <div id="transactions-list"></div>
 
-        <!-- Controles de paginación -->
+        <!-- PAGINACIÓN -->
         <div id="pagination-controls" class="pagination-controls">
           <button id="prev-page" disabled>&laquo; Anterior</button>
           <span id="page-info">Página 1 de 1</span>
           <button id="next-page" disabled>Siguiente &raquo;</button>
         </div>
+
       </section>
     </main>
 
-    <!-- === NAV INFERIOR === -->
+    <!-- NAV INFERIOR -->
     <nav class="bottom-nav">
-      <a href="home.html" class="nav-item"><i class="material-icons">home</i><span>Home</span></a>
-      <a href="transactions.html" class="nav-item active"><i class="material-icons">swap_horiz</i><span>Transactions</span></a>
-      <a href="analysis.html" class="nav-item"><i class="material-icons">pie_chart</i><span>Analysis</span></a>
+      <a href="home.html" class="nav-item">
+        <i class="material-icons">home</i><span>Home</span>
+      </a>
+      <a href="transactions.html" class="nav-item active">
+        <i class="material-icons">swap_horiz</i><span>Transactions</span>
+      </a>
+      <a href="analysis.html" class="nav-item">
+        <i class="material-icons">pie_chart</i><span>Analysis</span>
+      </a>
     </nav>
 
-    <!-- === SIDEBAR === -->
+    <!-- SIDEBAR -->
     <aside id="sidebar" class="sidebar">
       <button class="close-btn" id="close-sidebar">&times;</button>
       <h2>Menú</h2>
@@ -81,6 +99,11 @@
         <li><a href="#" class="btn-custom sidebar-btn" id="logout-link">Cerrar Sesión</a></li>
       </ul>
     </aside>
+
   </div>
+
+  <!-- SCRIPTS -->
+  <script type="module" src="../js/sidebar.js"></script>
+  <script type="module" src="../js/transactions.js"></script>
 </body>
 </html>
