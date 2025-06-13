@@ -662,89 +662,136 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"l1WLd":[function(require,module,exports,__globalThis) {
-// js/analysis.js
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
 var _firestore = require("firebase/firestore");
 console.log('[ANALYSIS] loaded');
-const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 document.addEventListener('DOMContentLoaded', ()=>{
     console.log('[ANALYSIS] DOMContentLoaded');
-    // Lógica del sidebar
+    // Sidebar logic
     const sidebar = document.getElementById('sidebar');
-    const openSidebar = document.getElementById('open-sidebar');
-    const closeSidebar = document.getElementById('close-sidebar');
-    const logoutBtn = document.getElementById('logout-link');
-    openSidebar.addEventListener('click', ()=>sidebar.classList.add('open'));
-    closeSidebar.addEventListener('click', ()=>sidebar.classList.remove('open'));
-    logoutBtn.addEventListener('click', async (e)=>{
+    document.getElementById('open-sidebar').addEventListener('click', ()=>sidebar.classList.add('open'));
+    document.getElementById('close-sidebar').addEventListener('click', ()=>sidebar.classList.remove('open'));
+    document.getElementById('logout-link').addEventListener('click', async (e)=>{
         e.preventDefault();
         await (0, _auth.signOut)((0, _firebaseJs.auth));
         window.location.href = '../index.html';
     });
     // Filters (demo)
-    document.querySelectorAll('.filter-btn').forEach((btn)=>{
-        btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.filter-btn').forEach((btn)=>btn.addEventListener('click', ()=>{
             document.querySelector('.filter-btn.active').classList.remove('active');
             btn.classList.add('active');
-        // recargar datos según btn.dataset.filter
-        });
-    });
+        }));
     document.getElementById('period-select').addEventListener('change', (e)=>{
-        console.log('Periodo:', e.target.value);
-    // recargar datos según periodo
+        console.log('[ANALYSIS] period change:', e.target.value);
     });
-    // Auth + load
+    // Start reactive analysis
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), (user)=>{
         if (!user) return window.location.href = '../index.html';
-        loadAnalysis(user.uid).catch(console.error);
+        reactiveAnalysis(user.uid);
     });
 });
-async function loadAnalysis(userId) {
+let trendChart, barChart, pieChart;
+function reactiveAnalysis(userId) {
+    console.log('[ANALYSIS] Start reactiveAnalysis for', userId);
     const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
-    // 1) Fetch last 7 periods
-    const histCol = (0, _firestore.collection)(db, 'users', userId, 'history');
-    let snap;
-    try {
-        snap = await (0, _firestore.getDocsFromServer)(histCol);
-    } catch  {
-        snap = await (0, _firestore.getDocs)(histCol);
-    }
-    const periods = snap.docs.map((d)=>d.id).sort().slice(-7);
-    const labels = [];
-    const revenue = [];
-    const spend = [];
-    for (const p of periods){
-        labels.push(p);
-        const itemsCol = (0, _firestore.collection)(db, 'users', userId, 'history', p, 'items');
-        let itemsSnap;
-        try {
-            itemsSnap = await (0, _firestore.getDocsFromServer)(itemsCol);
-        } catch  {
-            itemsSnap = await (0, _firestore.getDocs)(itemsCol);
-        }
-        let rev = 0, spd = 0;
-        itemsSnap.forEach((doc)=>{
-            const amt = doc.data().amount || 0;
-            amt >= 0 ? rev += amt : spd += Math.abs(amt);
+    const histRef = (0, _firestore.collection)(db, 'users', userId, 'history');
+    const sumRef = (0, _firestore.collection)(db, 'users', userId, 'historySummary');
+    // Local state
+    const monthsSet = new Set();
+    const txsByMonth = new Map();
+    // Initialize charts once
+    initCharts();
+    // Render function closes over monthsSet and txsByMonth
+    function renderAnalysis() {
+        const months = Array.from(monthsSet).sort().slice(-7);
+        const revenue = months.map((mon)=>{
+            const txs = txsByMonth.get(mon) || [];
+            return txs.reduce((sum, tx)=>sum + (tx.amount > 0 ? tx.amount : 0), 0).toFixed(2);
+        }).map(Number);
+        const spend = months.map((mon)=>{
+            const txs = txsByMonth.get(mon) || [];
+            return txs.reduce((sum, tx)=>sum + (tx.amount < 0 ? Math.abs(tx.amount) : 0), 0).toFixed(2);
+        }).map(Number);
+        const txCounts = months.map((mon)=>(txsByMonth.get(mon) || []).length);
+        const catMap = {};
+        months.forEach((mon)=>{
+            (txsByMonth.get(mon) || []).forEach((tx)=>{
+                const cat = tx.category || 'Other';
+                catMap[cat] = (catMap[cat] || 0) + Math.abs(tx.amount);
+            });
         });
-        revenue.push(+rev.toFixed(2));
-        spend.push(+spd.toFixed(2));
+        const catLabels = Object.keys(catMap);
+        const catData = catLabels.map((c)=>+catMap[c].toFixed(2));
+        // Update KPIs
+        const totalRev = revenue.reduce((a, b)=>a + b, 0);
+        const totalSp = spend.reduce((a, b)=>a + b, 0);
+        document.getElementById('kpi-revenue').textContent = `\u{20AC}${totalRev.toFixed(2)}`;
+        document.getElementById('kpi-spend').textContent = `\u{20AC}${totalSp.toFixed(2)}`;
+        document.getElementById('kpi-revenue-change').textContent = totalRev ? `+${((revenue.at(-1) / (totalRev - revenue.at(-1)) - 1) * 100).toFixed(1)}% vs last` : '+0% vs last';
+        document.getElementById('kpi-spend-change').textContent = totalSp ? `+${((spend.at(-1) / (totalSp - spend.at(-1)) - 1) * 100).toFixed(1)}% vs last` : '+0% vs last';
+        // Update charts
+        trendChart.updateOptions({
+            series: [
+                {
+                    name: 'Ingresos',
+                    data: revenue
+                },
+                {
+                    name: 'Gastos',
+                    data: spend
+                }
+            ],
+            xaxis: {
+                categories: months
+            }
+        });
+        barChart.updateOptions({
+            series: [
+                {
+                    name: 'Transactions',
+                    data: txCounts
+                }
+            ],
+            xaxis: {
+                categories: months
+            }
+        });
+        pieChart.updateOptions({
+            series: catData,
+            labels: catLabels
+        });
     }
-    // 2) Actualizar KPIs
-    const totalRev = revenue.reduce((a, b)=>a + b, 0);
-    const totalSpd = spend.reduce((a, b)=>a + b, 0);
-    document.getElementById('kpi-revenue').textContent = `\u{20AC}${totalRev.toFixed(2)}`;
-    document.getElementById('kpi-spend').textContent = `\u{20AC}${totalSpd.toFixed(2)}`;
-    document.getElementById('kpi-revenue-change').textContent = totalRev ? `+${((revenue.at(-1) / (totalRev - revenue.at(-1)) - 1) * 100).toFixed(1)}% vs last` : '+0% vs last';
-    document.getElementById('kpi-spend-change').textContent = totalSpd ? `+${((spend.at(-1) / (totalSpd - spend.at(-1)) - 1) * 100).toFixed(1)}% vs last` : '+0% vs last';
-    // 3) ApexCharts: Line (trend)
-    console.log('Trend:', {
-        labels,
-        revenue,
-        spend
+    // Subscribe to items for current months
+    function subscribeItems() {
+        const months = Array.from(monthsSet).sort();
+        console.log('[ANALYSIS] subscribeItems for months', months);
+        months.forEach((mon)=>{
+            const itemsRef = (0, _firestore.collection)(db, 'users', userId, 'history', mon, 'items');
+            (0, _firestore.onSnapshot)(itemsRef, (snap)=>{
+                console.log('[ANALYSIS] items change in', mon, snap.docs.length);
+                txsByMonth.set(mon, snap.docs.map((d)=>d.data()));
+                renderAnalysis();
+            });
+        });
+    }
+    // Watch months collections
+    (0, _firestore.onSnapshot)(histRef, (snap)=>{
+        snap.docs.forEach((d)=>monthsSet.add(d.id));
+        console.log('[ANALYSIS] history months updated:', Array.from(monthsSet));
+        subscribeItems();
     });
-    new ApexCharts(document.querySelector("#trendChart"), {
+    (0, _firestore.onSnapshot)(sumRef, (snap)=>{
+        snap.docs.forEach((d)=>monthsSet.add(d.id));
+        console.log('[ANALYSIS] summary months updated:', Array.from(monthsSet));
+        subscribeItems();
+    });
+}
+function initCharts() {
+    // Trend
+    const tEl = document.querySelector('#trendChart');
+    tEl.innerHTML = '';
+    trendChart = new ApexCharts(tEl, {
         chart: {
             type: 'line',
             height: 240,
@@ -752,18 +799,9 @@ async function loadAnalysis(userId) {
                 show: false
             }
         },
-        series: [
-            {
-                name: 'Ingresos',
-                data: revenue
-            },
-            {
-                name: 'Gastos',
-                data: spend
-            }
-        ],
+        series: [],
         xaxis: {
-            categories: labels
+            categories: []
         },
         stroke: {
             curve: 'smooth',
@@ -772,24 +810,12 @@ async function loadAnalysis(userId) {
         grid: {
             borderColor: '#eee'
         }
-    }).render();
-    // 4) ApexCharts: Bar (contador de transactions)
-    const txCounts = [];
-    for (const period of periods){
-        const itemsCol = (0, _firestore.collection)(db, 'users', userId, 'history', period, 'items');
-        let snapItems;
-        try {
-            snapItems = await (0, _firestore.getDocsFromServer)(itemsCol);
-        } catch  {
-            snapItems = await (0, _firestore.getDocs)(itemsCol);
-        }
-        txCounts.push(snapItems.docs.length);
-    }
-    console.log('Bar (real tx counts):', {
-        labels,
-        txCounts
     });
-    new ApexCharts(document.querySelector("#barChart"), {
+    trendChart.render();
+    // Bar
+    const bEl = document.querySelector('#barChart');
+    bEl.innerHTML = '';
+    barChart = new ApexCharts(bEl, {
         chart: {
             type: 'bar',
             height: 200,
@@ -797,14 +823,9 @@ async function loadAnalysis(userId) {
                 show: false
             }
         },
-        series: [
-            {
-                name: 'Transactions',
-                data: txCounts
-            }
-        ],
+        series: [],
         xaxis: {
-            categories: labels
+            categories: []
         },
         plotOptions: {
             bar: {
@@ -823,39 +844,23 @@ async function loadAnalysis(userId) {
         grid: {
             borderColor: '#eee'
         }
-    }).render();
-    // 5) ApexCharts: Pie (por category)
-    const catMap = {};
-    for (const p of periods){
-        const colItems = (0, _firestore.collection)(db, 'users', userId, 'history', p, 'items');
-        let snapItems;
-        try {
-            snapItems = await (0, _firestore.getDocsFromServer)(colItems);
-        } catch  {
-            snapItems = await (0, _firestore.getDocs)(colItems);
-        }
-        snapItems.forEach((doc)=>{
-            const { amount = 0, category = 'Other' } = doc.data();
-            catMap[category] = (catMap[category] || 0) + Math.abs(amount);
-        });
-    }
-    const catLabels = Object.keys(catMap);
-    const catData = catLabels.map((c)=>+catMap[c].toFixed(2));
-    console.log('Pie:', {
-        catLabels,
-        catData
     });
-    new ApexCharts(document.querySelector("#pieChart"), {
+    barChart.render();
+    // Pie
+    const pEl = document.querySelector('#pieChart');
+    pEl.innerHTML = '';
+    pieChart = new ApexCharts(pEl, {
         chart: {
             type: 'pie',
             height: 220
         },
-        series: catData,
-        labels: catLabels,
+        series: [],
+        labels: [],
         legend: {
             position: 'bottom'
         }
-    }).render();
+    });
+    pieChart.render();
 }
 
 },{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1"}]},["ky4wD","l1WLd"], "l1WLd", "parcelRequire94c2")
