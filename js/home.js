@@ -149,7 +149,7 @@ async function loadBalances(userId) {
         body: JSON.stringify({ accessToken })
       });
       if (!res.ok) continue;
-      const { accounts: accs = [], institution } = await res.json();
+      const { accounts: accs = [] } = await res.json();
       const acc  = accs[0] || {};
       const name = acc.name || 'Cuenta';
       const bal  = acc.balances?.current ?? 0;
@@ -206,45 +206,32 @@ async function saveUIDToIndexedDB(uid) {
   };
 }
 
-// ── Monthly Chart ─────────────────────────────────────────────────────────
+// ── Monthly Chart (usa historySummary) ────────────────────────────────────
 let monthlyChartInstance = null;
 
 async function loadMonthlyChart(userId) {
-  console.log('[CHART] loading for', userId);
-  const col = collection(db, 'users', userId, 'history');
+  console.log('[CHART] loading summary for', userId);
+  const col = collection(db, 'users', userId, 'historySummary');
   let snap;
   try {
     snap = await getDocsFromServer(col);
-    console.log('[CHART] history from server');
+    console.log('[CHART] summary from server');
   } catch {
     snap = await getDocs(col);
-    console.log('[CHART] history from cache');
+    console.log('[CHART] summary from cache');
   }
-  const months = snap.docs.map(d => d.id).sort();
-  const expenses = [], incomes = [];
 
-  for (const m of months) {
-    const itemsCol = collection(db, 'users', userId, 'history', m, 'items');
-    let itemsSnap;
-    try {
-      itemsSnap = await getDocsFromServer(itemsCol);
-    } catch {
-      itemsSnap = await getDocs(itemsCol);
-    }
-    let e = 0, i = 0;
-    itemsSnap.forEach(doc => {
-      const amt = doc.data().amount || 0;
-      if (amt < 0) e += Math.abs(amt); else i += amt;
-    });
-    expenses.push(e);
-    incomes.push(i);
-  }
+  // Ordenar periodos
+  const docs = snap.docs.sort((a, b) => a.id.localeCompare(b.id));
+  const months = docs.map(d => d.id);
+  const expenses = docs.map(d => d.data().totalExpenses || 0);
+  const incomes  = docs.map(d => d.data().totalIncomes  || 0);
 
   const options = {
     chart: { type: 'bar', height: 350, toolbar: { show: false } },
     series: [
       { name: 'Gastos',   data: expenses },
-      { name: 'Ingresos', data: incomes }
+      { name: 'Ingresos', data: incomes  }
     ],
     plotOptions: { bar: { borderRadius: 4, columnWidth: '40%' } },
     dataLabels: {
@@ -254,8 +241,14 @@ async function loadMonthlyChart(userId) {
       formatter: v => new Intl.NumberFormat('es-ES',{ style:'currency', currency:'EUR' }).format(v)
     },
     xaxis: { categories: months },
-    yaxis: { labels: { formatter: v => new Intl.NumberFormat('es-ES',{ style:'currency', currency:'EUR' }).format(v) } },
-    tooltip: { y: { formatter: v => new Intl.NumberFormat('es-ES',{ style:'currency', currency:'EUR' }).format(v) } },
+    yaxis: {
+      labels: {
+        formatter: v => new Intl.NumberFormat('es-ES',{ style:'currency', currency:'EUR' }).format(v)
+      }
+    },
+    tooltip: {
+      y: { formatter: v => new Intl.NumberFormat('es-ES',{ style:'currency', currency:'EUR' }).format(v) }
+    },
     legend: { position: 'bottom' },
     grid: { borderColor: '#eee' }
   };
