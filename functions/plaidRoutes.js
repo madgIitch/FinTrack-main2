@@ -57,8 +57,8 @@ router.post('/create_link_token', async (req, res) => {
     const resp = await plaidClient.linkTokenCreate({
       user: { client_user_id: userId },
       client_name: 'FinTrack',
-      products: ['auth', 'transactions'],
-      country_codes: ['US', 'ES'],
+      products: ['auth','transactions'],
+      country_codes: ['US','ES'],
       language: 'es'
     });
     console.log('[PLAIDROUTES] linkTokenCreate succeeded');
@@ -129,7 +129,7 @@ router.post('/get_transactions', async (req, res) => {
     if (!userDoc.exists) throw new Error('Usuario no encontrado');
     const accounts = userDoc.data().plaid?.accounts || [];
     console.log('[PLAIDROUTES] Accounts to fetch:', accounts.length);
-    const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0,10);
+    const start = startDate || new Date(Date.now()-30*24*60*60*1000).toISOString().slice(0,10);
     const end = endDate   || new Date().toISOString().slice(0,10);
     console.log('[PLAIDROUTES] Fetching transactions from', start, 'to', end);
     let allTxs = [];
@@ -143,15 +143,15 @@ router.post('/get_transactions', async (req, res) => {
       console.log('[PLAIDROUTES] Fetched', resp.data.transactions.length, 'transactions');
       allTxs.push(...resp.data.transactions);
     }
-    allTxs.sort((a,b) => new Date(b.date) - new Date(a.date));
-    const cleaned = allTxs.map(tx => ({
+    allTxs.sort((a,b)=>new Date(b.date)-new Date(a.date));
+    const cleaned = allTxs.map(tx=>({
       id: tx.transaction_id,
       account_id: tx.account_id,
       date: tx.date,
       description: tx.name,
-      personal_finance_category: tx.personal_finance_category || null,
-      category: tx.personal_finance_category?.primary || 'Sin categoría',
-      category_id: tx.category_id || null,
+      personal_finance_category: tx.personal_finance_category||null,
+      category: tx.personal_finance_category?.primary||'Sin categoría',
+      category_id: tx.category_id||null,
       amount: tx.amount
     }));
     console.log('[PLAIDROUTES] Sending cleaned transactions count:', cleaned.length);
@@ -181,13 +181,13 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     const budgetsMap = userSnap.data().settings?.budgets || {};
     console.log('[PLAIDROUTES] budgetsMap:', budgetsMap);
 
-    // 2) Fetch Plaid transactions (últimos 30 días)
+    // 2) Fetch Plaid transactions
     const accounts = userSnap.data().plaid?.accounts || [];
     let allPlaidTxs = [];
     for (const { accessToken } of accounts) {
       const resp = await plaidClient.transactionsGet({
         access_token: accessToken,
-        start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0,10),
+        start_date: new Date(Date.now()-30*24*60*60*1000).toISOString().slice(0,10),
         end_date: new Date().toISOString().slice(0,10),
         options: { count: 500, offset: 0, include_personal_finance_category: true }
       });
@@ -197,10 +197,10 @@ router.post('/sync_transactions_and_store', async (req, res) => {
 
     // 3) Include Firestore transactions
     const monthRefs = await userRef.collection('history').listDocuments();
-    const idToTx = new Map(allPlaidTxs.map(tx => [tx.transaction_id, tx]));
+    const idToTx = new Map(allPlaidTxs.map(tx=>[tx.transaction_id,tx]));
     for (const mRef of monthRefs) {
       const itemsSnap = await mRef.collection('items').get();
-      itemsSnap.forEach(docSnap => {
+      itemsSnap.forEach(docSnap=>{
         const d = docSnap.data();
         const tx = {
           transaction_id: docSnap.id,
@@ -209,7 +209,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
           personal_finance_category: d.personal_finance_category,
           category: d.category,
           category_id: d.category_id,
-          description: d.description || d.name || null
+          description: d.description ?? null
         };
         console.log('[PLAIDROUTES] tx from Firestore:', tx);
         idToTx.set(tx.transaction_id, tx);
@@ -220,61 +220,65 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     const txsByMonth = {};
     for (const tx of idToTx.values()) {
       const mon = tx.date.slice(0,7);
-      (txsByMonth[mon] = txsByMonth[mon] || []).push(tx);
+      (txsByMonth[mon]=txsByMonth[mon]||[]).push(tx);
     }
-    console.log('[PLAIDROUTES] Months to process:', Object.keys(txsByMonth));
+    console.log('[PLAIDROUTES] Months to process:',Object.keys(txsByMonth));
 
     // 5) Build category map
     const catGroupsSnap = await db.collection('categoryGroups').get();
     const catToGroup = {};
-    catGroupsSnap.forEach(doc => {
-      const key = normalizeKey(doc.id);
-      const disp = doc.data().group || doc.data().grupo || doc.id;
-      catToGroup[key] = disp;
-      (doc.data().subcategories || []).forEach(sub => {
-        catToGroup[normalizeKey(sub)] = disp;
-      });
-    });  
-    console.log('[PLAIDROUTES] Category groups:', Object.keys(catToGroup));
+    catGroupsSnap.forEach(doc=>{
+      const rawId = doc.id;
+      const disp = doc.data().group||doc.data().grupo||rawId;
+      catToGroup[normalizeKey(rawId)] = disp;
+      (doc.data().subcategories||[]).forEach(sub=>catToGroup[normalizeKey(sub)] = disp);
+    });
+    console.log('[PLAIDROUTES] Category groups loaded:',Object.keys(catToGroup));
 
-    // 6) Batch write summary and historyCategorias
+    // 6) Batch write summary, historyCategorias & historyLimits
     const batch = db.batch();
-    for (const [mon, txs] of Object.entries(txsByMonth)) {
-      console.log(`[PLAIDROUTES] Processing month ${mon} for historyCategorias`);
+    for (const [mon,txs] of Object.entries(txsByMonth)) {
+      console.log('[PLAIDROUTES] Writing month:',mon);
 
       // historySummary
       const sumRef = userRef.collection('historySummary').doc(mon);
-      const totalExpenses = txs.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
-      const totalIncomes  = txs.filter(t => t.amount >= 0).reduce((sum, t) => sum + t.amount, 0);
-      batch.set(sumRef, {
-        totalExpenses,
-        totalIncomes,
-        updatedAt: admin.firestore.Timestamp.now()
-      });
+      const totalExpenses = txs.filter(t=>t.amount<0).reduce((s,t)=>s+Math.abs(t.amount),0);
+      const totalIncomes  = txs.filter(t=>t.amount>=0).reduce((s,t)=>s+t.amount,0);
+      batch.set(sumRef,{ totalExpenses, totalIncomes, updatedAt: admin.firestore.Timestamp.now() });
 
       // historyCategorias
       const catRef = userRef.collection('historyCategorias').doc(mon);
-      const catAgg = {};
-      txs.forEach(t => {
-        const key = normalizeKey(t.category || 'Otros');
-        const group = catToGroup[key] || 'Otros';
-        catAgg[group] = (catAgg[group] || 0) + Math.abs(t.amount);
+      const spentByGroup = {};
+      txs.forEach(tx=>{
+        const key = normalizeKey(tx.personal_finance_category?.primary||tx.category||'Otros');
+        const grp = catToGroup[key]||'Otros';
+        const amt = tx.amount<0?Math.abs(tx.amount):0;
+        spentByGroup[grp] = (spentByGroup[grp]||0)+amt;
+        const detRef = catRef.collection(grp).doc(tx.transaction_id);
+        batch.set(detRef,{ amount:tx.amount, date:tx.date, description:tx.description || null },{ merge:true });
       });
-      console.log(`[PLAIDROUTES] historyCategorias for ${mon}:`, catAgg);
-      batch.set(catRef, {
-        ...catAgg,
-        updatedAt: admin.firestore.Timestamp.now()
+      console.log(`[PLAIDROUTES] historyCategorias for ${mon}:`, spentByGroup);
+      batch.set(catRef, spentByGroup, { merge:true });
+
+      // historyLimits
+      const limGroupsRef = userRef.collection('historyLimits').doc(mon).collection('groups');
+      console.log(`[PLAIDROUTES] historyLimits for ${mon}, budgetsMap:`, budgetsMap);
+      Object.entries(budgetsMap).forEach(([grp,limit])=>{
+        const spent = spentByGroup[grp] || 0;
+        console.log(`[PLAIDROUTES] limit for ${grp}:`, limit, 'spent:', spent);
+        const grpDocRef = limGroupsRef.doc(grp);
+        batch.set(grpDocRef, { limit, spent }, { merge:true });
       });
     }
 
     console.log('[PLAIDROUTES] About to commit batch for months:', Object.keys(txsByMonth));
     await batch.commit()
-      .then(() => console.log('[PLAIDROUTES] Batch committed successfully!'))
-      .catch(e => console.error('[PLAIDROUTES] Batch commit failed:', e));
+      .then(()=>console.log('[PLAIDROUTES] Batch committed successfully!'))
+      .catch(e=>console.error('[PLAIDROUTES] Batch commit failed:',e));
 
     console.log('[PLAIDROUTES] ← sync_transactions_and_store END');
     res.json({ success: true });
-  } catch (err) {
+  } catch(err) {
     console.error('[PLAIDROUTES] sync_transactions_and_store error:', err.message);
     res.status(500).json({ error: err.message });
   }
