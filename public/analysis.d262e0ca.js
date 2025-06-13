@@ -704,7 +704,8 @@ function reactiveAnalysis(userId) {
     initCharts();
     // Render function closes over monthsSet and txsByMonth
     function renderAnalysis() {
-        const months = Array.from(monthsSet).sort().slice(-7);
+        // Obtener todos los meses disponibles en orden
+        const months = Array.from(monthsSet).sort();
         const revenue = months.map((mon)=>{
             const txs = txsByMonth.get(mon) || [];
             return txs.reduce((sum, tx)=>sum + (tx.amount > 0 ? tx.amount : 0), 0).toFixed(2);
