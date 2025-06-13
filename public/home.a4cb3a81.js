@@ -667,29 +667,47 @@ var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
 var _auth = require("firebase/auth");
 console.log('[HOME] loaded');
+// ── Firestore instance ────────────────────────────────────────────────────
+const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
 // API URL
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
-// Register service worker & periodicSync
-if ('serviceWorker' in navigator) window.addEventListener('load', async ()=>{
+// ── Service Worker + Periodic Sync ────────────────────────────────────────
+async function registerPeriodicSync() {
+    if (!('serviceWorker' in navigator)) {
+        console.log('[SW] Service Worker not supported');
+        return;
+    }
     try {
         const reg = await navigator.serviceWorker.register(require("f49e69e7fb1d94f5"), {
             scope: '/'
         });
-        console.log('[SW] scope:', reg.scope);
-        if ('periodicSync' in reg) try {
-            await reg.periodicSync.register('sync-transactions', {
-                minInterval: 86400000
-            });
-            console.log('[SYNC] periodicSync registered');
-        } catch (err) {
-            console.warn('[SYNC] periodicSync failed:', err);
+        console.log('[SW] Registered, scope:', reg.scope);
+        if (!('periodicSync' in reg)) {
+            console.log('[SYNC] periodicSync not supported');
+            return;
         }
-    } catch (e) {
-        console.error('[SW] registration failed:', e);
+        // Optional: check permission
+        try {
+            const status = await navigator.permissions.query({
+                name: 'periodic-background-sync'
+            });
+            console.log('[SYNC] permission state:', status.state);
+            if (status.state === 'denied') return;
+        } catch (e) {
+            console.warn('[SYNC] could not query permission:', e);
+        }
+        await reg.periodicSync.register('sync-transactions', {
+            minInterval: 86400000
+        });
+        console.log('[SYNC] periodicSync registered');
+    } catch (err) {
+        console.warn('[SW] registration or sync failed:', err);
     }
-});
-// DOM ready
+}
+window.addEventListener('load', registerPeriodicSync);
+// ── DOM & Auth Setup ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', ()=>{
+    console.log('[HOME] DOM ready');
     const sidebar = document.getElementById('sidebar');
     const openSidebar = document.getElementById('open-sidebar');
     const closeSidebar = document.getElementById('close-sidebar');
@@ -699,38 +717,48 @@ document.addEventListener('DOMContentLoaded', ()=>{
     closeSidebar.addEventListener('click', ()=>sidebar.classList.remove('open'));
     logoutBtn.addEventListener('click', async (e)=>{
         e.preventDefault();
-        await (0, _auth.signOut)((0, _firebaseJs.auth));
-        window.location.href = '../index.html';
+        try {
+            await (0, _auth.signOut)((0, _firebaseJs.auth));
+            window.location.href = '../index.html';
+        } catch (e) {
+            console.error('[AUTH] signOut failed:', e);
+        }
     });
-    function updateWelcome(name) {
-        userNameSpan.textContent = name;
-    }
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
+        console.log('[AUTH] state changed:', user);
         if (!user) {
             window.location.href = '../index.html';
             return;
         }
-        const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
-        const uRef = (0, _firestore.doc)(db, 'users', user.uid);
-        // Cargar nombre
-        const snap = await (0, _firestore.getDoc)(uRef);
-        const data = snap.exists() ? snap.data() : {};
-        updateWelcome([
-            data.firstName,
-            data.lastName
-        ].filter(Boolean).join(' ') || 'Usuario');
+        // Load user name
+        try {
+            const snap = await (0, _firestore.getDoc)((0, _firestore.doc)(db, 'users', user.uid));
+            const data = snap.exists() ? snap.data() : {};
+            const name = [
+                data.firstName,
+                data.lastName
+            ].filter(Boolean).join(' ') || 'Usuario';
+            userNameSpan.textContent = name;
+        } catch (e) {
+            console.error('[AUTH] load profile failed:', e);
+        }
         await doManualSync(user.uid);
         await loadBalances(user.uid);
         await saveUIDToIndexedDB(user.uid);
         await loadMonthlyChart(user.uid);
     });
 });
-// Manual sync, once per 24h
+// ── Manual Sync (24h throttle) ─────────────────────────────────────────────
 async function doManualSync(uid) {
     const key = `lastSync_${uid}`;
     const last = Number(localStorage.getItem(key));
     const now = Date.now();
-    if (!last || now - last > 86400000) try {
+    if (last && now - last < 86400000) {
+        console.log('[SYNC] skipped (recent)');
+        return;
+    }
+    console.log('[SYNC] performing manual sync');
+    try {
         const res = await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
             method: 'POST',
             headers: {
@@ -740,19 +768,21 @@ async function doManualSync(uid) {
                 userId: uid
             })
         });
-        if (res.ok) localStorage.setItem(key, now);
+        if (res.ok) {
+            localStorage.setItem(key, now.toString());
+            console.log('[SYNC] manual sync OK');
+        } else console.warn('[SYNC] manual sync status', res.status);
     } catch (e) {
-        console.error('[SYNC] manual sync failed:', e);
+        console.error('[SYNC] manual sync error:', e);
     }
 }
-// Load and render balance slider
+// ── Balances Slider ────────────────────────────────────────────────────────
 async function loadBalances(userId) {
-    const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
-    const uRef = (0, _firestore.doc)(db, 'users', userId);
+    console.log('[BALANCE] loading for', userId);
+    const snap = await (0, _firestore.getDoc)((0, _firestore.doc)(db, 'users', userId));
+    const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
     const slider = document.querySelector('.balance-slider');
     slider.innerHTML = '';
-    const snap = await (0, _firestore.getDoc)(uRef);
-    const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
     for (const { accessToken } of accounts)try {
         const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
             method: 'POST',
@@ -763,13 +793,11 @@ async function loadBalances(userId) {
                 accessToken
             })
         });
+        if (!res.ok) continue;
         const { accounts: accs = [], institution } = await res.json();
         const acc = accs[0] || {};
         const name = acc.name || 'Cuenta';
         const bal = acc.balances?.current ?? 0;
-        let logo = '/img/default_bank.png';
-        if (institution?.logo) logo = `data:image/png;base64,${institution.logo}`;
-        else if (institution?.url) logo = `${institution.url.replace(/\/$/, '')}/favicon.ico`;
         const slide = document.createElement('div');
         slide.className = 'balance-slide';
         slide.innerHTML = `
@@ -780,20 +808,18 @@ async function loadBalances(userId) {
         </div>`;
         slider.appendChild(slide);
     } catch (e) {
-        console.error('[BALANCE] error:', e);
+        console.error('[BALANCE] fetch error:', e);
     }
     initBalanceSlider();
 }
-// Initialize balance slider
 function initBalanceSlider() {
     const slider = document.querySelector('.balance-slider');
+    if (!slider) return;
     const slides = Array.from(slider.children);
     const prev = document.getElementById('balance-prev');
     const next = document.getElementById('balance-next');
     const dots = document.getElementById('balance-dots');
-    if (!slider) return;
-    let idx = 0;
-    const total = slides.length;
+    let idx = 0, total = slides.length;
     dots.innerHTML = '';
     slides.forEach((_, i)=>{
         const d = document.createElement('div');
@@ -818,7 +844,7 @@ function initBalanceSlider() {
     }
     update();
 }
-// Save UID to IndexedDB
+// ── Save UID to IndexedDB ────────────────────────────────────────────────
 async function saveUIDToIndexedDB(uid) {
     if (!('indexedDB' in window)) return;
     const req = indexedDB.open('fintrack-db', 1);
@@ -830,17 +856,18 @@ async function saveUIDToIndexedDB(uid) {
         tx.oncomplete = ()=>db.close();
     };
 }
-// Ensure single chart instance
-let monthlyChartInstance;
-// Load monthly chart
+// ── Monthly Chart ─────────────────────────────────────────────────────────
+let monthlyChartInstance = null;
 async function loadMonthlyChart(userId) {
-    const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
+    console.log('[CHART] loading for', userId);
     const col = (0, _firestore.collection)(db, 'users', userId, 'history');
     let snap;
     try {
         snap = await (0, _firestore.getDocsFromServer)(col);
+        console.log('[CHART] history from server');
     } catch  {
         snap = await (0, _firestore.getDocs)(col);
+        console.log('[CHART] history from cache');
     }
     const months = snap.docs.map((d)=>d.id).sort();
     const expenses = [], incomes = [];
@@ -855,7 +882,8 @@ async function loadMonthlyChart(userId) {
         let e = 0, i = 0;
         itemsSnap.forEach((doc)=>{
             const amt = doc.data().amount || 0;
-            amt < 0 ? e += Math.abs(amt) : i += amt;
+            if (amt < 0) e += Math.abs(amt);
+            else i += amt;
         });
         expenses.push(e);
         incomes.push(i);
@@ -922,6 +950,7 @@ async function loadMonthlyChart(userId) {
         }
     };
     const chartEl = document.querySelector('#monthlyChart');
+    if (!chartEl) return;
     chartEl.innerHTML = '';
     if (monthlyChartInstance) monthlyChartInstance.destroy();
     monthlyChartInstance = new ApexCharts(chartEl, options);
