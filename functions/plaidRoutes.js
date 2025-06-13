@@ -4,7 +4,6 @@ const { admin, db } = require('./firebaseAdmin'); // db = admin.firestore()
 const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
 
 const router = express.Router();
-
 console.log('[PLAIDROUTES] Initializing Plaid routes');
 
 // Función de ayuda para normalizar cadenas (quita acentos y diacríticos)
@@ -130,17 +129,31 @@ router.post('/get_transactions', async (req, res) => {
     if (!userDoc.exists) throw new Error('Usuario no encontrado');
     const accounts = userDoc.data().plaid?.accounts || [];
     console.log('[PLAIDROUTES] Accounts to fetch:', accounts.length);
-    const start = startDate || new Date(Date.now()-30*24*60*60*1000).toISOString().slice(0,10);
-    const end = endDate || new Date().toISOString().slice(0,10);
+    const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0,10);
+    const end = endDate   || new Date().toISOString().slice(0,10);
     console.log('[PLAIDROUTES] Fetching transactions from', start, 'to', end);
     let allTxs = [];
     for (const { accessToken } of accounts) {
-      const resp = await plaidClient.transactionsGet({ access_token: accessToken, start_date: start, end_date: end, options: { count: 500, offset: 0, include_personal_finance_category: true } });
+      const resp = await plaidClient.transactionsGet({
+        access_token: accessToken,
+        start_date: start,
+        end_date: end,
+        options: { count: 500, offset: 0, include_personal_finance_category: true }
+      });
       console.log('[PLAIDROUTES] Fetched', resp.data.transactions.length, 'transactions');
       allTxs.push(...resp.data.transactions);
     }
-    allTxs.sort((a,b)=>new Date(b.date)-new Date(a.date));
-    const cleaned = allTxs.map(tx=>({ id: tx.transaction_id, account_id: tx.account_id, date: tx.date, description: tx.name, personal_finance_category: tx.personal_finance_category||null, category: tx.personal_finance_category?.primary||'Sin categoría', category_id: tx.category_id||null, amount: tx.amount }));
+    allTxs.sort((a,b) => new Date(b.date) - new Date(a.date));
+    const cleaned = allTxs.map(tx => ({
+      id: tx.transaction_id,
+      account_id: tx.account_id,
+      date: tx.date,
+      description: tx.name,
+      personal_finance_category: tx.personal_finance_category || null,
+      category: tx.personal_finance_category?.primary || 'Sin categoría',
+      category_id: tx.category_id || null,
+      amount: tx.amount
+    }));
     console.log('[PLAIDROUTES] Sending cleaned transactions count:', cleaned.length);
     res.json({ transactions: cleaned });
   } catch (err) {
@@ -162,81 +175,94 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     const userSnap = await userRef.get();
     if (!userSnap.exists) throw new Error('Usuario no encontrado');
     console.log('[PLAIDROUTES] User found for sync');
+
     // 1) Leer budgets
     const budgetsMap = userSnap.data().settings?.budgets || {};
     console.log('[PLAIDROUTES] budgetsMap:', budgetsMap);
-    // 2) Fetch Plaid transactions
+
+    // 2) Fetch Plaid transactions (últimos 30 días)
     const accounts = userSnap.data().plaid?.accounts || [];
-    let allTxs = [];
+    let allPlaidTxs = [];
     for (const { accessToken } of accounts) {
-      const resp = await plaidClient.transactionsGet({ access_token: accessToken, start_date: new Date(Date.now()-30*24*60*60*1000).toISOString().slice(0,10), end_date: new Date().toISOString().slice(0,10), options: { count: 500, offset: 0, include_personal_finance_category: true } });
-      allTxs.push(...resp.data.transactions);
+      const resp = await plaidClient.transactionsGet({
+        access_token: accessToken,
+        start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0,10),
+        end_date: new Date().toISOString().slice(0,10),
+        options: { count: 500, offset: 0, include_personal_finance_category: true }
+      });
+      allPlaidTxs.push(...resp.data.transactions);
     }
-    console.log('[PLAIDROUTES] Total Plaid transactions:', allTxs.length);
+    console.log('[PLAIDROUTES] Total Plaid transactions:', allPlaidTxs.length);
+
     // 3) Include Firestore transactions
-    const idToTx = new Map(allTxs.map(tx=>[tx.transaction_id,tx]));
     const monthRefs = await userRef.collection('history').listDocuments();
+    const idToTx = new Map(allPlaidTxs.map(tx => [tx.transaction_id, tx]));
     for (const mRef of monthRefs) {
       const itemsSnap = await mRef.collection('items').get();
-      itemsSnap.forEach(docSnap=>{
-        const d=docSnap.data();
-        const tx={ transaction_id:docSnap.id, date:d.date, amount:d.amount, personal_finance_category:d.personal_finance_category, category:d.category, category_id:d.category_id, description:d.description||d.name||null };
+      itemsSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tx = {
+          transaction_id: docSnap.id,
+          date: d.date,
+          amount: d.amount,
+          personal_finance_category: d.personal_finance_category,
+          category: d.category,
+          category_id: d.category_id,
+          description: d.description || d.name || null
+        };
         console.log('[PLAIDROUTES] tx from Firestore:', tx);
         idToTx.set(tx.transaction_id, tx);
       });
     }
+
     // 4) Group by month
     const txsByMonth = {};
     for (const tx of idToTx.values()) {
       const mon = tx.date.slice(0,7);
-      (txsByMonth[mon] = txsByMonth[mon]||[]).push(tx);
+      (txsByMonth[mon] = txsByMonth[mon] || []).push(tx);
     }
     console.log('[PLAIDROUTES] Months to process:', Object.keys(txsByMonth));
+
     // 5) Build category map
     const catGroupsSnap = await db.collection('categoryGroups').get();
     const catToGroup = {};
-    catGroupsSnap.forEach(doc=>{
-      const id = doc.id;
-      const disp = doc.data().group || doc.data().grupo || id;
-      catToGroup[normalizeKey(id)] = disp;
-      (doc.data().subcategories||[]).forEach(sub=>catToGroup[normalizeKey(sub)] = disp);
+    catGroupsSnap.forEach(doc => {
+      const key = normalizeKey(doc.id);
+      const disp = doc.data().group || doc.data().grupo || doc.id;
+      catToGroup[key] = disp;
+      (doc.data().subcategories || []).forEach(sub => {
+        catToGroup[normalizeKey(sub)] = disp;
+      });
     });
     console.log('[PLAIDROUTES] Category groups:', Object.keys(catToGroup));
-    // 6) Batch write
+
+    // 6) Batch write summary
     const batch = db.batch();
     for (const [mon, txs] of Object.entries(txsByMonth)) {
-      console.log('[PLAIDROUTES] Writing month:', mon);
-      const histRef = userRef.collection('history').doc(mon);
-      const catRef = userRef.collection('historyCategorias').doc(mon);
-      const limRef = userRef.collection('historyLimits').doc(mon);
       const sumRef = userRef.collection('historySummary').doc(mon);
-      // accumulate summary
-      let totalExpenses = 0, totalIncomes = 0;
-      const spentByGroup = {};
-      txs.forEach(tx=>{
-        if (tx.amount < 0) totalExpenses += Math.abs(tx.amount); else totalIncomes += tx.amount;
-        const key = normalizeKey(tx.personal_finance_category?.primary||tx.category||'otros');
-        const grp = catToGroup[key] || 'Otros';
-        const amt = tx.amount < 0 ? Math.abs(tx.amount) : 0;
-        spentByGroup[grp] = (spentByGroup[grp]||0) + amt;
-        const detRef = catRef.collection(grp).doc(tx.transaction_id);
-        batch.set(detRef,{amount:tx.amount,date:tx.date,description:tx.description},{merge:true});
-      });
-      batch.set(histRef,{updatedAt:admin.firestore.Timestamp.now()},{merge:true});
-      batch.set(sumRef,{totalExpenses,totalIncomes,updatedAt:admin.firestore.Timestamp.now()},{merge:true});
-      batch.set(catRef,spentByGroup,{merge:true});
-      Object.entries(budgetsMap).forEach(([grp, lim])=>{
-        const spent = spentByGroup[grp] || 0;
-        const grpDoc = limRef.collection('groups').doc(grp);
-        batch.set(grpDoc,{limit: lim, spent},{merge:true});
+
+      // Calcular totales
+      const totalExpenses = txs
+        .filter(t => t.amount < 0)
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      const totalIncomes = txs
+        .filter(t => t.amount >= 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      // Escribir o sobrescribir el summary
+      batch.set(sumRef, {
+        totalExpenses,
+        totalIncomes,
+        updatedAt: admin.firestore.Timestamp.now()
       });
     }
+
     await batch.commit();
     console.log('[PLAIDROUTES] sync_transactions_and_store succeeded');
-    res.json({ success:true });
-  } catch(err) {
+    res.json({ success: true });
+  } catch (err) {
     console.error('[PLAIDROUTES] sync_transactions_and_store error:', err.message);
-    res.status(500).json({ error:err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
