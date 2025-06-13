@@ -662,7 +662,6 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"9wRWw":[function(require,module,exports,__globalThis) {
-// js/home.js
 var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
 var _auth = require("firebase/auth");
@@ -671,66 +670,69 @@ console.log('[HOME] loaded');
 const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
 // API URL
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
-// ── Service Worker + Periodic Sync ────────────────────────────────────────
-async function registerPeriodicSync() {
-    if (!('serviceWorker' in navigator)) {
-        console.log('[SW] Service Worker not supported');
-        return;
+// ── Request and register background sync & notifications ─────────────────────
+async function setupBackgroundFeatures() {
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') try {
+        const permission = await Notification.requestPermission();
+        console.log('[HOME] Notification permission:', permission);
+    } catch (e) {
+        console.error('[HOME] Notification request error:', e);
     }
-    try {
-        const reg = await navigator.serviceWorker.register(require("f49e69e7fb1d94f5"), {
+    // Register Service Worker and Sync
+    if ('serviceWorker' in navigator) try {
+        const registration = await navigator.serviceWorker.register(require("f49e69e7fb1d94f5"), {
             scope: '/'
         });
-        console.log('[SW] Registered, scope:', reg.scope);
-        if (!('periodicSync' in reg)) {
-            console.log('[SYNC] periodicSync not supported');
-            return;
+        console.log('[HOME] SW registered with scope:', registration.scope);
+        // One-off sync
+        if ('sync' in registration) try {
+            await registration.sync.register('sync-transactions');
+            console.log('[HOME] One-off sync registered');
+        } catch (e) {
+            console.warn('[HOME] One-off sync failed:', e);
         }
-        // Optional: check permission
-        try {
+        // Periodic sync
+        if ('periodicSync' in registration) try {
             const status = await navigator.permissions.query({
                 name: 'periodic-background-sync'
             });
-            console.log('[SYNC] permission state:', status.state);
-            if (status.state === 'denied') return;
+            console.log('[HOME] periodic-background-sync permission:', status.state);
+            if (status.state === 'granted') {
+                await registration.periodicSync.register('sync-transactions', {
+                    minInterval: 86400000
+                });
+                console.log('[HOME] periodicSync registered');
+            }
         } catch (e) {
-            console.warn('[SYNC] could not query permission:', e);
+            console.warn('[HOME] periodicSync failed:', e);
         }
-        await reg.periodicSync.register('sync-transactions', {
-            minInterval: 86400000
-        });
-        console.log('[SYNC] periodicSync registered');
     } catch (err) {
-        console.warn('[SW] registration or sync failed:', err);
+        console.error('[HOME] SW registration failed:', err);
     }
 }
-window.addEventListener('load', registerPeriodicSync);
+window.addEventListener('load', setupBackgroundFeatures);
 // ── DOM & Auth Setup ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', ()=>{
     console.log('[HOME] DOM ready');
+    // Sidebar controls
     const sidebar = document.getElementById('sidebar');
-    const openSidebar = document.getElementById('open-sidebar');
-    const closeSidebar = document.getElementById('close-sidebar');
-    const logoutBtn = document.getElementById('logout-link');
-    const userNameSpan = document.getElementById('user-name');
-    openSidebar.addEventListener('click', ()=>sidebar.classList.add('open'));
-    closeSidebar.addEventListener('click', ()=>sidebar.classList.remove('open'));
-    logoutBtn.addEventListener('click', async (e)=>{
+    document.getElementById('open-sidebar').addEventListener('click', ()=>sidebar.classList.add('open'));
+    document.getElementById('close-sidebar').addEventListener('click', ()=>sidebar.classList.remove('open'));
+    // Logout
+    document.getElementById('logout-link').addEventListener('click', async (e)=>{
         e.preventDefault();
         try {
             await (0, _auth.signOut)((0, _firebaseJs.auth));
-            window.location.href = '../index.html';
+            location.href = '../index.html';
         } catch (e) {
-            console.error('[AUTH] signOut failed:', e);
+            console.error('[HOME] signOut failed:', e);
         }
     });
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
-        console.log('[AUTH] state changed:', user);
-        if (!user) {
-            window.location.href = '../index.html';
-            return;
-        }
-        // Load user name
+        console.log('[HOME] Auth state changed:', user);
+        if (!user) return location.href = '../index.html';
+        // Display user name
         try {
             const snap = await (0, _firestore.getDoc)((0, _firestore.doc)(db, 'users', user.uid));
             const data = snap.exists() ? snap.data() : {};
@@ -738,26 +740,26 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 data.firstName,
                 data.lastName
             ].filter(Boolean).join(' ') || 'Usuario';
-            userNameSpan.textContent = name;
+            document.getElementById('user-name').textContent = name;
         } catch (e) {
-            console.error('[AUTH] load profile failed:', e);
+            console.error('[HOME] Load profile error:', e);
         }
-        await doManualSync(user.uid);
+        // App logic
+        await manualSync(user.uid);
         await loadBalances(user.uid);
-        await saveUIDToIndexedDB(user.uid);
+        await saveUID(user.uid);
         await loadMonthlyChart(user.uid);
     });
 });
 // ── Manual Sync (24h throttle) ─────────────────────────────────────────────
-async function doManualSync(uid) {
+async function manualSync(uid) {
     const key = `lastSync_${uid}`;
-    const last = Number(localStorage.getItem(key));
-    const now = Date.now();
-    if (last && now - last < 86400000) {
-        console.log('[SYNC] skipped (recent)');
+    const last = +localStorage.getItem(key);
+    if (last && Date.now() - last < 86400000) {
+        console.log('[HOME] Manual sync skipped');
         return;
     }
-    console.log('[SYNC] performing manual sync');
+    console.log('[HOME] Performing manual sync');
     try {
         const res = await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
             method: 'POST',
@@ -769,22 +771,22 @@ async function doManualSync(uid) {
             })
         });
         if (res.ok) {
-            localStorage.setItem(key, now.toString());
-            console.log('[SYNC] manual sync OK');
-        } else console.warn('[SYNC] manual sync status', res.status);
+            localStorage.setItem(key, Date.now().toString());
+            console.log('[HOME] Manual sync OK');
+        } else console.warn('[HOME] Manual sync failed:', res.status);
     } catch (e) {
-        console.error('[SYNC] manual sync error:', e);
+        console.error('[HOME] Manual sync error:', e);
     }
 }
 // ── Balances Slider ────────────────────────────────────────────────────────
 async function loadBalances(userId) {
-    console.log('[BALANCE] loading for', userId);
+    console.log('[HOME] Loading balances for', userId);
     const snap = await (0, _firestore.getDoc)((0, _firestore.doc)(db, 'users', userId));
     const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
     const slider = document.querySelector('.balance-slider');
     slider.innerHTML = '';
     for (const { accessToken } of accounts)try {
-        const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
+        const resp = await fetch(`${apiUrl}/plaid/get_account_details`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -793,37 +795,35 @@ async function loadBalances(userId) {
                 accessToken
             })
         });
-        if (!res.ok) continue;
-        const { accounts: accs = [] } = await res.json();
+        if (!resp.ok) continue;
+        const { accounts: accs = [] } = await resp.json();
         const acc = accs[0] || {};
-        const name = acc.name || 'Cuenta';
-        const bal = acc.balances?.current ?? 0;
         const slide = document.createElement('div');
         slide.className = 'balance-slide';
         slide.innerHTML = `
         <div class="card">
-          <p class="card-title">${name}</p>
+          <p class="card-title">${acc.name || 'Cuenta'}</p>
           <p class="card-subtitle">Saldo actual</p>
-          <p class="card-balance">${bal.toFixed(2)} \u{20AC}</p>
+          <p class="card-balance">${(acc.balances?.current || 0).toFixed(2)} \u{20AC}</p>
         </div>`;
         slider.appendChild(slide);
     } catch (e) {
-        console.error('[BALANCE] fetch error:', e);
+        console.error('[HOME] Balance fetch error:', e);
     }
-    initBalanceSlider();
+    initSlider();
 }
-function initBalanceSlider() {
+function initSlider() {
     const slider = document.querySelector('.balance-slider');
     if (!slider) return;
     const slides = Array.from(slider.children);
+    let idx = 0;
+    const dots = document.getElementById('balance-dots');
     const prev = document.getElementById('balance-prev');
     const next = document.getElementById('balance-next');
-    const dots = document.getElementById('balance-dots');
-    let idx = 0, total = slides.length;
     dots.innerHTML = '';
     slides.forEach((_, i)=>{
         const d = document.createElement('div');
-        d.className = 'slider-dot' + (i === 0 ? ' active' : '');
+        d.className = `slider-dot${i === 0 ? ' active' : ''}`;
         d.onclick = ()=>{
             idx = i;
             update();
@@ -831,11 +831,11 @@ function initBalanceSlider() {
         dots.appendChild(d);
     });
     prev.onclick = ()=>{
-        idx = (idx - 1 + total) % total;
+        idx = (idx - 1 + slides.length) % slides.length;
         update();
     };
     next.onclick = ()=>{
-        idx = (idx + 1) % total;
+        idx = (idx + 1) % slides.length;
         update();
     };
     function update() {
@@ -844,8 +844,8 @@ function initBalanceSlider() {
     }
     update();
 }
-// ── Save UID to IndexedDB ────────────────────────────────────────────────
-async function saveUIDToIndexedDB(uid) {
+// ── Save UID ──────────────────────────────────────────────────────────────
+async function saveUID(uid) {
     if (!('indexedDB' in window)) return;
     const req = indexedDB.open('fintrack-db', 1);
     req.onupgradeneeded = ()=>req.result.createObjectStore('metadata');
@@ -856,28 +856,24 @@ async function saveUIDToIndexedDB(uid) {
         tx.oncomplete = ()=>db.close();
     };
 }
-// ── Monthly Chart (usa historySummary) ────────────────────────────────────
-let monthlyChartInstance = null;
+// ── Monthly Chart ────────────────────────────────────────────────────────
+let monthlyChart;
 async function loadMonthlyChart(userId) {
-    console.log('[CHART] loading summary for', userId);
+    console.log('[HOME] Loading chart for', userId);
     const col = (0, _firestore.collection)(db, 'users', userId, 'historySummary');
     let snap;
     try {
         snap = await (0, _firestore.getDocsFromServer)(col);
-        console.log('[CHART] summary from server');
     } catch  {
         snap = await (0, _firestore.getDocs)(col);
-        console.log('[CHART] summary from cache');
     }
-    // Ordenar periodos
     const docs = snap.docs.sort((a, b)=>a.id.localeCompare(b.id));
-    const months = docs.map((d)=>d.id);
+    const categories = docs.map((d)=>d.id);
     const expenses = docs.map((d)=>d.data().totalExpenses || 0);
     const incomes = docs.map((d)=>d.data().totalIncomes || 0);
-    const options = {
+    const opts = {
         chart: {
             type: 'bar',
-            height: 350,
             toolbar: {
                 show: false
             }
@@ -910,7 +906,7 @@ async function loadMonthlyChart(userId) {
                 }).format(v)
         },
         xaxis: {
-            categories: months
+            categories
         },
         yaxis: {
             labels: {
@@ -935,12 +931,12 @@ async function loadMonthlyChart(userId) {
             borderColor: '#eee'
         }
     };
-    const chartEl = document.querySelector('#monthlyChart');
-    if (!chartEl) return;
-    chartEl.innerHTML = '';
-    if (monthlyChartInstance) monthlyChartInstance.destroy();
-    monthlyChartInstance = new ApexCharts(chartEl, options);
-    monthlyChartInstance.render();
+    const el = document.querySelector('#monthlyChart');
+    if (!el) return;
+    el.innerHTML = '';
+    if (monthlyChart) monthlyChart.destroy();
+    monthlyChart = new ApexCharts(el, opts);
+    monthlyChart.render();
 }
 
 },{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","f49e69e7fb1d94f5":"170CW"}],"170CW":[function(require,module,exports,__globalThis) {

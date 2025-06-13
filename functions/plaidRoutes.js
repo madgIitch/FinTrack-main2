@@ -284,4 +284,64 @@ router.post('/sync_transactions_and_store', async (req, res) => {
   }
 });
 
+// ── Sync historyLimits and return data ────────────────────────────────────────
+router.post('/sync_history_limits_and_store', async (req, res) => {
+  console.log('[PLAIDROUTES] → sync_history_limits_and_store START', req.body);
+  const { userId } = req.body;
+  if (!userId) {
+    console.error('[PLAIDROUTES] Missing userId');
+    return res.status(400).json({ error: 'Falta userId' });
+  }
+
+  try {
+    const userRef = db.collection('users').doc(userId);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) throw new Error('Usuario no encontrado');
+
+    // 1) Leer budgets desde settings
+    const budgetsMap = userSnap.data().settings?.budgets || {};
+    console.log('[PLAIDROUTES] budgetsMap:', budgetsMap);
+
+    // 2) Calcular periodo último mes YYYY-MM
+    const now = new Date();
+    now.setDate(1);          // primer día del mes actual
+    now.setMonth(now.getMonth() - 1);  // retroceder 1 mes
+    const period = now.toISOString().slice(0, 7); // "YYYY-MM"
+    console.log('[PLAIDROUTES] Periodo a procesar:', period);
+
+    // 3) Leer los grupos y sus docs en historyLimits/{period}/groups
+    const groupsCol = userRef
+      .collection('historyLimits')
+      .doc(period)
+      .collection('groups');
+
+    const groupsSnap = await groupsCol.get();
+    if (groupsSnap.empty) {
+      console.warn(`[PLAIDROUTES] No hay datos en historyLimits/${period}/groups`);
+      // Podrías decidir devolver un objeto vacío o 404. Aquí devolvemos vacío:
+      return res.json({ period, groups: {} });
+    }
+
+    // 4) Montar el objeto groups con { [groupName]: { limit, spent } }
+    const groups = {};
+    groupsSnap.forEach(doc => {
+      const data = doc.data();
+      groups[doc.id] = {
+        limit: data.limit ?? 0,
+        spent: data.spent ?? 0
+      };
+    });
+    console.log('[PLAIDROUTES] historyLimits leídos:', groups);
+
+    // 5) Devolver JSON con period y groups
+    console.log('[PLAIDROUTES] ← sync_history_limits_and_store END');
+    return res.json({ period, groups });
+
+  } catch (err) {
+    console.error('[PLAIDROUTES] sync_history_limits_and_store error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
 module.exports = router;
