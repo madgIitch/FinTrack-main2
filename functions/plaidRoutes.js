@@ -164,7 +164,8 @@ router.post('/get_transactions', async (req, res) => {
 
 // ── Sync transactions, historyCategorias, historyLimits & historySummary ─────
 router.post('/sync_transactions_and_store', async (req, res) => {
-  console.log('[PLAIDROUTES] POST /sync_transactions_and_store body:', req.body);
+  console.log('[PLAIDROUTES] → sync_transactions_and_store START');
+  console.log('[PLAIDROUTES] body:', req.body);
   const { userId } = req.body;
   if (!userId) {
     console.error('[PLAIDROUTES] Missing userId');
@@ -233,32 +234,45 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       (doc.data().subcategories || []).forEach(sub => {
         catToGroup[normalizeKey(sub)] = disp;
       });
-    });
+    });  
     console.log('[PLAIDROUTES] Category groups:', Object.keys(catToGroup));
 
-    // 6) Batch write summary
+    // 6) Batch write summary and historyCategorias
     const batch = db.batch();
     for (const [mon, txs] of Object.entries(txsByMonth)) {
+      console.log(`[PLAIDROUTES] Processing month ${mon} for historyCategorias`);
+
+      // historySummary
       const sumRef = userRef.collection('historySummary').doc(mon);
-
-      // Calcular totales
-      const totalExpenses = txs
-        .filter(t => t.amount < 0)
-        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-      const totalIncomes = txs
-        .filter(t => t.amount >= 0)
-        .reduce((sum, t) => sum + t.amount, 0);
-
-      // Escribir o sobrescribir el summary
+      const totalExpenses = txs.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      const totalIncomes  = txs.filter(t => t.amount >= 0).reduce((sum, t) => sum + t.amount, 0);
       batch.set(sumRef, {
         totalExpenses,
         totalIncomes,
         updatedAt: admin.firestore.Timestamp.now()
       });
+
+      // historyCategorias
+      const catRef = userRef.collection('historyCategorias').doc(mon);
+      const catAgg = {};
+      txs.forEach(t => {
+        const key = normalizeKey(t.category || 'Otros');
+        const group = catToGroup[key] || 'Otros';
+        catAgg[group] = (catAgg[group] || 0) + Math.abs(t.amount);
+      });
+      console.log(`[PLAIDROUTES] historyCategorias for ${mon}:`, catAgg);
+      batch.set(catRef, {
+        ...catAgg,
+        updatedAt: admin.firestore.Timestamp.now()
+      });
     }
 
-    await batch.commit();
-    console.log('[PLAIDROUTES] sync_transactions_and_store succeeded');
+    console.log('[PLAIDROUTES] About to commit batch for months:', Object.keys(txsByMonth));
+    await batch.commit()
+      .then(() => console.log('[PLAIDROUTES] Batch committed successfully!'))
+      .catch(e => console.error('[PLAIDROUTES] Batch commit failed:', e));
+
+    console.log('[PLAIDROUTES] ← sync_transactions_and_store END');
     res.json({ success: true });
   } catch (err) {
     console.error('[PLAIDROUTES] sync_transactions_and_store error:', err.message);
