@@ -1,0 +1,143 @@
+/* ========================================
+   Notifications Page Styles
+   Revised Header Alignment, Transparency & Spacing
+   ======================================== */
+
+/* Global background to match Transactions page */
+body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, #e0e0e0, #f4f4f4);
+  font-family: 'Roboto', sans-serif;
+  color: #252525;
+  box-sizing: border-box;
+}
+*, *::before, *::after { box-sizing: inherit; }
+
+/* Main container with header offset */
+.container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding-top: 96px; /* increased space for header */
+  width: 100%;
+}
+
+/* App Bar (fixed header) */
+.app-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: transparent;
+  padding: 16px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  z-index: 100;
+}
+
+.toolbar {
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 0 auto;
+}
+
+/* Back button & notifications icon */
+#back-button,
+.notification-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  color: #252525;
+  margin-right: 16px;
+  transition: background 0.2s ease;
+}
+#back-button:hover,
+.notification-button:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+.icon-button .material-icons,
+.notification-button .material-icons {
+  font-size: 28px;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #252525;
+}
+
+/* Notifications list styling */
+.notifications-list {
+  list-style: none;
+  width: 100%;
+  max-width: 960px;
+  margin: 24px auto 0; /* added top margin */
+  padding: 0 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Notification card base */
+.notification-card {
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: flex-start;
+  padding: 16px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: default;
+}
+.notification-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.notification-icon {
+  font-size: 32px;
+  margin-right: 16px;
+  color: #616161;
+  flex-shrink: 0;
+}
+
+.notification-content {
+  flex: 1;
+}
+
+.notification-title {
+  font-size: 1.25rem;
+  margin: 0 0 8px;
+  font-weight: 500;
+  color: #333333;
+}
+
+.notification-body {
+  font-size: 1rem;
+  margin: 0;
+  color: #555555;
+  line-height: 1.4;
+}
+
+/* Accent bars for type */
+.notification-card.alert {
+  border-left: 6px solid #e53935;
+}
+.notification-card.report {
+  border-left: 6px solid #43a047;
+}
+
+/* Spacer for bottom nav if needed */
+.footer-spacing {
+  height: 56px;
+}
