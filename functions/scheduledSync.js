@@ -1,7 +1,6 @@
 // functions/scheduledSync.js
 // Cloud Function HTTP para sincronizar Plaid y actualizar colecciones.
 // Invocar mediante Cloud Scheduler como job HTTP (método POST).
-// Construye dinámicamente la URL de la API usando el ID de proyecto.
 
 const functions = require('firebase-functions');
 const axios = require('axios');
@@ -52,21 +51,19 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
       const userId = userDoc.id;
       console.log(`🔄 Sync usuario: ${userId}`);
 
-      // --- Migrar documentos legacy en history root a history/{YYYY-MM}/items ---
-      const rootSnap = await db.collection('users').doc(userId)
+      // 1) Migrar legacy: docs planos en history → history/{YYYY-MM}/items
+      const plainHistory = await db.collection('users').doc(userId)
         .collection('history').listDocuments();
       const migrateBatch = db.batch();
-      for (const docRef of rootSnap) {
-        if (!docRef.parent.id) continue;
-        // Si padre directo es 'history' y no existe subcolección 'items'
-        if (docRef.parent.id === 'history') {
-          const d = await docRef.get();
-          const tx = d.data();
-          if (tx && tx.date && typeof tx.date === 'string' && tx.date.length >= 7) {
-            const month = tx.date.slice(0,7);
+      for (const docRef of plainHistory) {
+        if (docRef.parent?.id === 'history') {
+          const snap = await docRef.get();
+          const tx = snap.data();
+          if (tx?.date?.slice?.(0,7)) {
+            const mon = tx.date.slice(0,7);
             const itemRef = db.collection('users').doc(userId)
-              .collection('history').doc(month)
-              .collection('items').doc(d.id);
+              .collection('history').doc(mon)
+              .collection('items').doc(snap.id);
             migrateBatch.set(itemRef, tx, { merge: true });
           }
         }
@@ -74,7 +71,7 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
       await migrateBatch.commit();
       console.log('📦 Migración legacy history completada');
 
-      // 1) get_transactions
+      // 2) get_transactions
       let newTxs = [];
       try {
         const resp = await axios.post(
@@ -83,53 +80,37 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         );
         newTxs = Array.isArray(resp.data.transactions) ? resp.data.transactions : [];
       } catch (err) {
-        console.error(`❌ get_transactions fallo para ${userId}:`, err.message);
+        console.error(`❌ get_transactions falló para ${userId}:`, err.message);
       }
 
-      // 2) Insertar nuevas en history/{YYYY-MM}/items
+      // 3) Guardar nuevas transacciones
       if (newTxs.length) {
         const batch = db.batch();
-        newTxs.forEach(tx => {
-          if (!tx.date || typeof tx.date !== 'string' || tx.date.length < 7) {
-            console.warn(`⚠️ Ignorando transacción sin fecha válida: ${tx.id}`);
-            return;
-          }
-          const month = tx.date.slice(0,7);
+        for (const tx of newTxs) {
+          if (!tx.date?.slice?.(0,7)) continue;
+          const mon = tx.date.slice(0,7);
           const ref = db.collection('users').doc(userId)
-            .collection('history').doc(month)
-            .collection('items').doc(tx.id);
+            .collection('history').doc(mon)
+            .collection('items').doc(tx.transaction_id || tx.id);
           batch.set(ref, tx, { merge: true });
-        });
+        }
         await batch.commit();
-        console.log(`✅ history actualizado con ${newTxs.length} transacciones`);
+        console.log(`✅ Insertadas/actualizadas ${newTxs.length} transacciones`);
       }
 
-            // 3) Recalcular collections basadas en history/{YYYY-MM}/items
-      const monthsDocs = await db.collection('users').doc(userId)
+      // 4) Recalcular por mes
+      const monthDocs = await db.collection('users').doc(userId)
         .collection('history').listDocuments();
       const txsByMonth = {};
-      for (const monthRef of monthsDocs) {
-        const mon = monthRef.id;
-        const itemsSnap = await monthRef.collection('items').get();
-        // Incluir los IDs de los documentos al data
-        txsByMonth[mon] = itemsSnap.docs.map(docSnap => ({
-          id: docSnap.id,
-          ...docSnap.data()
-        }));
-      }
-      for (const monthRef of monthsDocs) {
-        const mon = monthRef.id;
-        const itemsSnap = await monthRef.collection('items').get();
-        // Incluir los IDs de los documentos al data
-        txsByMonth[mon] = itemsSnap.docs.map(docSnap => ({
-          id: docSnap.id,
-          ...docSnap.data()
-        }));
+      for (const monRef of monthDocs) {
+        const mon = monRef.id;
+        const itemsSnap = await monRef.collection('items').get();
+        txsByMonth[mon] = itemsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       }
 
-      // Cargar budgets y grupos categoría
-      const settingsSnap = await db.collection('users').doc(userId).get();
-      const budgetsMap = settingsSnap.data().settings?.budgets || {};
+      // Cargar budgets y grupos
+      const userSettings = (await db.collection('users').doc(userId).get()).data().settings || {};
+      const budgetsMap = userSettings.budgets || {};
       const catGroupsSnap = await db.collection('categoryGroups').get();
       const catToGroup = {};
       catGroupsSnap.forEach(doc => {
@@ -141,58 +122,59 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         });
       });
 
-      // 4) Actualizar historySummary, historyCategorias, historyLimits por mes
-      for (const [month, txs] of Object.entries(txsByMonth)) {
+      // 5) Update summary, categorias y limits
+      for (const [mon, txs] of Object.entries(txsByMonth)) {
         // historySummary
         const sumRef = db.collection('users').doc(userId)
-          .collection('historySummary').doc(month);
-        const totalExpenses = txs.filter(t => t.amount < 0)
-          .reduce((a,t) => a + Math.abs(t.amount), 0);
-        const totalIncomes = txs.filter(t => t.amount >= 0)
-          .reduce((a,t) => a + t.amount, 0);
-        await sumRef.set({ totalExpenses, totalIncomes, updatedAt: admin.firestore.Timestamp.now() });
+          .collection('historySummary').doc(mon);
+        const totalExp = txs.filter(t => t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
+        const totalInc = txs.filter(t => t.amount >= 0).reduce((s,t) => s + t.amount, 0);
+        await sumRef.set({ totalExpenses: totalExp, totalIncomes: totalInc, updatedAt: admin.firestore.Timestamp.now() });
 
         // historyCategorias
         const catRef = db.collection('users').doc(userId)
-          .collection('historyCategorias').doc(month);
+          .collection('historyCategorias').doc(mon);
         const spentByGroup = {};
         const batchCat = db.batch();
-        txs.forEach(tx => {
-          const key = normalizeKey(tx.category || 'otros');
+        for (const tx of txs) {
+          const key = normalizeKey(tx.category || tx.personal_finance_category?.primary || 'otros');
           const grp = catToGroup[key] || 'Otros';
           const amt = tx.amount < 0 ? Math.abs(tx.amount) : 0;
           spentByGroup[grp] = (spentByGroup[grp] || 0) + amt;
-          const detRef = catRef.collection(grp).doc(tx.id);
-          batchCat.set(detRef, { amount: tx.amount, date: tx.date, description: tx.description || null }, { merge: true });
-        });
+          batchCat.set(
+            catRef.collection(grp).doc(tx.id),
+            { amount: tx.amount, date: tx.date, description: tx.description || null },
+            { merge: true }
+          );
+        }
         batchCat.set(catRef, spentByGroup, { merge: true });
         await batchCat.commit();
 
         // historyLimits
-        const limRef = db.collection('users').doc(userId)
-          .collection('historyLimits').doc(month)
+        const limGroupsRef = db.collection('users').doc(userId)
+          .collection('historyLimits').doc(mon)
           .collection('groups');
-        const batchLim = db.batch();
-        Object.entries(budgetsMap).forEach(([grp, limit]) => {
+        const batchLimits = db.batch();
+        for (const [grp, limit] of Object.entries(budgetsMap)) {
           const spent = spentByGroup[grp] || 0;
-          batchLim.set(limRef.doc(grp), { limit, spent }, { merge: true });
-        });
-        await batchLim.commit();
+          batchLimits.set(limGroupsRef.doc(grp), { limit, spent }, { merge: true });
+        }
+        await batchLimits.commit();
       }
 
-      // 5) Notificaciones por límites excedidos en mes actual
-      const currentMonth = new Date().toISOString().slice(0,7);
-      const limitsSnap = await db.collection('users').doc(userId)
-        .collection('historyLimits').doc(currentMonth)
+      // 6) Notificaciones
+      const currentMon = new Date().toISOString().slice(0,7);
+      const overSnap = await db.collection('users').doc(userId)
+        .collection('historyLimits').doc(currentMon)
         .collection('groups').get();
       const exceeded = [];
-      limitsSnap.forEach(doc => {
+      overSnap.forEach(doc => {
         const { spent, limit } = doc.data();
         if (spent > limit) exceeded.push({ name: doc.id, spent, limit });
       });
       if (exceeded.length) {
-        console.log(`⚠️ Excesos detectados para ${userId}:`, exceeded);
-        const subsSnap = await db.collection('users').doc(userId)
+        console.log(`⚠️ Excesos detectados:`, exceeded);
+        const subs = await db.collection('users').doc(userId)
           .collection('pushSubscriptions').get();
         const payload = {
           notification: {
@@ -202,8 +184,8 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
           }
         };
         const messaging = admin.messaging();
-        subsSnap.forEach(sub => {
-          const { token } = sub.data();
+        subs.forEach(s => {
+          const token = s.data().token;
           if (token) messaging.sendToDevice(token, payload);
         });
       }
