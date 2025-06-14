@@ -1,9 +1,15 @@
 // functions/index.js
-const functions = require('firebase-functions');
-const express = require('express');
-const cors = require('cors');
+
+// Carga variables de entorno
+require('dotenv').config();
+
+const functions   = require('firebase-functions');
+const express     = require('express');
+const cors        = require('cors');
 const plaidRoutes = require('./plaidRoutes');
-const { seed } = require('./seedTransactions');
+const { seed }    = require('./seedTransactions');
+// Importamos la función programada
+const { scheduledSync } = require('./scheduledSync');
 
 const app = express();
 
@@ -45,5 +51,8 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.message });
 });
 
-// Exporta la función para Firebase Functions
+// Exporta la API REST
 exports.api = functions.https.onRequest(app);
+
+// Exporta la función programada para que Firebase la despliegue y la vincule con Cloud Scheduler
+exports.scheduledSync = scheduledSync;

@@ -57,7 +57,7 @@ async function setupBackgroundFeatures() {
           console.log('[HOME] periodic-background-sync permission:', status.state);
           if (status.state === 'granted') {
             await registration.periodicSync.register('sync-transactions', {
-              minInterval: 24 * 60 * 60 * 1000
+              minInterval: 15 * 60 * 1000
             });
             console.log('[HOME] periodicSync registered');
           }
