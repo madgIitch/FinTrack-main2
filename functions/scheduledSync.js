@@ -1,12 +1,20 @@
 // functions/scheduledSync.js
-// Cloud Function HTTP para sincronizar Plaid y actualizar colecciones.
-// Invocar mediante Cloud Scheduler como job HTTP (método POST).
+// Cloud Function HTTP para sincronizar Plaid, recalcular datos y enviar notificaciones push
 
+require('dotenv').config();
 const functions = require('firebase-functions');
-const axios = require('axios');
-const { admin, db } = require('./firebaseAdmin');
+const axios     = require('axios');
+const webPush   = require('web-push');
+const { admin, db } = require('./firebaseAdmin'); // db = admin.firestore()
 
-// Normaliza cadenas (quita acentos, espacios → guiones bajos, minúsculas)
+// Configurar VAPID para Web Push
+webPush.setVapidDetails(
+  process.env.VAPID_SUBJECT,      // p.ej. 'mailto:tu-email@dominio.com'
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
+
+// Utilidad para normalizar cadenas: quitar acentos, espacios → guiones bajos, minúsculas
 function normalizeKey(str) {
   return str.toString()
     .normalize('NFD')
@@ -16,14 +24,6 @@ function normalizeKey(str) {
     .replace(/[^\w_]/g, '');
 }
 
-/**
- * HTTP endpoint para sincronizar:
- * - Migrar legacy history
- * - Llamar a get_transactions
- * - Insertar nuevas transacciones en history/{YYYY-MM}/items
- * - Recalcular historySummary, historyCategorias, historyLimits
- * - Enviar notificaciones de presupuesto excedido
- */
 exports.scheduledSync = functions.https.onRequest(async (req, res) => {
   // CORS básico
   res.set('Access-Control-Allow-Origin', '*');
@@ -37,7 +37,7 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
 
   console.log('🕒 scheduledSync HTTP iniciada:', new Date().toISOString());
 
-  // Construir URL base de la API usando ID de proyecto
+  // Determinar URL base de la API con el ID de proyecto
   const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
   if (!projectId) {
     console.error('❌ ERROR: No se ha detectado el ID de proyecto en entorno');
@@ -46,32 +46,33 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
   const apiBaseUrl = `https://us-central1-${projectId}.cloudfunctions.net`;
 
   try {
+    // Obtener todos los usuarios
     const usersSnap = await db.collection('users').get();
     for (const userDoc of usersSnap.docs) {
       const userId = userDoc.id;
       console.log(`🔄 Sync usuario: ${userId}`);
 
-      // 1) Migrar legacy: docs planos en history → history/{YYYY-MM}/items
+      // ── 1) Migrar legacy history plano → history/{YYYY-MM}/items
       const plainHistory = await db.collection('users').doc(userId)
         .collection('history').listDocuments();
       const migrateBatch = db.batch();
       for (const docRef of plainHistory) {
-        if (docRef.parent?.id === 'history') {
+        if (docRef.parent.id === 'history') {
           const snap = await docRef.get();
           const tx = snap.data();
           if (tx?.date?.slice?.(0,7)) {
             const mon = tx.date.slice(0,7);
-            const itemRef = db.collection('users').doc(userId)
+            const newRef = db.collection('users').doc(userId)
               .collection('history').doc(mon)
               .collection('items').doc(snap.id);
-            migrateBatch.set(itemRef, tx, { merge: true });
+            migrateBatch.set(newRef, tx, { merge: true });
           }
         }
       }
       await migrateBatch.commit();
       console.log('📦 Migración legacy history completada');
 
-      // 2) get_transactions
+      // ── 2) Traer transacciones de Plaid
       let newTxs = [];
       try {
         const resp = await axios.post(
@@ -83,11 +84,10 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         console.error(`❌ get_transactions falló para ${userId}:`, err.message);
       }
 
-      // 3) Guardar nuevas transacciones
+      // ── 3) Guardar nuevas transacciones en Firestore
       if (newTxs.length) {
         const batch = db.batch();
         for (const tx of newTxs) {
-          if (!tx.date?.slice?.(0,7)) continue;
           const mon = tx.date.slice(0,7);
           const ref = db.collection('users').doc(userId)
             .collection('history').doc(mon)
@@ -98,7 +98,7 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         console.log(`✅ Insertadas/actualizadas ${newTxs.length} transacciones`);
       }
 
-      // 4) Recalcular por mes
+      // ── 4) Recolectar transacciones por mes
       const monthDocs = await db.collection('users').doc(userId)
         .collection('history').listDocuments();
       const txsByMonth = {};
@@ -108,9 +108,9 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         txsByMonth[mon] = itemsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       }
 
-      // Cargar budgets y grupos
+      // ── 5) Cargar budgets y grupos de categoría
       const userSettings = (await db.collection('users').doc(userId).get()).data().settings || {};
-      const budgetsMap = userSettings.budgets || {};
+      const budgetsMap   = userSettings.budgets || {};
       const catGroupsSnap = await db.collection('categoryGroups').get();
       const catToGroup = {};
       catGroupsSnap.forEach(doc => {
@@ -122,22 +122,22 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         });
       });
 
-      // 5) Update summary, categorias y limits
+      // ── 6) Recalcular historySummary, historyCategorias y historyLimits
       for (const [mon, txs] of Object.entries(txsByMonth)) {
-        // historySummary
+        // 6a) historySummary
         const sumRef = db.collection('users').doc(userId)
           .collection('historySummary').doc(mon);
         const totalExp = txs.filter(t => t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
         const totalInc = txs.filter(t => t.amount >= 0).reduce((s,t) => s + t.amount, 0);
         await sumRef.set({ totalExpenses: totalExp, totalIncomes: totalInc, updatedAt: admin.firestore.Timestamp.now() });
 
-        // historyCategorias
+        // 6b) historyCategorias
         const catRef = db.collection('users').doc(userId)
           .collection('historyCategorias').doc(mon);
         const spentByGroup = {};
         const batchCat = db.batch();
         for (const tx of txs) {
-          const key = normalizeKey(tx.category || tx.personal_finance_category?.primary || 'otros');
+          const key = normalizeKey(tx.personal_finance_category?.primary || tx.category || 'otros');
           const grp = catToGroup[key] || 'Otros';
           const amt = tx.amount < 0 ? Math.abs(tx.amount) : 0;
           spentByGroup[grp] = (spentByGroup[grp] || 0) + amt;
@@ -150,48 +150,62 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         batchCat.set(catRef, spentByGroup, { merge: true });
         await batchCat.commit();
 
-        // historyLimits
+        // 6c) historyLimits
         const limGroupsRef = db.collection('users').doc(userId)
           .collection('historyLimits').doc(mon)
           .collection('groups');
-        const batchLimits = db.batch();
+        const batchLim = db.batch();
         for (const [grp, limit] of Object.entries(budgetsMap)) {
           const spent = spentByGroup[grp] || 0;
-          batchLimits.set(limGroupsRef.doc(grp), { limit, spent }, { merge: true });
+          batchLim.set(limGroupsRef.doc(grp), { limit, spent }, { merge: true });
         }
-        await batchLimits.commit();
+        await batchLim.commit();
       }
 
-      // 6) Notificaciones
+      // ── 7) Detectar excesos y enviar notificaciones Web Push
       const currentMon = new Date().toISOString().slice(0,7);
       const overSnap = await db.collection('users').doc(userId)
         .collection('historyLimits').doc(currentMon)
         .collection('groups').get();
+
       const exceeded = [];
       overSnap.forEach(doc => {
         const { spent, limit } = doc.data();
-        if (spent > limit) exceeded.push({ name: doc.id, spent, limit });
+        if (spent > limit) exceeded.push({ group: doc.id, spent, limit });
       });
+
       if (exceeded.length) {
-        console.log(`⚠️ Excesos detectados:`, exceeded);
-        const subs = await db.collection('users').doc(userId)
-          .collection('pushSubscriptions').get();
+        console.log(`⚠️ Excesos detectados para ${userId}:`, exceeded);
+        // Payload que enviaremos
         const payload = {
-          notification: {
-            title: '⚠️ Límite Excedido',
-            body: exceeded.map(e => `${e.name}: ${e.spent}€/ ${e.limit}€`).join('\n'),
-            icon: '/icons/alert.png'
-          }
+          title: '⚠️ Límite Excedido',
+          body:  exceeded.map(e => `${e.group}: ${e.spent}€/ ${e.limit}€`).join('\n'),
+          icon:  '/icons/alert.png',
+          tag:   'budget-exceeded',
+          data:  { userId, date: currentMon }
         };
-        const messaging = admin.messaging();
-        subs.forEach(s => {
-          const token = s.data().token;
-          if (token) messaging.sendToDevice(token, payload);
-        });
+
+        // Leer todas las suscripciones Web Push del usuario
+        const subsSnap = await db.collection('users').doc(userId)
+          .collection('pushSubscriptions').get();
+
+        for (const subDoc of subsSnap.docs) {
+          const subscription = subDoc.data();
+          try {
+            await webPush.sendNotification(
+              subscription,
+              JSON.stringify(payload)
+            );
+            console.log(`[push] enviado a ${userId}/${subDoc.id}`);
+          } catch (err) {
+            console.error(`[push] error enviando a ${userId}/${subDoc.id}:`, err);
+          }
+        }
       }
 
       console.log(`✅ Sync completo para ${userId}`);
     }
+
     return res.status(200).send('Sync completo');
   } catch (err) {
     console.error('❌ scheduledSync error:', err);

@@ -93,6 +93,58 @@ async function doFullSync() {
         console.error('[SW] Error en doFullSync:', err);
     }
 }
+// Escuchar push desde el servidor (Push API)
+self.addEventListener('push', (event)=>{
+    console.log('[SW] push recibido:', event);
+    let payload = {
+        title: "Notificaci\xf3n",
+        body: "Tienes una nueva notificaci\xf3n",
+        icon: '/icons/notification.png',
+        data: {}
+    };
+    try {
+        const json = event.data.json();
+        payload = {
+            title: json.title || payload.title,
+            body: json.body || payload.body,
+            icon: json.icon || payload.icon,
+            tag: json.tag,
+            renotify: json.renotify,
+            vibrate: json.vibrate,
+            data: json.data || {}
+        };
+    } catch (e) {
+        console.warn('[SW] payload no era JSON, usando valores por defecto');
+    }
+    const options = {
+        body: payload.body,
+        icon: payload.icon,
+        tag: payload.tag,
+        renotify: payload.renotify || false,
+        vibrate: payload.vibrate || [
+            100,
+            50,
+            100
+        ],
+        data: payload.data
+    };
+    event.waitUntil(self.registration.showNotification(payload.title, options));
+});
+// Gestionar click en la notificación
+self.addEventListener('notificationclick', (event)=>{
+    console.log('[SW] notificationclick:', event.notification.tag);
+    event.notification.close();
+    // Abrir o enfocar la aplicación en la página principal
+    event.waitUntil(clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true
+    }).then((windowClients)=>{
+        for (const client of windowClients){
+            if (client.url.includes('/pages/home.html') && 'focus' in client) return client.focus();
+        }
+        if (clients.openWindow) return clients.openWindow('/pages/home.html');
+    }));
+});
 // Obtener el UID desde IndexedDB (store: 'metadata', key: 'userId')
 function getUIDFromIndexedDB() {
     return new Promise((resolve, reject)=>{

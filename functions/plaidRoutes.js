@@ -343,5 +343,54 @@ router.post('/sync_history_limits_and_store', async (req, res) => {
   }
 });
 
+// ── Guardar Push Subscription ──────────────────────────────────────────────────
+router.post('/save_push_subscription', async (req, res) => {
+  console.log('[PLAIDROUTES] POST /save_push_subscription body:', req.body);
+  const { userId, subscription } = req.body;
+  if (!userId || !subscription || !subscription.endpoint) {
+    console.error('[PLAIDROUTES] Missing userId or subscription');
+    return res.status(400).json({ error: 'Falta userId o subscription' });
+  }
+  try {
+    const docId = encodeURIComponent(subscription.endpoint);
+    await db
+      .collection('users')
+      .doc(userId)
+      .collection('pushSubscriptions')
+      .doc(docId)
+      .set(subscription, { merge: true });
+    console.log('[PLAIDROUTES] Push subscription saved for user:', userId);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[PLAIDROUTES] save_push_subscription error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Eliminar Push Subscription ────────────────────────────────────────────────
+router.post('/delete_push_subscription', async (req, res) => {
+  console.log('[PLAIDROUTES] POST /delete_push_subscription body:', req.body);
+  const { userId, endpoint } = req.body;
+  if (!userId || !endpoint) {
+    console.error('[PLAIDROUTES] Missing userId or endpoint');
+    return res.status(400).json({ error: 'Falta userId o endpoint' });
+  }
+  try {
+    const docId = encodeURIComponent(endpoint);
+    await db
+      .collection('users')
+      .doc(userId)
+      .collection('pushSubscriptions')
+      .doc(docId)
+      .delete();
+    console.log('[PLAIDROUTES] Push subscription deleted for user:', userId);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[PLAIDROUTES] delete_push_subscription error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 module.exports = router;
