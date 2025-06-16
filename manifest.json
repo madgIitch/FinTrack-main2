@@ -7,7 +7,6 @@
   "theme_color": "#e0e0e0",
   "orientation": "portrait-primary",
   "lang": "en",
-  "gcm_sender_id": "103953800507",
   "permissions": [
     "periodic-background-sync"
   ],
