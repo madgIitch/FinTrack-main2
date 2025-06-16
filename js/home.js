@@ -29,11 +29,33 @@ async function requestNotificationPermission() {
     console.warn('[HOME] Este navegador no soporta notificaciones');
     return;
   }
+
+  if (Notification.permission === 'granted') {
+    // Ya otorgado, intentamos refrescar token en background
+    try {
+      const token = await getToken(messaging, {
+        vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao'
+      });
+      console.log('[HOME] FCM token refrescado:', token);
+      await fetch(`${apiUrl}/save_fcm_token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, userId: auth.currentUser.uid })
+      });
+    } catch (e) {
+      console.warn('[HOME] No se pudo obtener/guardar FCM token:', e);
+    }
+    return;
+  }
+
+  // Si no se ha decidido aún
   try {
     const perm = await Notification.requestPermission();
     console.log('[HOME] Notification.permission:', perm);
     if (perm === 'granted') {
-      const token = await getToken(messaging, { vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao' });
+      const token = await getToken(messaging, {
+        vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao'
+      });
       console.log('[HOME] FCM token obtenido:', token);
       await fetch(`${apiUrl}/save_fcm_token`, {
         method: 'POST',
@@ -42,7 +64,7 @@ async function requestNotificationPermission() {
       });
     }
   } catch (e) {
-    console.error('[HOME] Error al solicitar permiso:', e);
+    console.error('[HOME] Error al solicitar permiso de notificaciones:', e);
   }
 }
 
@@ -95,10 +117,10 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('[HOME] DOM ready');
 
   // Sidebar controls
-  const sidebar  = document.getElementById('sidebar');
-  const btnOpen  = document.getElementById('open-sidebar');
+  const sidebar = document.getElementById('sidebar');
+  const btnOpen = document.getElementById('open-sidebar');
   const btnClose = document.getElementById('close-sidebar');
-  btnOpen?.addEventListener('click',  () => sidebar?.classList.add('open'));
+  btnOpen?.addEventListener('click', () => sidebar?.classList.add('open'));
   btnClose?.addEventListener('click', () => sidebar?.classList.remove('open'));
 
   // Logout
@@ -113,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// ── Auth state listener y lógica de notificaciones ─────────────────────────
+// ── Auth state listener y lógica de notificaciones (solo un prompt) ────────
 onAuthStateChanged(auth, async user => {
   console.log('[HOME] Auth state changed:', user);
   if (!user) {
@@ -121,12 +143,11 @@ onAuthStateChanged(auth, async user => {
     return;
   }
 
-  // Gestionar permiso de notificaciones tras login
+  // Solicitar permiso de notificaciones si no se ha decidido
   if (Notification.permission === 'default') {
-    const ask = confirm('¿Deseas activar notificaciones para esta página?');
-    if (ask) await requestNotificationPermission();
+    await requestNotificationPermission();
   } else if (Notification.permission === 'granted') {
-    // Refrescar token en caso de recarga
+    // Refrescar token FCM sin más prompts
     await requestNotificationPermission();
   }
 
@@ -152,7 +173,7 @@ onAuthStateChanged(auth, async user => {
 async function manualSync(uid) {
   const key = `lastSync_${uid}`;
   const last = Number(localStorage.getItem(key));
-  const now  = Date.now();
+  const now = Date.now();
   if (last && now - last < 24 * 60 * 60 * 1000) {
     console.log('[HOME] Manual sync skipped (recent)');
     return;
@@ -219,7 +240,6 @@ function initSlider() {
   const prev = document.getElementById('balance-prev');
   const next = document.getElementById('balance-next');
   dots.innerHTML = '';
-
   slides.forEach((_, i) => {
     const d = document.createElement('div');
     d.className = `slider-dot${i === 0 ? ' active' : ''}`;
@@ -228,7 +248,6 @@ function initSlider() {
   });
   prev.onclick = () => { idx = (idx - 1 + slides.length) % slides.length; update(); };
   next.onclick = () => { idx = (idx + 1) % slides.length; update(); };
-
   function update() {
     slider.style.transform = `translateX(-${idx * 100}%)`;
     dots.childNodes.forEach((dot, i) =>
@@ -263,49 +282,27 @@ async function loadMonthlyChart(userId) {
     snap = await getDocs(col);
     console.log('[HOME] Chart data from cache');
   }
-
   const docs = snap.docs.sort((a, b) => a.id.localeCompare(b.id));
   const categories = docs.map(d => d.id);
-  const expenses   = docs.map(d => d.data().totalExpenses || 0);
-  const incomes    = docs.map(d => d.data().totalIncomes  || 0);
-
+  const expenses = docs.map(d => d.data().totalExpenses || 0);
+  const incomes = docs.map(d => d.data().totalIncomes || 0);
   const options = {
     chart: { type: 'bar', toolbar: { show: false } },
     series: [
-      { name: 'Gastos',   data: expenses },
-      { name: 'Ingresos', data: incomes  }
+      { name: 'Gastos', data: expenses },
+      { name: 'Ingresos', data: incomes }
     ],
     plotOptions: { bar: { borderRadius: 4, columnWidth: '40%' } },
-    dataLabels: {
-      enabled: true,
-      offsetY: -10,
-      style: { fontSize: '12px' },
-      formatter: v => new Intl.NumberFormat('es-ES', {
-        style: 'currency', currency: 'EUR'
-      }).format(v)
-    },
+    dataLabels: { enabled: true, offsetY: -10, style: { fontSize: '12px' }, formatter: v => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(v) },
     xaxis: { categories },
-    yaxis: {
-      labels: {
-        formatter: v => new Intl.NumberFormat('es-ES', {
-          style: 'currency', currency: 'EUR'
-        }).format(v)
-      }
-    },
-    tooltip: {
-      y: {
-        formatter: v => new Intl.NumberFormat('es-ES', {
-          style: 'currency', currency: 'EUR'
-        }).format(v)
-      }
-    },
+    yaxis: { labels: { formatter: v => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(v) } },
+    tooltip: { y: { formatter: v => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(v) } },
     legend: { position: 'bottom' },
     grid: { borderColor: '#eee' }
   };
-
   const el = document.querySelector('#monthlyChart');
   if (!el) return;
-  el.innerHTML = '';  
+  el.innerHTML = '';
   if (monthlyChart) { try { monthlyChart.destroy(); } catch {} }
   monthlyChart = new ApexCharts(el, options);
   monthlyChart.render();

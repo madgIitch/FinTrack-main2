@@ -679,6 +679,29 @@ async function requestNotificationPermission() {
         console.warn('[HOME] Este navegador no soporta notificaciones');
         return;
     }
+    if (Notification.permission === 'granted') {
+        // Ya otorgado, intentamos refrescar token en background
+        try {
+            const token = await (0, _messaging.getToken)(messaging, {
+                vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao'
+            });
+            console.log('[HOME] FCM token refrescado:', token);
+            await fetch(`${apiUrl}/save_fcm_token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    token,
+                    userId: (0, _firebaseJs.auth).currentUser.uid
+                })
+            });
+        } catch (e) {
+            console.warn('[HOME] No se pudo obtener/guardar FCM token:', e);
+        }
+        return;
+    }
+    // Si no se ha decidido aún
     try {
         const perm = await Notification.requestPermission();
         console.log('[HOME] Notification.permission:', perm);
@@ -699,7 +722,7 @@ async function requestNotificationPermission() {
             });
         }
     } catch (e) {
-        console.error('[HOME] Error al solicitar permiso:', e);
+        console.error('[HOME] Error al solicitar permiso de notificaciones:', e);
     }
 }
 // ── Registrar Service Worker y periodicSync ────────────────────────────────
@@ -759,18 +782,16 @@ document.addEventListener('DOMContentLoaded', ()=>{
         }
     });
 });
-// ── Auth state listener y lógica de notificaciones ─────────────────────────
+// ── Auth state listener y lógica de notificaciones (solo un prompt) ────────
 (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
     console.log('[HOME] Auth state changed:', user);
     if (!user) {
         location.href = '../index.html';
         return;
     }
-    // Gestionar permiso de notificaciones tras login
-    if (Notification.permission === 'default') {
-        const ask = confirm("\xbfDeseas activar notificaciones para esta p\xe1gina?");
-        if (ask) await requestNotificationPermission();
-    } else if (Notification.permission === 'granted') // Refrescar token en caso de recarga
+    // Solicitar permiso de notificaciones si no se ha decidido
+    if (Notification.permission === 'default') await requestNotificationPermission();
+    else if (Notification.permission === 'granted') // Refrescar token FCM sin más prompts
     await requestNotificationPermission();
     // Mostrar nombre de usuario
     try {
