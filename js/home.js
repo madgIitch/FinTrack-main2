@@ -21,31 +21,28 @@ const apiUrl = window.location.hostname === 'localhost'
   ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
   : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 
-// ── Solicitar permiso de notificaciones en Home ───────────────────────────
+let monthlyChart = null;
+
+// ── Petición de permiso de notificaciones (requiere gesto de usuario) ─────
 async function requestNotificationPermission() {
   if (!('Notification' in window)) {
     console.warn('[HOME] Este navegador no soporta notificaciones');
     return;
   }
-  if (Notification.permission === 'default') {
-    try {
-      const perm = await Notification.requestPermission();
-      console.log('[HOME] Notification.permission:', perm);
-      if (perm === 'granted') {
-        // Opcional: obtener token FCM para usar en home
-        try {
-          const token = await getToken(messaging, { vapidKey: '<VAPID_PUBLIC_KEY>' });
-          console.log('[HOME] FCM token:', token);
-          // Aquí podrías guardar el token en Firestore o enviarlo a tu backend
-        } catch (e) {
-          console.error('[HOME] Error obteniendo token FCM:', e);
-        }
-      }
-    } catch (e) {
-      console.error('[HOME] Error al solicitar permiso de notificaciones:', e);
+  try {
+    const perm = await Notification.requestPermission();
+    console.log('[HOME] Notification.permission:', perm);
+    if (perm === 'granted') {
+      const token = await getToken(messaging, { vapidKey: '<VAPID_PUBLIC_KEY>' });
+      console.log('[HOME] FCM token obtenido:', token);
+      await fetch(`${apiUrl}/save_fcm_token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, userId: auth.currentUser.uid })
+      });
     }
-  } else {
-    console.log('[HOME] Permiso de notificaciones ya asignado:', Notification.permission);
+  } catch (e) {
+    console.error('[HOME] Error al solicitar permiso:', e);
   }
 }
 
@@ -61,9 +58,6 @@ async function setupBackgroundSync() {
       { scope: '/' }
     );
     console.log('[HOME] SW registered, scope:', registration.scope);
-
-    // Solicitar permiso de notificaciones
-    await requestNotificationPermission();
 
     // One-off sync
     if ('sync' in registration) {
@@ -100,15 +94,23 @@ window.addEventListener('load', setupBackgroundSync);
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[HOME] DOM ready');
 
+  // Si permiso notificaciones es default, preguntar al entrar
+  if (Notification.permission === 'default') {
+    const ask = confirm('¿Deseas activar notificaciones para esta página?');
+    if (ask) {
+      requestNotificationPermission();
+    }
+  }
+
   // Sidebar controls
-  const sidebar     = document.getElementById('sidebar');
-  const btnOpen     = document.getElementById('open-sidebar');
-  const btnClose    = document.getElementById('close-sidebar');
-  btnOpen.addEventListener('click',  () => sidebar.classList.add('open'));
-  btnClose.addEventListener('click', () => sidebar.classList.remove('open'));
+  const sidebar  = document.getElementById('sidebar');
+  const btnOpen  = document.getElementById('open-sidebar');
+  const btnClose = document.getElementById('close-sidebar');
+  btnOpen?.addEventListener('click',  () => sidebar?.classList.add('open'));
+  btnClose?.addEventListener('click', () => sidebar?.classList.remove('open'));
 
   // Logout
-  document.getElementById('logout-link').addEventListener('click', async e => {
+  document.getElementById('logout-link')?.addEventListener('click', async e => {
     e.preventDefault();
     try {
       await signOut(auth);
@@ -128,10 +130,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Mostrar nombre de usuario
     try {
-      const snap = await getDoc(doc(db, 'users', user.uid));
+      const userDoc = doc(db, 'users', user.uid);
+      const snap = await getDoc(userDoc);
       const data = snap.exists() ? snap.data() : {};
-      const name = [data.firstName, data.lastName]
-        .filter(Boolean).join(' ') || 'Usuario';
+      const name = [data.firstName, data.lastName].filter(Boolean).join(' ') || 'Usuario';
       document.getElementById('user-name').textContent = name;
     } catch (e) {
       console.error('[HOME] load profile failed:', e);
@@ -175,7 +177,8 @@ async function manualSync(uid) {
 // ── Carga de balances en slider ────────────────────────────────────────────
 async function loadBalances(userId) {
   console.log('[HOME] Loading balances for', userId);
-  const snap = await getDoc(doc(db, 'users', userId));
+  const userDoc = doc(db, 'users', userId);
+  const snap = await getDoc(userDoc);
   const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
   const slider = document.querySelector('.balance-slider');
   slider.innerHTML = '';
@@ -227,7 +230,7 @@ function initSlider() {
 
   function update() {
     slider.style.transform = `translateX(-${idx * 100}%)`;
-    dots.childNodes.forEach((dot, i) => 
+    dots.childNodes.forEach((dot, i) =>
       dot.classList.toggle('active', i === idx)
     );
   }
@@ -302,7 +305,9 @@ async function loadMonthlyChart(userId) {
   const el = document.querySelector('#monthlyChart');
   if (!el) return;
   el.innerHTML = '';
-  if (monthlyChart) monthlyChart.destroy();
+  if (monthlyChart) {
+    try { monthlyChart.destroy(); } catch {};
+  }
   monthlyChart = new ApexCharts(el, options);
   monthlyChart.render();
 }
