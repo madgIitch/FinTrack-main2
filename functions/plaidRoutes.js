@@ -391,6 +391,16 @@ router.post('/delete_push_subscription', async (req, res) => {
   }
 });
 
+router.post('/save_fcm_token', async (req, res) => {
+  const { userId, token } = req.body;
+  if (!userId || !token) return res.status(400).json({ error: 'Faltan userId o token' });
+  await db.collection('users').doc(userId)
+    .collection('fcmTokens').doc(token)
+    .set({ createdAt: admin.firestore.Timestamp.now() });
+  return res.json({ ok: true });
+});
+
+
 
 
 module.exports = router;

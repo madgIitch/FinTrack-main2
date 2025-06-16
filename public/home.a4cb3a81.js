@@ -684,7 +684,7 @@ async function requestNotificationPermission() {
         console.log('[HOME] Notification.permission:', perm);
         if (perm === 'granted') {
             const token = await (0, _messaging.getToken)(messaging, {
-                vapidKey: '<VAPID_PUBLIC_KEY>'
+                vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao'
             });
             console.log('[HOME] FCM token obtenido:', token);
             await fetch(`${apiUrl}/save_fcm_token`, {
@@ -742,11 +742,6 @@ async function setupBackgroundSync() {
 window.addEventListener('load', setupBackgroundSync);
 document.addEventListener('DOMContentLoaded', ()=>{
     console.log('[HOME] DOM ready');
-    // Si permiso notificaciones es default, preguntar al entrar
-    if (Notification.permission === 'default') {
-        const ask = confirm("\xbfDeseas activar notificaciones para esta p\xe1gina?");
-        if (ask) requestNotificationPermission();
-    }
     // Sidebar controls
     const sidebar = document.getElementById('sidebar');
     const btnOpen = document.getElementById('open-sidebar');
@@ -763,32 +758,38 @@ document.addEventListener('DOMContentLoaded', ()=>{
             console.error('[HOME] signOut failed:', e);
         }
     });
-    // Auth state listener
-    (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
-        console.log('[HOME] Auth state changed:', user);
-        if (!user) {
-            location.href = '../index.html';
-            return;
-        }
-        // Mostrar nombre de usuario
-        try {
-            const userDoc = (0, _firestore.doc)(db, 'users', user.uid);
-            const snap = await (0, _firestore.getDoc)(userDoc);
-            const data = snap.exists() ? snap.data() : {};
-            const name = [
-                data.firstName,
-                data.lastName
-            ].filter(Boolean).join(' ') || 'Usuario';
-            document.getElementById('user-name').textContent = name;
-        } catch (e) {
-            console.error('[HOME] load profile failed:', e);
-        }
-        // Lógica de la app
-        await manualSync(user.uid);
-        await loadBalances(user.uid);
-        await saveUID(user.uid);
-        await loadMonthlyChart(user.uid);
-    });
+});
+// ── Auth state listener y lógica de notificaciones ─────────────────────────
+(0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
+    console.log('[HOME] Auth state changed:', user);
+    if (!user) {
+        location.href = '../index.html';
+        return;
+    }
+    // Gestionar permiso de notificaciones tras login
+    if (Notification.permission === 'default') {
+        const ask = confirm("\xbfDeseas activar notificaciones para esta p\xe1gina?");
+        if (ask) await requestNotificationPermission();
+    } else if (Notification.permission === 'granted') // Refrescar token en caso de recarga
+    await requestNotificationPermission();
+    // Mostrar nombre de usuario
+    try {
+        const userDoc = (0, _firestore.doc)(db, 'users', user.uid);
+        const snap = await (0, _firestore.getDoc)(userDoc);
+        const data = snap.exists() ? snap.data() : {};
+        const name = [
+            data.firstName,
+            data.lastName
+        ].filter(Boolean).join(' ') || 'Usuario';
+        document.getElementById('user-name').textContent = name;
+    } catch (e) {
+        console.error('[HOME] load profile failed:', e);
+    }
+    // Lógica de la app
+    await manualSync(user.uid);
+    await loadBalances(user.uid);
+    await saveUID(user.uid);
+    await loadMonthlyChart(user.uid);
 });
 // ── Manual Sync (throttle 24h) ─────────────────────────────────────────────
 async function manualSync(uid) {

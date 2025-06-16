@@ -33,7 +33,7 @@ async function requestNotificationPermission() {
     const perm = await Notification.requestPermission();
     console.log('[HOME] Notification.permission:', perm);
     if (perm === 'granted') {
-      const token = await getToken(messaging, { vapidKey: '<VAPID_PUBLIC_KEY>' });
+      const token = await getToken(messaging, { vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao' });
       console.log('[HOME] FCM token obtenido:', token);
       await fetch(`${apiUrl}/save_fcm_token`, {
         method: 'POST',
@@ -94,14 +94,6 @@ window.addEventListener('load', setupBackgroundSync);
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[HOME] DOM ready');
 
-  // Si permiso notificaciones es default, preguntar al entrar
-  if (Notification.permission === 'default') {
-    const ask = confirm('¿Deseas activar notificaciones para esta página?');
-    if (ask) {
-      requestNotificationPermission();
-    }
-  }
-
   // Sidebar controls
   const sidebar  = document.getElementById('sidebar');
   const btnOpen  = document.getElementById('open-sidebar');
@@ -119,32 +111,41 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('[HOME] signOut failed:', e);
     }
   });
+});
 
-  // Auth state listener
-  onAuthStateChanged(auth, async user => {
-    console.log('[HOME] Auth state changed:', user);
-    if (!user) {
-      location.href = '../index.html';
-      return;
-    }
+// ── Auth state listener y lógica de notificaciones ─────────────────────────
+onAuthStateChanged(auth, async user => {
+  console.log('[HOME] Auth state changed:', user);
+  if (!user) {
+    location.href = '../index.html';
+    return;
+  }
 
-    // Mostrar nombre de usuario
-    try {
-      const userDoc = doc(db, 'users', user.uid);
-      const snap = await getDoc(userDoc);
-      const data = snap.exists() ? snap.data() : {};
-      const name = [data.firstName, data.lastName].filter(Boolean).join(' ') || 'Usuario';
-      document.getElementById('user-name').textContent = name;
-    } catch (e) {
-      console.error('[HOME] load profile failed:', e);
-    }
+  // Gestionar permiso de notificaciones tras login
+  if (Notification.permission === 'default') {
+    const ask = confirm('¿Deseas activar notificaciones para esta página?');
+    if (ask) await requestNotificationPermission();
+  } else if (Notification.permission === 'granted') {
+    // Refrescar token en caso de recarga
+    await requestNotificationPermission();
+  }
 
-    // Lógica de la app
-    await manualSync(user.uid);
-    await loadBalances(user.uid);
-    await saveUID(user.uid);
-    await loadMonthlyChart(user.uid);
-  });
+  // Mostrar nombre de usuario
+  try {
+    const userDoc = doc(db, 'users', user.uid);
+    const snap = await getDoc(userDoc);
+    const data = snap.exists() ? snap.data() : {};
+    const name = [data.firstName, data.lastName].filter(Boolean).join(' ') || 'Usuario';
+    document.getElementById('user-name').textContent = name;
+  } catch (e) {
+    console.error('[HOME] load profile failed:', e);
+  }
+
+  // Lógica de la app
+  await manualSync(user.uid);
+  await loadBalances(user.uid);
+  await saveUID(user.uid);
+  await loadMonthlyChart(user.uid);
 });
 
 // ── Manual Sync (throttle 24h) ─────────────────────────────────────────────
@@ -304,10 +305,8 @@ async function loadMonthlyChart(userId) {
 
   const el = document.querySelector('#monthlyChart');
   if (!el) return;
-  el.innerHTML = '';
-  if (monthlyChart) {
-    try { monthlyChart.destroy(); } catch {};
-  }
+  el.innerHTML = '';  
+  if (monthlyChart) { try { monthlyChart.destroy(); } catch {} }
   monthlyChart = new ApexCharts(el, options);
   monthlyChart.render();
 }

@@ -1,18 +1,10 @@
 // functions/scheduledSync.js
-// Cloud Function HTTP para sincronizar Plaid, recalcular datos y enviar notificaciones push
+// Cloud Function HTTP para sincronizar Plaid, recalcular datos y enviar notificaciones push vía FCM
 
 require('dotenv').config();
 const functions = require('firebase-functions');
 const axios     = require('axios');
-const webPush   = require('web-push');
 const { admin, db } = require('./firebaseAdmin'); // db = admin.firestore()
-
-// Configurar VAPID para Web Push
-webPush.setVapidDetails(
-  process.env.VAPID_SUBJECT,      // p.ej. 'mailto:tu-email@dominio.com'
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
 
 // Utilidad para normalizar cadenas: quitar acentos, espacios → guiones bajos, minúsculas
 function normalizeKey(str) {
@@ -162,7 +154,7 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         await batchLim.commit();
       }
 
-      // ── 7) Detectar excesos y enviar notificaciones Web Push
+      // ── 7) Detectar excesos y enviar notificaciones vía FCM
       const currentMon = new Date().toISOString().slice(0,7);
       const overSnap = await db.collection('users').doc(userId)
         .collection('historyLimits').doc(currentMon)
@@ -176,30 +168,21 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
 
       if (exceeded.length) {
         console.log(`⚠️ Excesos detectados para ${userId}:`, exceeded);
-        // Payload que enviaremos
-        const payload = {
-          title: '⚠️ Límite Excedido',
-          body:  exceeded.map(e => `${e.group}: ${e.spent}€/ ${e.limit}€`).join('\n'),
-          icon:  '/icons/alert.png',
-          tag:   'budget-exceeded',
-          data:  { userId, date: currentMon }
-        };
-
-        // Leer todas las suscripciones Web Push del usuario
-        const subsSnap = await db.collection('users').doc(userId)
-          .collection('pushSubscriptions').get();
-
-        for (const subDoc of subsSnap.docs) {
-          const subscription = subDoc.data();
-          try {
-            await webPush.sendNotification(
-              subscription,
-              JSON.stringify(payload)
-            );
-            console.log(`[push] enviado a ${userId}/${subDoc.id}`);
-          } catch (err) {
-            console.error(`[push] error enviando a ${userId}/${subDoc.id}:`, err);
-          }
+        // Obtener tokens FCM del usuario
+        const tokensSnap = await db.collection('users').doc(userId)
+          .collection('fcmTokens').get();
+        const tokens = tokensSnap.docs.map(d => d.id);
+        if (tokens.length) {
+          const message = {
+            tokens,
+            notification: {
+              title: '⚠️ Límite Excedido',
+              body: exceeded.map(e => `${e.group}: ${e.spent}€ / ${e.limit}€`).join('\n')
+            },
+            data: { period: currentMon, userId }
+          };
+          const response = await admin.messaging().sendMulticast(message);
+          console.log(`📣 Notificaciones FCM enviadas (${response.successCount}/${tokens.length}) para ${userId}`);
         }
       }
 
