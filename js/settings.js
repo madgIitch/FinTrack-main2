@@ -7,126 +7,91 @@ import {
   getDoc,
   updateDoc,
   collection,
-  getDocs
+  getDocs,
+  serverTimestamp
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
+import {
+  getMessaging,
+  getToken,
+  deleteToken
+} from 'firebase/messaging';
 
 const db = getFirestore(app);
-
-// URL de tu API (ajústala según entorno)
-const apiUrl = window.location.hostname === 'localhost'
-  ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
-  : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
+const messaging = getMessaging(app);
 
 // Tu clave pública VAPID (Firebase Console → Cloud Messaging → Web push certificates)
 const VAPID_PUBLIC_KEY = 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao';
 
-// Helper: convierte Base64 URL-safe en Uint8Array
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding)
-    .replace(/-/g, '+')
-    .replace(/_/g, '/');
-  const raw = window.atob(base64);
-  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
-}
-
-// Suscribe al usuario a Push y guarda la suscripción en tu backend
-// Suscribe al usuario a Push y guarda la suscripción en tu backend
+// ── Suscripción Push con FCM ────────────────────────────────────────────────
 async function subscribeUserToPush() {
   console.group('[settings.js] ► subscribeUserToPush START');
   try {
-    if (!('serviceWorker' in navigator)) throw new Error('No hay support para serviceWorker');
-    if (!('PushManager' in window))   throw new Error('No hay support para PushManager');
+    const user = auth.currentUser;
+    if (!user) throw new Error('No user logged in');
+    const userId = user.uid;
 
-    // 1) Espera a que el SW esté listo
-    const reg = await navigator.serviceWorker.ready;
-    console.log('[settings.js] ServiceWorkerRegistration:', reg);
+    // Solicitar token FCM
+    const currentToken = await getToken(messaging, { vapidKey: VAPID_PUBLIC_KEY });
+    console.log('[settings.js] FCM token obtenido:', currentToken);
 
-    // 2) Verifica estado de permiso de Push (Chrome 80+)
-    try {
-      const permissionState = await reg.pushManager.permissionState({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-      });
-      console.log('[settings.js] push permissionState:', permissionState);
-    } catch (permErr) {
-      console.warn('[settings.js] No se pudo obtener permissionState:', permErr.name, permErr.message);
+    if (currentToken) {
+      // Guardar token en Firestore
+      await db
+        .collection('users')
+        .doc(userId)
+        .collection('fcmTokens')
+        .doc(currentToken)
+        .set({
+          createdAt: serverTimestamp(),
+          userAgent: navigator.userAgent
+        });
+      console.log('[settings.js] Token FCM guardado en Firestore');
+    } else {
+      console.warn('[settings.js] No se pudo obtener token de registro FCM.');
     }
-
-    // 3) Revisa si ya existe suscripción
-    const existing = await reg.pushManager.getSubscription();
-    console.log('[settings.js] existing subscription:', existing);
-    if (existing) {
-      console.log('[settings.js] Ya estaba suscrito.');
-      console.groupEnd();
-      return existing;
-    }
-
-    // 4) Se suscribe
-    console.log('[settings.js] Intentando subscribe() con VAPID key…');
-    const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-    console.log('[settings.js] applicationServerKey bytes:', applicationServerKey);
-
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey
-    });
-    console.log('[settings.js] subscribe() OK, sub:', sub);
-
-    // 5) Envía al backend (ahora incluyendo el userId)
-    const userId = auth.currentUser?.uid;
-    console.log('[settings.js] Enviando sub al backend para userId:', userId);
-    const resp = await fetch(`${apiUrl}/plaid/save_push_subscription`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId,
-        subscription: sub
-      })
-    });
-    console.log('[settings.js] save_push_subscription response:', resp.status, await resp.text());
-
-    console.groupEnd();
-    return sub;
   } catch (err) {
-    console.error(
-      '[settings.js] ► subscribeUserToPush ERROR:',
-      err.name, err.message,
-      '\nstack:', err.stack
-    );
-    console.groupEnd();
+    console.error('[settings.js] subscribeUserToPush ERROR:', err);
     throw err;
+  } finally {
+    console.groupEnd();
   }
 }
 
-// Da de baja la suscripción y notifica al backend para eliminarla
 async function unsubscribeUserFromPush() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-  const reg = await navigator.serviceWorker.ready;
-  const existing = await reg.pushManager.getSubscription();
-  console.log('[settings.js] Existing subscription to unsubscribe:', existing);
-  if (!existing) return;
+  console.group('[settings.js] ► unsubscribeUserFromPush START');
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error('No user logged in');
+    const userId = user.uid;
 
-  console.log('[settings.js] Unsubscribing…');
-  await existing.unsubscribe();
-  console.log('[settings.js] Unsubscribed from Push');
+    // Obtener el token actual
+    const currentToken = await getToken(messaging, { vapidKey: VAPID_PUBLIC_KEY });
+    if (currentToken) {
+      // Eliminar token en el cliente
+      const deleted = await deleteToken(messaging);
+      console.log('[settings.js] Token FCM eliminado en cliente:', deleted);
 
-  // Notifica al servidor para eliminarla (incluye userId)
-  const userId = auth.currentUser?.uid;
-  console.log('[settings.js] Notifying server to delete subscription for userId:', userId);
-  const resp = await fetch(`${apiUrl}/plaid/delete_push_subscription`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId,
-      endpoint: existing.endpoint
-    })
-  });
-  console.log('[settings.js] delete_push_subscription response:', resp.status, await resp.text());
+      // Eliminar token de Firestore
+      await db
+        .collection('users')
+        .doc(userId)
+        .collection('fcmTokens')
+        .doc(currentToken)
+        .delete();
+      console.log('[settings.js] Token FCM eliminado de Firestore');
+    } else {
+      console.warn('[settings.js] No hay token FCM para eliminar.');
+    }
+  } catch (err) {
+    console.error('[settings.js] unsubscribeUserFromPush ERROR:', err);
+    throw err;
+  } finally {
+    console.groupEnd();
+  }
 }
 
-// Crea una fila de presupuesto dinámicamente
+// ── Crea una fila de presupuesto dinámicamente ──────────────────────────────
 function createBudgetRow(selectedCategory = '', amount = '') {
   const rowDiv = document.createElement('div');
   rowDiv.className = 'budget-row';

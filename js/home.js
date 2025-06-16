@@ -1,5 +1,3 @@
-// public/js/home.js
-
 import { auth, app } from './firebase.js';
 import {
   getFirestore,
@@ -10,16 +8,46 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { getMessaging, getToken } from 'firebase/messaging';
 
 console.log('[HOME] loaded');
 
-// ── Firestore instance ────────────────────────────────────────────────────
+// ── Firestore & Messaging ─────────────────────────────────────────────────
 const db = getFirestore(app);
+const messaging = getMessaging(app);
 
 // API URL (ajústalo según tu entorno)
 const apiUrl = window.location.hostname === 'localhost'
   ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
   : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
+
+// ── Solicitar permiso de notificaciones en Home ───────────────────────────
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) {
+    console.warn('[HOME] Este navegador no soporta notificaciones');
+    return;
+  }
+  if (Notification.permission === 'default') {
+    try {
+      const perm = await Notification.requestPermission();
+      console.log('[HOME] Notification.permission:', perm);
+      if (perm === 'granted') {
+        // Opcional: obtener token FCM para usar en home
+        try {
+          const token = await getToken(messaging, { vapidKey: '<VAPID_PUBLIC_KEY>' });
+          console.log('[HOME] FCM token:', token);
+          // Aquí podrías guardar el token en Firestore o enviarlo a tu backend
+        } catch (e) {
+          console.error('[HOME] Error obteniendo token FCM:', e);
+        }
+      }
+    } catch (e) {
+      console.error('[HOME] Error al solicitar permiso de notificaciones:', e);
+    }
+  } else {
+    console.log('[HOME] Permiso de notificaciones ya asignado:', Notification.permission);
+  }
+}
 
 // ── Registrar Service Worker y periodicSync ────────────────────────────────
 async function setupBackgroundSync() {
@@ -33,6 +61,9 @@ async function setupBackgroundSync() {
       { scope: '/' }
     );
     console.log('[HOME] SW registered, scope:', registration.scope);
+
+    // Solicitar permiso de notificaciones
+    await requestNotificationPermission();
 
     // One-off sync
     if ('sync' in registration) {
@@ -66,7 +97,6 @@ async function setupBackgroundSync() {
 
 window.addEventListener('load', setupBackgroundSync);
 
-// ── DOM & Auth Setup ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[HOME] DOM ready');
 
@@ -218,8 +248,6 @@ async function saveUID(uid) {
 }
 
 // ── Monthly Chart (historySummary) ────────────────────────────────────────
-let monthlyChart = null;
-
 async function loadMonthlyChart(userId) {
   console.log('[HOME] Loading chart for', userId);
   const col = collection(db, 'users', userId, 'historySummary');

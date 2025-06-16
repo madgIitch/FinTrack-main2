@@ -662,15 +662,40 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"9wRWw":[function(require,module,exports,__globalThis) {
-// public/js/home.js
 var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
 var _auth = require("firebase/auth");
+var _messaging = require("firebase/messaging");
 console.log('[HOME] loaded');
-// ── Firestore instance ────────────────────────────────────────────────────
+// ── Firestore & Messaging ─────────────────────────────────────────────────
 const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
+const messaging = (0, _messaging.getMessaging)((0, _firebaseJs.app));
 // API URL (ajústalo según tu entorno)
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
+// ── Solicitar permiso de notificaciones en Home ───────────────────────────
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) {
+        console.warn('[HOME] Este navegador no soporta notificaciones');
+        return;
+    }
+    if (Notification.permission === 'default') try {
+        const perm = await Notification.requestPermission();
+        console.log('[HOME] Notification.permission:', perm);
+        if (perm === 'granted') // Opcional: obtener token FCM para usar en home
+        try {
+            const token = await (0, _messaging.getToken)(messaging, {
+                vapidKey: '<VAPID_PUBLIC_KEY>'
+            });
+            console.log('[HOME] FCM token:', token);
+        // Aquí podrías guardar el token en Firestore o enviarlo a tu backend
+        } catch (e) {
+            console.error('[HOME] Error obteniendo token FCM:', e);
+        }
+    } catch (e) {
+        console.error('[HOME] Error al solicitar permiso de notificaciones:', e);
+    }
+    else console.log('[HOME] Permiso de notificaciones ya asignado:', Notification.permission);
+}
 // ── Registrar Service Worker y periodicSync ────────────────────────────────
 async function setupBackgroundSync() {
     if (!('serviceWorker' in navigator)) {
@@ -682,6 +707,8 @@ async function setupBackgroundSync() {
             scope: '/'
         });
         console.log('[HOME] SW registered, scope:', registration.scope);
+        // Solicitar permiso de notificaciones
+        await requestNotificationPermission();
         // One-off sync
         if ('sync' in registration) try {
             await registration.sync.register('sync-transactions');
@@ -709,7 +736,6 @@ async function setupBackgroundSync() {
     }
 }
 window.addEventListener('load', setupBackgroundSync);
-// ── DOM & Auth Setup ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', ()=>{
     console.log('[HOME] DOM ready');
     // Sidebar controls
@@ -861,7 +887,6 @@ async function saveUID(uid) {
     };
 }
 // ── Monthly Chart (historySummary) ────────────────────────────────────────
-let monthlyChart = null;
 async function loadMonthlyChart(userId) {
     console.log('[HOME] Loading chart for', userId);
     const col = (0, _firestore.collection)(db, 'users', userId, 'historySummary');
@@ -945,7 +970,7 @@ async function loadMonthlyChart(userId) {
     monthlyChart.render();
 }
 
-},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","f49e69e7fb1d94f5":"170CW"}],"170CW":[function(require,module,exports,__globalThis) {
+},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","firebase/messaging":"h14Q4","f49e69e7fb1d94f5":"170CW"}],"170CW":[function(require,module,exports,__globalThis) {
 module.exports = module.bundle.resolve("service-worker.js");
 
 },{}]},["Ahhet","9wRWw"], "9wRWw", "parcelRequire94c2", "./", "/")
