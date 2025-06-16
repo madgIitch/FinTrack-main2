@@ -13,6 +13,7 @@
   },
   "main": "index.js",
   "dependencies": {
+    "@firebase/messaging": "^0.12.21",
     "apexcharts": "^4.7.0",
     "chart.js": "^4.4.9",
     "cors": "^2.8.5",

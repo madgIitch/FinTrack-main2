@@ -162,11 +162,10 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         await batchLim.commit();
       }
 
-      // ── 7) Detectar excesos y enviar notificaciones Web Push
+       // 7) Detectar excesos y enviar Web Push
       const currentMon = new Date().toISOString().slice(0,7);
       const overSnap = await db.collection('users').doc(userId)
-        .collection('historyLimits').doc(currentMon)
-        .collection('groups').get();
+        .collection('historyLimits').doc(currentMon).collection('groups').get();
 
       const exceeded = [];
       overSnap.forEach(doc => {
@@ -175,40 +174,31 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
       });
 
       if (exceeded.length) {
-        console.log(`⚠️ Excesos detectados para ${userId}:`, exceeded);
-        // Payload que enviaremos
         const payload = {
           title: '⚠️ Límite Excedido',
           body:  exceeded.map(e => `${e.group}: ${e.spent}€/ ${e.limit}€`).join('\n'),
           icon:  '/icons/alert.png',
-          tag:   'budget-exceeded',
-          data:  { userId, date: currentMon }
+          tag:   'budget-exceeded'
         };
 
-        // Leer todas las suscripciones Web Push del usuario
         const subsSnap = await db.collection('users').doc(userId)
           .collection('pushSubscriptions').get();
 
         for (const subDoc of subsSnap.docs) {
           const subscription = subDoc.data();
           try {
-            await webPush.sendNotification(
-              subscription,
-              JSON.stringify(payload)
-            );
+            await webPush.sendNotification(subscription, JSON.stringify(payload));
             console.log(`[push] enviado a ${userId}/${subDoc.id}`);
           } catch (err) {
             console.error(`[push] error enviando a ${userId}/${subDoc.id}:`, err);
           }
         }
       }
-
-      console.log(`✅ Sync completo para ${userId}`);
     }
 
-    return res.status(200).send('Sync completo');
+    res.status(200).send('Sync completo');
   } catch (err) {
     console.error('❌ scheduledSync error:', err);
-    return res.status(500).send('Error interno');
+    res.status(500).send('Error interno');
   }
 });

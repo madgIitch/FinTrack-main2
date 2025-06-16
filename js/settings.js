@@ -10,10 +10,12 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
+import { getMessaging, getToken } from 'firebase/messaging';
 
 const db = getFirestore(app);
+const messaging = getMessaging(app);
 
-// URL de tu API (ajústala según entorno)
+// Determina la URL de tu API según el entorno
 const apiUrl = window.location.hostname === 'localhost'
   ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
   : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
@@ -31,91 +33,86 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
 }
 
-// Suscribe al usuario a Push y guarda la suscripción en tu backend
-// Suscribe al usuario a Push y guarda la suscripción en tu backend
+// ── Suscripción Push y guardado en backend ─────────────────────────────────
 async function subscribeUserToPush() {
   console.group('[settings.js] ► subscribeUserToPush START');
   try {
-    if (!('serviceWorker' in navigator)) throw new Error('No hay support para serviceWorker');
-    if (!('PushManager' in window))   throw new Error('No hay support para PushManager');
+    if (!('serviceWorker' in navigator)) throw new Error('Sin soporte para Service Worker');
+    if (!('PushManager' in window))   throw new Error('Sin soporte para PushManager');
 
     // 1) Espera a que el SW esté listo
-    const reg = await navigator.serviceWorker.ready;
-    console.log('[settings.js] ServiceWorkerRegistration:', reg);
+    const registration = await navigator.serviceWorker.ready;
+    console.log('[settings.js] ServiceWorkerRegistration:', registration);
 
-    // 2) Verifica estado de permiso de Push (Chrome 80+)
+    // 2) (Opcional) Consulta el estado del permiso de Push
     try {
-      const permissionState = await reg.pushManager.permissionState({
+      const state = await registration.pushManager.permissionState({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       });
-      console.log('[settings.js] push permissionState:', permissionState);
-    } catch (permErr) {
-      console.warn('[settings.js] No se pudo obtener permissionState:', permErr.name, permErr.message);
+      console.log('[settings.js] push permissionState:', state);
+    } catch (e) {
+      console.warn('[settings.js] No se pudo obtener permissionState:', e);
     }
 
-    // 3) Revisa si ya existe suscripción
-    const existing = await reg.pushManager.getSubscription();
-    console.log('[settings.js] existing subscription:', existing);
-    if (existing) {
-      console.log('[settings.js] Ya estaba suscrito.');
+    // 3) ¿Ya había una suscripción?
+    const existingSub = await registration.pushManager.getSubscription();
+    if (existingSub) {
+      console.log('[settings.js] Ya suscrito:', existingSub.endpoint);
       console.groupEnd();
-      return existing;
+      return existingSub;
     }
 
-    // 4) Se suscribe
+    // 4) Suscribirse
     console.log('[settings.js] Intentando subscribe() con VAPID key…');
-    const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-    console.log('[settings.js] applicationServerKey bytes:', applicationServerKey);
-
-    const sub = await reg.pushManager.subscribe({
+    const sub = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
     });
     console.log('[settings.js] subscribe() OK, sub:', sub);
 
-    // 5) Envía al backend (ahora incluyendo el userId)
-    const userId = auth.currentUser?.uid;
-    console.log('[settings.js] Enviando sub al backend para userId:', userId);
-    const resp = await fetch(`${apiUrl}/plaid/save_push_subscription`, {
+    // 5) Obtener también el token de FCM (para la consola de Firebase)
+    const fcmToken = await getToken(messaging, { vapidKey: VAPID_PUBLIC_KEY });
+    console.log('[settings.js] FCM token:', fcmToken);
+
+    // 6) Enviar todo al backend
+    const userId = auth.currentUser.uid;
+    console.log('[settings.js] Enviando suscripción al backend para userId:', userId);
+    await fetch(`${apiUrl}/save_push_subscription`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId,
-        subscription: sub
+        subscription: sub,
+        fcmToken
       })
     });
-    console.log('[settings.js] save_push_subscription response:', resp.status, await resp.text());
+    console.log('[settings.js] Suscripción guardada en servidor');
 
     console.groupEnd();
     return sub;
+
   } catch (err) {
-    console.error(
-      '[settings.js] ► subscribeUserToPush ERROR:',
-      err.name, err.message,
-      '\nstack:', err.stack
-    );
+    console.error('[settings.js] ► subscribeUserToPush ERROR:', err);
     console.groupEnd();
     throw err;
   }
 }
 
-// Da de baja la suscripción y notifica al backend para eliminarla
+// ── Desuscribir y notificar al backend ────────────────────────────────────
 async function unsubscribeUserFromPush() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-  const reg = await navigator.serviceWorker.ready;
-  const existing = await reg.pushManager.getSubscription();
-  console.log('[settings.js] Existing subscription to unsubscribe:', existing);
+  const registration = await navigator.serviceWorker.ready;
+  const existing = await registration.pushManager.getSubscription();
   if (!existing) return;
 
   console.log('[settings.js] Unsubscribing…');
   await existing.unsubscribe();
-  console.log('[settings.js] Unsubscribed from Push');
+  console.log('[settings.js] Desuscrito de Push');
 
-  // Notifica al servidor para eliminarla (incluye userId)
-  const userId = auth.currentUser?.uid;
-  console.log('[settings.js] Notifying server to delete subscription for userId:', userId);
-  const resp = await fetch(`${apiUrl}/plaid/delete_push_subscription`, {
+  const userId = auth.currentUser.uid;
+  console.log('[settings.js] Notificando al backend para eliminar suscripción:', userId);
+  await fetch(`${apiUrl}/delete_push_subscription`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -123,10 +120,10 @@ async function unsubscribeUserFromPush() {
       endpoint: existing.endpoint
     })
   });
-  console.log('[settings.js] delete_push_subscription response:', resp.status, await resp.text());
+  console.log('[settings.js] Suscripción eliminada en servidor');
 }
 
-// Crea una fila de presupuesto dinámicamente
+// ── Creación dinámica de filas de presupuesto ─────────────────────────────
 function createBudgetRow(selectedCategory = '', amount = '') {
   const rowDiv = document.createElement('div');
   rowDiv.className = 'budget-row';
@@ -173,7 +170,6 @@ let allCategories = [];
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[settings.js] DOMContentLoaded');
 
-  // Referencias UI
   const backBtn          = document.getElementById('back-btn');
   const chkNotifPush     = document.getElementById('notif-push');
   const chkNotifEmail    = document.getElementById('notif-email');
@@ -183,77 +179,72 @@ document.addEventListener('DOMContentLoaded', () => {
   const budgetsContainer = document.getElementById('budgets-container');
   const addCategoryBtn   = document.getElementById('add-category-btn');
 
-  // Navegación atrás
   backBtn.addEventListener('click', () => window.history.back());
-
-  // Añadir nueva fila de presupuesto
   addCategoryBtn.addEventListener('click', () => {
     budgetsContainer.appendChild(createBudgetRow());
   });
 
-  // Cambiar suscripción Push al togglear checkbox
+  // ── Toggle notificaciones Push ───────────────────────────────────────────
   chkNotifPush.addEventListener('change', async () => {
     console.log('[settings.js] notif-push changed:', chkNotifPush.checked);
     if (chkNotifPush.checked) {
+      // Pide permiso al usuario
       if (Notification.permission === 'default') {
         const perm = await Notification.requestPermission();
-        console.log('[settings.js] Notification.permission after request:', perm);
+        console.log('[settings.js] Notification.permission:', perm);
         if (perm !== 'granted') {
           alert('Debes permitir notificaciones para activar Push.');
           chkNotifPush.checked = false;
           return;
         }
       }
+      // Suscribe y guarda
       try {
         await subscribeUserToPush();
-      } catch (err) {
-        console.error('[settings.js] subscribeUserToPush error:', err);
+      } catch {
         chkNotifPush.checked = false;
       }
     } else {
+      // Desuscribe y borra
       try {
         await unsubscribeUserFromPush();
-      } catch (err) {
-        console.error('[settings.js] unsubscribeUserFromPush error:', err);
+      } catch {
         chkNotifPush.checked = true;
       }
     }
   });
 
-  // Cuando cambia el estado de auth
+  // ── Carga inicial de categorías y ajustes desde Firestore ────────────────
   onAuthStateChanged(auth, async (user) => {
     console.log('[settings.js] onAuthStateChanged:', user);
     if (!user) return window.location.href = '../index.html';
     const uid = user.uid;
     const userRef = doc(db, 'users', uid);
 
-    // 1) Cargar categorías disponibles
+    // 1) Cargar todas las categorías disponibles
     try {
       const snap = await getDocs(collection(db, 'groups'));
       allCategories = snap.docs.map(d => d.id);
-      console.log('[settings.js] allCategories:', allCategories);
     } catch (e) {
       console.error('[settings.js] Error loading groups:', e);
       allCategories = [];
     }
 
-    // 2) Cargar ajustes guardados
+    // 2) Recuperar ajustes guardados
     let loaded = {};
     try {
       const snap = await getDoc(userRef);
       loaded = snap.exists() ? snap.data().settings || {} : {};
-      console.log('[settings.js] loaded settings:', loaded);
     } catch (e) {
       console.error('[settings.js] Error loading settings:', e);
     }
 
-    // Inicializar checkboxes según lo cargado
+    // 3) Inicializar UI con esos ajustes
     chkNotifPush.checked   = Boolean(loaded.notifications?.push);
     chkNotifEmail.checked  = Boolean(loaded.notifications?.email);
     chkReportPush.checked  = Boolean(loaded.reports?.push);
     chkReportEmail.checked = Boolean(loaded.reports?.email);
 
-    // Poblamos filas de presupuesto
     budgetsContainer.innerHTML = '';
     const map = loaded.budgets || {};
     Object.entries(map).forEach(([cat, amt]) => {
@@ -265,39 +256,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Guardar ajustes al hacer click
+  // ── Guardar ajustes en Firestore y forzar sincronización ────────────────
   btnSave.addEventListener('click', async () => {
     console.log('[settings.js] Guardar Ajustes click');
     btnSave.disabled = true;
     const originalText = btnSave.textContent;
     btnSave.textContent = 'Guardando…';
 
-    // Construir objeto settings
+    // Construye el objeto de settings
     const settings = {
       notifications: {
-        push:  chkNotifPush.checked,
-        email: chkNotifEmail.checked
+        push:  document.getElementById('notif-push').checked,
+        email: document.getElementById('notif-email').checked
       },
       reports: {
-        push:  chkReportPush.checked,
-        email: chkReportEmail.checked
+        push:  document.getElementById('report-push').checked,
+        email: document.getElementById('report-email').checked
       },
       budgets: {}
     };
 
-    // Validar filas de presupuesto
+    // Valida cada fila de presupuesto
     const rows = Array.from(budgetsContainer.children);
     const seen = new Set();
     let valid = true, errorMsg = '';
-
-    rows.forEach((row, idx) => {
+    rows.forEach((row, i) => {
       const cat = row.querySelector('.category-select').value;
-      const amtStr = row.querySelector('.budget-input').value.trim();
+      const amt = parseFloat(row.querySelector('.budget-input').value);
       if (!cat) return;
-      const amtNum = parseFloat(amtStr);
-      if (isNaN(amtNum) || amtNum < 0) {
+      if (isNaN(amt) || amt < 0) {
         valid = false;
-        errorMsg = `Fila ${idx+1}: monto inválido para "${cat}".`;
+        errorMsg = `Fila ${i+1}: monto inválido para "${cat}".`;
         return;
       }
       if (seen.has(cat)) {
@@ -306,7 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       seen.add(cat);
-      settings.budgets[cat] = amtNum;
+      settings.budgets[cat] = amt;
     });
 
     if (!valid) {
@@ -319,16 +308,13 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Guardar en Firestore y forzar Sync
+    // Guarda en Firestore y lanza sync
     try {
       const user = auth.currentUser;
-      if (!user) throw new Error('No user logged in');
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, { settings });
       console.log('[settings.js] Settings updated in Firestore');
 
-      // Forzar manual sync
-      console.log('[settings.js] Calling sync endpoint');
       await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
