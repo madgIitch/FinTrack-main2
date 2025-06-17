@@ -100,21 +100,49 @@ router.post('/exchange_public_token', async (req, res) => {
 router.post('/get_account_details', async (req, res) => {
   console.log('[PLAIDROUTES] POST /get_account_details body:', req.body);
   const { accessToken } = req.body;
+
   if (!accessToken) {
     console.error('[PLAIDROUTES] Missing accessToken');
     return res.status(400).json({ error: 'Falta accessToken' });
   }
+
   try {
+    // 1. Obtener cuentas y el item (para institution_id)
     const accsResp = await plaidClient.accountsGet({ access_token: accessToken });
     const itemResp = await plaidClient.itemGet({ access_token: accessToken });
+
+    const institutionId = itemResp.data.item.institution_id;
+    let institution = null;
+
+    // 2. Si existe institution_id, obtener su nombre
+    if (institutionId) {
+      try {
+        const instResp = await plaidClient.institutionsGetById({
+          institution_id: institutionId,
+          country_codes: ['ES']  // o ['US', 'ES'] según tus usuarios
+        });
+        institution = {
+          id: institutionId,
+          name: instResp.data.institution.name
+        };
+      } catch (instErr) {
+        console.warn('[PLAIDROUTES] Error al obtener institution name:', instErr.message);
+        institution = { id: institutionId, name: 'Desconocido' };
+      }
+    }
+
     console.log('[PLAIDROUTES] get_account_details succeeded');
-    const institution = itemResp.data.item.institution_id || null;
-    res.json({ accounts: accsResp.data.accounts, institution });
+    res.json({
+      accounts: accsResp.data.accounts,
+      institution
+    });
+
   } catch (err) {
     console.error('[PLAIDROUTES] get_account_details error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // ── Get Transactions ────────────────────────────────────────────────────────────
 router.post('/get_transactions', async (req, res) => {

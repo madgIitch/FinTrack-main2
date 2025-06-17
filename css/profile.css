@@ -43,30 +43,30 @@ body {
 ======================== */
 .content {
   flex-grow: 1;
-  padding: 20px;
-  margin-top: 20px;
+  padding: 10px 20px 80px;
+  margin-top: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
 }
 .card {
   background-color: white;
   border-radius: 8px;
-  padding: 20px;
+  padding: 16px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  width: 90%;
-  max-width: 500px;
-  margin-bottom: 20px;
+  width: 85%;
+  max-width: 420px;
+  margin-bottom: 12px;
 }
 .card h2 {
   margin-top: 0;
-  margin-bottom: 15px;
-  font-size: 1.2em;
+  margin-bottom: 10px;
+  font-size: 1.1em;
   color: #555;
 }
 .card p {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   color: #444;
 }
 .card p strong {
@@ -88,6 +88,7 @@ body {
   cursor: pointer;
   transition: background-color 0.3s ease, transform 0.1s ease;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  margin-bottom: 60px;
 }
 #link-bank-button:hover { background-color: #45a049; transform: scale(1.02); }
 #link-bank-button:active { transform: scale(0.98); }
@@ -129,9 +130,9 @@ body {
 /* Wrapper con overflow visible para las flechas */
 .slider-wrapper {
   position: relative;
-  width: 90%;
-  max-width: 500px;
-  margin: 0 auto 20px;
+  width: 85%;
+  max-width: 420px;
+  margin: 0 auto 16px;
   overflow: visible;
 }
 
@@ -184,13 +185,13 @@ body {
 }
 
 /* Posición de cada flecha fuera de la card */
-#slider-prev { left: -48px; }
-#slider-next { right: -48px; }
+#slider-prev { left: -40px; }
+#slider-next { right: -40px; }
 
 /* Puntitos de navegación */
 .slider-dots-container {
   text-align: center;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 .slider-dot {
   display: inline-block;
