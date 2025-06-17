@@ -126,21 +126,39 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         await batchLim.commit();
       }
 
-      // 7. Detectar excesos y notificar (guardar + enviar)
+      // 7. Detectar excesos y notificar (guardar + enviar si hay cambios)
       const currentMon = new Date().toISOString().slice(0, 7);
       const overSnap = await db.collection('users').doc(userId).collection('historyLimits').doc(currentMon).collection('groups').get();
       const exceeded = [];
+      const gastosPorCategoria = {};
       overSnap.forEach(doc => {
         const { spent, limit } = doc.data();
-        if (spent > limit) exceeded.push({ group: doc.id, spent, limit });
+        if (spent > limit) {
+          exceeded.push({ group: doc.id, spent, limit });
+          gastosPorCategoria[doc.id] = spent;
+        }
       });
 
       if (exceeded.length) {
         console.log(`⚠️ Excesos detectados para ${userId}:`, exceeded);
 
-        const tokensSnap = await db.collection('users').doc(userId).collection('fcmTokens').get();
-        const tokens = tokensSnap.docs.map(d => d.id);
-        console.log(`[FCM] Tokens detectados:`, tokens);
+        const notifRef = db.collection('users').doc(userId).collection('notifications');
+        const existingSnap = await notifRef.where('data.period', '==', currentMon).limit(1).get();
+
+        let hayCambios = true;
+        if (!existingSnap.empty) {
+          const doc = existingSnap.docs[0];
+          const prevGastos = doc.data().gastosPorCategoria || {};
+          hayCambios = Object.keys(gastosPorCategoria).some(cat => gastosPorCategoria[cat] !== prevGastos[cat]);
+
+          if (!hayCambios) {
+            console.log('🔁 Gastos iguales, no se envía ni guarda nueva notificación');
+            continue;
+          }
+
+          await notifRef.doc(doc.id).delete();
+          console.log('♻️ Notificación antigua eliminada');
+        }
 
         const title = exceeded.length === 1
           ? `⚠️ Exceso en ${exceeded[0].group}`
@@ -148,8 +166,7 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
 
         const body = exceeded.map(e => `${e.group}: ${e.spent.toFixed(2)}€ de ${e.limit.toFixed(2)}€`).join('\n');
 
-        // Guardar notificación en Firestore
-        await db.collection('users').doc(userId).collection('notifications').add({
+        await notifRef.add({
           title,
           body,
           type: 'alert',
@@ -157,10 +174,13 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
             period: currentMon,
             categories: exceeded.map(e => e.group),
             timestamp: admin.firestore.FieldValue.serverTimestamp()
-          }
+          },
+          gastosPorCategoria
         });
 
-        // Enviar notificación a todos los tokens válidos
+        const tokensSnap = await db.collection('users').doc(userId).collection('fcmTokens').get();
+        const tokens = tokensSnap.docs.map(d => d.id);
+
         for (const token of tokens) {
           const message = {
             token,
@@ -171,9 +191,12 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
               period: currentMon,
               userId,
               alertType: 'budget_overrun',
+              body, // 🔥 Añadimos también el body aquí
+              title, // opcional: puedes duplicarlo también por consistencia
               categories: JSON.stringify(exceeded.map(e => e.group))
             }
           };
+
 
           try {
             const response = await admin.messaging().send(message);
