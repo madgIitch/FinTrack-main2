@@ -30,8 +30,8 @@ async function requestNotificationPermission() {
     return;
   }
 
+  // Si ya otorgado, refrescar token en background
   if (Notification.permission === 'granted') {
-    // Ya otorgado, intentamos refrescar token en background
     try {
       const token = await getToken(messaging, {
         vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao'
@@ -48,7 +48,7 @@ async function requestNotificationPermission() {
     return;
   }
 
-  // Si no se ha decidido aún
+  // Solicitar permiso al usuario
   try {
     const perm = await Notification.requestPermission();
     console.log('[HOME] Notification.permission:', perm);
@@ -147,7 +147,7 @@ onAuthStateChanged(auth, async user => {
   if (Notification.permission === 'default') {
     await requestNotificationPermission();
   } else if (Notification.permission === 'granted') {
-    // Refrescar token FCM sin más prompts
+    // Refrescar token en segundo plano
     await requestNotificationPermission();
   }
 
@@ -156,7 +156,8 @@ onAuthStateChanged(auth, async user => {
     const userDoc = doc(db, 'users', user.uid);
     const snap = await getDoc(userDoc);
     const data = snap.exists() ? snap.data() : {};
-    const name = [data.firstName, data.lastName].filter(Boolean).join(' ') || 'Usuario';
+    const name = [data.firstName, data.lastName]
+      .filter(Boolean).join(' ') || 'Usuario';
     document.getElementById('user-name').textContent = name;
   } catch (e) {
     console.error('[HOME] load profile failed:', e);
