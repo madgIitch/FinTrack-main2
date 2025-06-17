@@ -189,7 +189,6 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
                 console.log(`🗑️ Token inválido eliminado: ${token}`);
               }
             }
-
           }
         } else {
           console.log(`[FCM] No hay tokens disponibles para ${userId}`);
