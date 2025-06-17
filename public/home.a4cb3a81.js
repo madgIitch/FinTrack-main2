@@ -699,7 +699,7 @@ async function requestNotificationPermission() {
             serviceWorkerRegistration: fmSW
         });
         console.log('[HOME] FCM token obtenido:', token);
-        await fetch(`${apiUrl}/save_fcm_token`, {
+        await fetch(`${apiUrl}/plaid/save_fcm_token`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
