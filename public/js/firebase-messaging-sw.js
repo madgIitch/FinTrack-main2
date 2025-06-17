@@ -1,21 +1,26 @@
 // firebase-messaging-sw.js
+// Carga los scripts de compatibilidad
 importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js');
-// Inicializa tu app de Firebase igual que en tu firebase.js
+// Inicializa Firebase — sustituye estos valores por los reales de tu proyecto
 firebase.initializeApp({
-    apiKey: 'TU_API_KEY',
-    authDomain: 'TU_DOMAIN',
-    projectId: 'TU_PROJECT_ID',
-    messagingSenderId: 'TU_SENDER_ID',
-    appId: 'TU_APP_ID'
+    apiKey: 'AIzaSyCV05aIQnCR5803w-cWAKxc6U23bwF13-0',
+    authDomain: 'fintrack-1bced.firebaseapp.com',
+    projectId: 'fintrack-1bced',
+    messagingSenderId: '539360502832',
+    appId: '1:576236535723:web:4276524c0c6a10a3391cee'
 });
+// Inicializa messaging
 const messaging = firebase.messaging();
-// Opcional: manejar mensajes en background
+// Maneja mensajes cuando la app está en background
 messaging.onBackgroundMessage((payload)=>{
-    self.registration.showNotification(payload.notification.title, {
-        body: payload.notification.body,
-        icon: payload.notification.icon
-    });
+    console.log('[firebase-messaging-sw.js] Mensaje recibido en background:', payload);
+    const notificationTitle = payload.notification?.title || "Notificaci\xf3n";
+    const notificationOptions = {
+        body: payload.notification?.body || '',
+        icon: payload.notification?.icon || '/favicon.ico'
+    };
+    self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 //# sourceMappingURL=firebase-messaging-sw.js.map

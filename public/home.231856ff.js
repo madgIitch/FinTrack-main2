@@ -671,6 +671,13 @@ const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
 const messaging = (0, _messaging.getMessaging)((0, _firebaseJs.app));
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 let monthlyChart = null;
+function updateNotificationIconStyle() {
+    const btn = document.getElementById('btn-notifications');
+    if (!btn) return;
+    const state = Notification.permission;
+    btn.classList.remove('notifs-granted', 'notifs-denied', 'notifs-default');
+    btn.classList.add(`notifs-${state}`);
+}
 async function requestNotificationPermission() {
     if (!('Notification' in window)) return;
     let fmSW;
@@ -684,10 +691,11 @@ async function requestNotificationPermission() {
         return;
     }
     const perm = await Notification.requestPermission();
+    updateNotificationIconStyle();
     if (perm !== 'granted') return;
     try {
         const token = await (0, _messaging.getToken)(messaging, {
-            vapidKey: 'BEs_JKncyv0tDBfuEy2IEtS-rwbEmC5SKfCNQXZ2I70o_aXlfLEbZqDPKqERtrgvlH-FXYPjxqChIcr4UjtpKzI',
+            vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao',
             serviceWorkerRegistration: fmSW
         });
         console.log('[HOME] FCM token obtenido:', token);
@@ -743,7 +751,7 @@ async function setupBackgroundSync() {
 }
 window.addEventListener('load', async ()=>{
     await setupBackgroundSync();
-    await requestNotificationPermission();
+    updateNotificationIconStyle();
 });
 document.addEventListener('DOMContentLoaded', ()=>{
     console.log('[HOME] DOM ready');
@@ -754,8 +762,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
         await (0, _auth.signOut)((0, _firebaseJs.auth));
         location.href = '../index.html';
     });
-    document.getElementById('btn-notifications')?.addEventListener('click', async ()=>{
-        location.href = 'notifications.html';
+    document.getElementById('btn-notifications')?.addEventListener('click', async (e)=>{
+        e.preventDefault();
+        await requestNotificationPermission();
     });
 });
 (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
@@ -764,7 +773,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
         location.href = '../index.html';
         return;
     }
-    if (Notification.permission === 'default') await requestNotificationPermission();
     try {
         const snap = await (0, _firestore.getDoc)((0, _firestore.doc)(db, 'users', user.uid));
         const data = snap.exists() ? snap.data() : {};

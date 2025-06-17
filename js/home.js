@@ -21,6 +21,14 @@ const apiUrl = window.location.hostname === 'localhost'
 
 let monthlyChart = null;
 
+function updateNotificationIconStyle() {
+  const btn = document.getElementById('btn-notifications');
+  if (!btn) return;
+  const state = Notification.permission;
+  btn.classList.remove('notifs-granted', 'notifs-denied', 'notifs-default');
+  btn.classList.add(`notifs-${state}`);
+}
+
 async function requestNotificationPermission() {
   if (!('Notification' in window)) return;
 
@@ -37,15 +45,16 @@ async function requestNotificationPermission() {
   }
 
   const perm = await Notification.requestPermission();
+  updateNotificationIconStyle();
   if (perm !== 'granted') return;
 
   try {
     const token = await getToken(messaging, {
-      vapidKey: 'BEs_JKncyv0tDBfuEy2IEtS-rwbEmC5SKfCNQXZ2I70o_aXlfLEbZqDPKqERtrgvlH-FXYPjxqChIcr4UjtpKzI',
+      vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao',
       serviceWorkerRegistration: fmSW
     });
     console.log('[HOME] FCM token obtenido:', token);
-    await fetch(`${apiUrl}/save_fcm_token`, {
+    await fetch(`${apiUrl}/plaid/save_fcm_token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, userId: auth.currentUser.uid })
@@ -104,7 +113,7 @@ async function setupBackgroundSync() {
 
 window.addEventListener('load', async () => {
   await setupBackgroundSync();
-  await requestNotificationPermission();
+  updateNotificationIconStyle();
 });
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -123,8 +132,9 @@ document.addEventListener('DOMContentLoaded', () => {
     location.href = '../index.html';
   });
 
-  document.getElementById('btn-notifications')?.addEventListener('click', async () => {
-    location.href = 'notifications.html';
+  document.getElementById('btn-notifications')?.addEventListener('click', async e => {
+    e.preventDefault();
+    await requestNotificationPermission();
   });
 });
 
@@ -133,10 +143,6 @@ onAuthStateChanged(auth, async user => {
   if (!user) {
     location.href = '../index.html';
     return;
-  }
-
-  if (Notification.permission === 'default') {
-    await requestNotificationPermission();
   }
 
   try {
@@ -153,6 +159,7 @@ onAuthStateChanged(auth, async user => {
   await saveUID(user.uid);
   await loadMonthlyChart(user.uid);
 });
+
 
 async function manualSync(uid) {
   const key = `lastSync_${uid}`;
