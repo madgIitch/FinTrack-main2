@@ -156,11 +156,11 @@
       });
     }
   }
-})({"ky4wD":[function(require,module,exports,__globalThis) {
+})({"2n8kV":[function(require,module,exports,__globalThis) {
 var global = arguments[3];
 var HMR_HOST = null;
 var HMR_PORT = null;
-var HMR_SERVER_PORT = 8080;
+var HMR_SERVER_PORT = 1234;
 var HMR_SECURE = false;
 var HMR_ENV_HASH = "439701173a9199ea";
 var HMR_USE_SSE = false;
@@ -864,6 +864,6 @@ function initCharts() {
     pieChart.render();
 }
 
-},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1"}]},["ky4wD","l1WLd"], "l1WLd", "parcelRequire94c2")
+},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
 
 //# sourceMappingURL=analysis.d262e0ca.js.map

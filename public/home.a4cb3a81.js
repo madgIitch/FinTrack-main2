@@ -156,11 +156,11 @@
       });
     }
   }
-})({"Ahhet":[function(require,module,exports,__globalThis) {
+})({"7SMtZ":[function(require,module,exports,__globalThis) {
 var global = arguments[3];
 var HMR_HOST = null;
 var HMR_PORT = null;
-var HMR_SERVER_PORT = 8080;
+var HMR_SERVER_PORT = 1234;
 var HMR_SECURE = false;
 var HMR_ENV_HASH = "439701173a9199ea";
 var HMR_USE_SSE = false;
@@ -665,53 +665,30 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
 var _auth = require("firebase/auth");
-var _messaging = require("firebase/messaging");
 console.log('[HOME] loaded');
 const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
-const messaging = (0, _messaging.getMessaging)((0, _firebaseJs.app));
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 let monthlyChart = null;
+window.addEventListener('load', async ()=>{
+    await setupBackgroundSync();
+    updateNotificationIconStyle();
+});
+document.addEventListener('DOMContentLoaded', ()=>{
+    console.log('[HOME] DOM ready');
+    document.getElementById('open-sidebar')?.addEventListener('click', ()=>document.getElementById('sidebar')?.classList.add('open'));
+    document.getElementById('close-sidebar')?.addEventListener('click', ()=>document.getElementById('sidebar')?.classList.remove('open'));
+    document.getElementById('logout-link')?.addEventListener('click', async (e)=>{
+        e.preventDefault();
+        await (0, _auth.signOut)((0, _firebaseJs.auth));
+        location.href = '../index.html';
+    });
+});
 function updateNotificationIconStyle() {
     const btn = document.getElementById('btn-notifications');
     if (!btn) return;
     const state = Notification.permission;
     btn.classList.remove('notifs-granted', 'notifs-denied', 'notifs-default');
     btn.classList.add(`notifs-${state}`);
-}
-async function requestNotificationPermission() {
-    if (!('Notification' in window)) return;
-    let fmSW;
-    try {
-        fmSW = await navigator.serviceWorker.register(require("5a445ba2a79b46bc"), {
-            scope: '/js/'
-        });
-        console.log('[HOME] FCM SW registrado con scope:', fmSW.scope);
-    } catch (e) {
-        console.error('[HOME] Error registrando FCM SW:', e);
-        return;
-    }
-    const perm = await Notification.requestPermission();
-    updateNotificationIconStyle();
-    if (perm !== 'granted') return;
-    try {
-        const token = await (0, _messaging.getToken)(messaging, {
-            vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao',
-            serviceWorkerRegistration: fmSW
-        });
-        console.log('[HOME] FCM token obtenido:', token);
-        await fetch(`${apiUrl}/plaid/save_fcm_token`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                token,
-                userId: (0, _firebaseJs.auth).currentUser.uid
-            })
-        });
-    } catch (e) {
-        console.warn('[HOME] No se pudo guardar el token:', e);
-    }
 }
 async function setupBackgroundSync() {
     if (!('serviceWorker' in navigator)) {
@@ -749,24 +726,6 @@ async function setupBackgroundSync() {
         console.error('[HOME] SW registration failed:', err);
     }
 }
-window.addEventListener('load', async ()=>{
-    await setupBackgroundSync();
-    updateNotificationIconStyle();
-});
-document.addEventListener('DOMContentLoaded', ()=>{
-    console.log('[HOME] DOM ready');
-    document.getElementById('open-sidebar')?.addEventListener('click', ()=>document.getElementById('sidebar')?.classList.add('open'));
-    document.getElementById('close-sidebar')?.addEventListener('click', ()=>document.getElementById('sidebar')?.classList.remove('open'));
-    document.getElementById('logout-link')?.addEventListener('click', async (e)=>{
-        e.preventDefault();
-        await (0, _auth.signOut)((0, _firebaseJs.auth));
-        location.href = '../index.html';
-    });
-    document.getElementById('btn-notifications')?.addEventListener('click', async (e)=>{
-        e.preventDefault();
-        await requestNotificationPermission();
-    });
-});
 (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
     console.log('[HOME] Auth state changed:', user);
     if (!user) {
@@ -969,12 +928,9 @@ async function loadMonthlyChart(userId) {
     monthlyChart.render();
 }
 
-},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","firebase/messaging":"h14Q4","5a445ba2a79b46bc":"dWkJT","f49e69e7fb1d94f5":"170CW"}],"dWkJT":[function(require,module,exports,__globalThis) {
-module.exports = module.bundle.resolve("js\\firebase-messaging-sw.js");
-
-},{}],"170CW":[function(require,module,exports,__globalThis) {
+},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","f49e69e7fb1d94f5":"170CW"}],"170CW":[function(require,module,exports,__globalThis) {
 module.exports = module.bundle.resolve("service-worker.js");
 
-},{}]},["Ahhet","9wRWw"], "9wRWw", "parcelRequire94c2", "./", "/")
+},{}]},["7SMtZ","9wRWw"], "9wRWw", "parcelRequire94c2", "./", "/")
 
 //# sourceMappingURL=home.a4cb3a81.js.map

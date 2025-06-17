@@ -8,12 +8,10 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { getMessaging, getToken } from 'firebase/messaging';
 
 console.log('[HOME] loaded');
 
 const db = getFirestore(app);
-const messaging = getMessaging(app);
 
 const apiUrl = window.location.hostname === 'localhost'
   ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
@@ -21,47 +19,34 @@ const apiUrl = window.location.hostname === 'localhost'
 
 let monthlyChart = null;
 
+window.addEventListener('load', async () => {
+  await setupBackgroundSync();
+  updateNotificationIconStyle();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('[HOME] DOM ready');
+
+  document.getElementById('open-sidebar')?.addEventListener('click', () =>
+    document.getElementById('sidebar')?.classList.add('open')
+  );
+  document.getElementById('close-sidebar')?.addEventListener('click', () =>
+    document.getElementById('sidebar')?.classList.remove('open')
+  );
+
+  document.getElementById('logout-link')?.addEventListener('click', async e => {
+    e.preventDefault();
+    await signOut(auth);
+    location.href = '../index.html';
+  });
+});
+
 function updateNotificationIconStyle() {
   const btn = document.getElementById('btn-notifications');
   if (!btn) return;
   const state = Notification.permission;
   btn.classList.remove('notifs-granted', 'notifs-denied', 'notifs-default');
   btn.classList.add(`notifs-${state}`);
-}
-
-async function requestNotificationPermission() {
-  if (!('Notification' in window)) return;
-
-  let fmSW;
-  try {
-    fmSW = await navigator.serviceWorker.register(
-      new URL('./firebase-messaging-sw.js', import.meta.url),
-      { scope: '/js/' }
-    );
-    console.log('[HOME] FCM SW registrado con scope:', fmSW.scope);
-  } catch (e) {
-    console.error('[HOME] Error registrando FCM SW:', e);
-    return;
-  }
-
-  const perm = await Notification.requestPermission();
-  updateNotificationIconStyle();
-  if (perm !== 'granted') return;
-
-  try {
-    const token = await getToken(messaging, {
-      vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao',
-      serviceWorkerRegistration: fmSW
-    });
-    console.log('[HOME] FCM token obtenido:', token);
-    await fetch(`${apiUrl}/plaid/save_fcm_token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, userId: auth.currentUser.uid })
-    });
-  } catch (e) {
-    console.warn('[HOME] No se pudo guardar el token:', e);
-  }
 }
 
 async function setupBackgroundSync() {
@@ -111,33 +96,6 @@ async function setupBackgroundSync() {
   }
 }
 
-window.addEventListener('load', async () => {
-  await setupBackgroundSync();
-  updateNotificationIconStyle();
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('[HOME] DOM ready');
-
-  document.getElementById('open-sidebar')?.addEventListener('click', () =>
-    document.getElementById('sidebar')?.classList.add('open')
-  );
-  document.getElementById('close-sidebar')?.addEventListener('click', () =>
-    document.getElementById('sidebar')?.classList.remove('open')
-  );
-
-  document.getElementById('logout-link')?.addEventListener('click', async e => {
-    e.preventDefault();
-    await signOut(auth);
-    location.href = '../index.html';
-  });
-
-  document.getElementById('btn-notifications')?.addEventListener('click', async e => {
-    e.preventDefault();
-    await requestNotificationPermission();
-  });
-});
-
 onAuthStateChanged(auth, async user => {
   console.log('[HOME] Auth state changed:', user);
   if (!user) {
@@ -159,7 +117,6 @@ onAuthStateChanged(auth, async user => {
   await saveUID(user.uid);
   await loadMonthlyChart(user.uid);
 });
-
 
 async function manualSync(uid) {
   const key = `lastSync_${uid}`;

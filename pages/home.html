@@ -94,15 +94,13 @@
   </div>
 
   <!-- Activar notificaciones desde la campana -->
-  <script>
-    document.getElementById('btn-notifications')?.addEventListener('click', async () => {
-      if ('Notification' in window && Notification.permission === 'default') {
-        const { requestNotificationPermission } = await import('../js/home.js');
-        requestNotificationPermission(); // activador sin redirigir
-      } else {
-        alert('Las notificaciones ya están activadas o denegadas.');
-      }
-    });
-  </script>
+  <script type="module">
+  import { requestNotificationPermission } from '../js/notifications-home.js';
+  document.getElementById('btn-notifications')?.addEventListener('click', e => {
+    e.preventDefault();
+    requestNotificationPermission();
+  });
+</script>
+
 </body>
 </html>

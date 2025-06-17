@@ -156,11 +156,11 @@
       });
     }
   }
-})({"9gT0n":[function(require,module,exports,__globalThis) {
+})({"gA6XP":[function(require,module,exports,__globalThis) {
 var global = arguments[3];
 var HMR_HOST = null;
 var HMR_PORT = null;
-var HMR_SERVER_PORT = 8080;
+var HMR_SERVER_PORT = 1234;
 var HMR_SECURE = false;
 var HMR_ENV_HASH = "d6ea1d42532a7575";
 var HMR_USE_SSE = false;
@@ -42026,6 +42026,6 @@ module.exports = module.bundle.resolve("js\\firebase-messaging-sw.js");
 },{}],"7xtlq":[function(require,module,exports,__globalThis) {
 module.exports = module.bundle.resolve("service-worker.js");
 
-},{}]},["9gT0n"], null, "parcelRequire94c2", "./", "/")
+},{}]},["gA6XP"], null, "parcelRequire94c2", "./", "/")
 
 //# sourceMappingURL=home.231856ff.js.map

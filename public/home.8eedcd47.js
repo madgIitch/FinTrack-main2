@@ -156,11 +156,11 @@
       });
     }
   }
-})({"czFOV":[function(require,module,exports,__globalThis) {
+})({"6eods":[function(require,module,exports,__globalThis) {
 var global = arguments[3];
 var HMR_HOST = null;
 var HMR_PORT = null;
-var HMR_SERVER_PORT = 8080;
+var HMR_SERVER_PORT = 1234;
 var HMR_SECURE = false;
 var HMR_ENV_HASH = "439701173a9199ea";
 var HMR_USE_SSE = false;
@@ -3247,6 +3247,6 @@ function wrap(value) {
 }
 const unwrap = (value)=>reverseTransformCache.get(value);
 
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["czFOV"], null, "parcelRequire94c2")
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["6eods"], null, "parcelRequire94c2")
 
 //# sourceMappingURL=home.8eedcd47.js.map
