@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="../css/styles.css" />
   <link rel="stylesheet" href="../css/home.css" />
   <link rel="stylesheet" href="../css/sidebar.css" />
+  <!-- Aquí podrías tener un CSS adicional para el dropdown de notificaciones -->
+  <!-- <link rel="stylesheet" href="../css/notifications.css" /> -->
   <script src="../js/apexcharts.min.js"></script>
   <script type="module" src="../js/sidebar.js"></script>
   <script type="module" src="../js/home.js"></script>
@@ -29,12 +31,23 @@
         <i class="material-icons">menu</i>
       </button>
       <div class="header-center">
-        <h1 class="welcome-message">Bienvenido, <span id="user-name"></span></h1>
+        <h1 class="welcome-message">
+          Bienvenido, <span id="user-name"></span>
+        </h1>
         <img src="../img/logoFintonic.svg" alt="Logo FinTrack" class="logo-icon-img" />
       </div>
-      <a href="notifications.html" class="notification-button" aria-label="Notificaciones">
+
+      <!-- Botón de notificaciones con badge -->
+      <button id="btn-notifications" class="notification-button" aria-label="Notificaciones">
         <i class="material-icons">notifications</i>
-      </a>
+        <span id="notif-badge" class="badge">0</span>
+      </button>
+
+      <!-- Dropdown de notificaciones -->
+      <div id="notif-dropdown" class="notif-dropdown hidden">
+        <ul id="notif-list"></ul>
+        <button id="notif-clear-all" class="btn-clear">Marcar todas como leídas</button>
+      </div>
     </header>
 
     <!-- MAIN CONTENT -->

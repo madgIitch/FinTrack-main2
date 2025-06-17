@@ -7,7 +7,9 @@
   <link rel="stylesheet" href="/FinTrack-main.558d9a0b.css">
   <link rel="stylesheet" href="/home.c779873a.css">
   <link rel="stylesheet" href="/home.8129f27b.css">
-  <script type="importmap">{"imports":{"i551T":"/service-worker.js"}}</script><script type="module" src="/FinTrack-main.64dd720e.js"></script><script type="module" src="/home.8eedcd47.js"></script><script src="/home.564f75aa.js"></script>
+  <!-- Aquí podrías tener un CSS adicional para el dropdown de notificaciones -->
+  <!-- <link rel="stylesheet" href="../css/notifications.css" /> -->
+  <script type="importmap">{"imports":{"2hiGo":"/js/firebase-messaging-sw.js","i551T":"/service-worker.js"}}</script><script type="module" src="/FinTrack-main.64dd720e.js"></script><script type="module" src="/home.8eedcd47.js"></script><script src="/home.564f75aa.js"></script>
   <script type="module" src="/home.659d772f.js"></script>
   <script type="module" src="/home.a4cb3a81.js"></script>
 </head>
@@ -29,12 +31,23 @@
         <i class="material-icons">menu</i>
       </button>
       <div class="header-center">
-        <h1 class="welcome-message">Bienvenido, <span id="user-name"></span></h1>
+        <h1 class="welcome-message">
+          Bienvenido, <span id="user-name"></span>
+        </h1>
         <img src="/logoFintonic.89fddae4.svg" alt="Logo FinTrack" class="logo-icon-img">
       </div>
-      <a href="/pages/notifications.html" class="notification-button" aria-label="Notificaciones">
+
+      <!-- Botón de notificaciones con badge -->
+      <button id="btn-notifications" class="notification-button" aria-label="Notificaciones">
         <i class="material-icons">notifications</i>
-      </a>
+        <span id="notif-badge" class="badge">0</span>
+      </button>
+
+      <!-- Dropdown de notificaciones -->
+      <div id="notif-dropdown" class="notif-dropdown hidden">
+        <ul id="notif-list"></ul>
+        <button id="notif-clear-all" class="btn-clear">Marcar todas como leídas</button>
+      </div>
     </header>
 
     <!-- MAIN CONTENT -->

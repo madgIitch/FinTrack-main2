@@ -23,52 +23,50 @@ const apiUrl = window.location.hostname === 'localhost'
 
 let monthlyChart = null;
 
-// ── Petición de permiso de notificaciones (requiere gesto de usuario) ─────
+// ── Petición de permiso de notificaciones ─────────────────────────────────
 async function requestNotificationPermission() {
   if (!('Notification' in window)) {
     console.warn('[HOME] Este navegador no soporta notificaciones');
     return;
   }
 
-  // Si ya otorgado, refrescar token en background
-  if (Notification.permission === 'granted') {
-    try {
-      const token = await getToken(messaging, {
-        vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao'
-      });
-      console.log('[HOME] FCM token refrescado:', token);
-      await fetch(`${apiUrl}/save_fcm_token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, userId: auth.currentUser.uid })
-      });
-    } catch (e) {
-      console.warn('[HOME] No se pudo obtener/guardar FCM token:', e);
-    }
+  async function requestNotificationPermission() {
+  if (!('Notification' in window)) return;
+
+  let fmSW;
+  try {
+    // --> scope ajustado a /js/
+    fmSW = await navigator.serviceWorker.register(
+      new URL('./firebase-messaging-sw.js', import.meta.url),
+      { scope: '/js/' }
+    );
+    console.log('[HOME] FCM SW registrado con scope:', fmSW.scope);
+  } catch (e) {
+    console.error('[HOME] Error registrando FCM SW:', e);
     return;
   }
 
-  // Solicitar permiso al usuario
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') return;
+
   try {
-    const perm = await Notification.requestPermission();
-    console.log('[HOME] Notification.permission:', perm);
-    if (perm === 'granted') {
-      const token = await getToken(messaging, {
-        vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao'
-      });
-      console.log('[HOME] FCM token obtenido:', token);
-      await fetch(`${apiUrl}/save_fcm_token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, userId: auth.currentUser.uid })
-      });
-    }
+    const token = await getToken(messaging, {
+      vapidKey: '<TU_VAPID_KEY>',
+      serviceWorkerRegistration: fmSW
+    });
+    console.log('[HOME] FCM token obtenido:', token);
+    await fetch(`${apiUrl}/save_fcm_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, userId: auth.currentUser.uid })
+    });
   } catch (e) {
-    console.error('[HOME] Error al solicitar permiso de notificaciones:', e);
+    console.warn('[HOME] No se pudo guardar el token:', e);
   }
 }
+}
 
-// ── Registrar Service Worker y periodicSync ────────────────────────────────
+// ── Service Worker + Background Sync ───────────────────────────────────────
 async function setupBackgroundSync() {
   if (!('serviceWorker' in navigator)) {
     console.log('[HOME] Service Worker no soportado');
@@ -91,19 +89,20 @@ async function setupBackgroundSync() {
       }
     }
 
-    // Periodic sync cada 15 minutos (si está permitido)
+    // Periodic sync cada 15 minutos
     if ('periodicSync' in registration) {
-      try {
-        const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
-        console.log('[HOME] periodic-background-sync permiso:', status.state);
-        if (status.state === 'granted') {
+      const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+      if (status.state === 'granted') {
+        try {
           await registration.periodicSync.register('sync-transactions', {
             minInterval: 15 * 60 * 1000
           });
           console.log('[HOME] periodicSync registered');
+        } catch (e) {
+          console.warn('[HOME] periodicSync failed:', e);
         }
-      } catch (e) {
-        console.warn('[HOME] periodicSync failed:', e);
+      } else {
+        console.log('[HOME] periodic-background-sync permiso:', status.state);
       }
     }
   } catch (err) {
@@ -113,29 +112,33 @@ async function setupBackgroundSync() {
 
 window.addEventListener('load', setupBackgroundSync);
 
+// ── DOM Ready & Handlers ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[HOME] DOM ready');
 
-  // Sidebar controls
-  const sidebar = document.getElementById('sidebar');
-  const btnOpen = document.getElementById('open-sidebar');
-  const btnClose = document.getElementById('close-sidebar');
-  btnOpen?.addEventListener('click', () => sidebar?.classList.add('open'));
-  btnClose?.addEventListener('click', () => sidebar?.classList.remove('open'));
+  // Sidebar open/close
+  document.getElementById('open-sidebar')?.addEventListener('click', () =>
+    document.getElementById('sidebar')?.classList.add('open')
+  );
+  document.getElementById('close-sidebar')?.addEventListener('click', () =>
+    document.getElementById('sidebar')?.classList.remove('open')
+  );
 
   // Logout
   document.getElementById('logout-link')?.addEventListener('click', async e => {
     e.preventDefault();
-    try {
-      await signOut(auth);
-      location.href = '../index.html';
-    } catch (e) {
-      console.error('[HOME] signOut failed:', e);
-    }
+    await signOut(auth);
+    location.href = '../index.html';
+  });
+
+  // Botón de notificaciones
+  document.getElementById('btn-notifications')?.addEventListener('click', async () => {
+    await requestNotificationPermission();
+    location.href = 'notifications.html';
   });
 });
 
-// ── Auth state listener y lógica de notificaciones (solo un prompt) ────────
+// ── Auth State & Primera petición de permiso ──────────────────────────────
 onAuthStateChanged(auth, async user => {
   console.log('[HOME] Auth state changed:', user);
   if (!user) {
@@ -143,43 +146,37 @@ onAuthStateChanged(auth, async user => {
     return;
   }
 
-  // Solicitar permiso de notificaciones si no se ha decidido
+  // Primer prompt si no se ha decidido aún
   if (Notification.permission === 'default') {
-    await requestNotificationPermission();
-  } else if (Notification.permission === 'granted') {
-    // Refrescar token en segundo plano
     await requestNotificationPermission();
   }
 
-  // Mostrar nombre de usuario
+  // Cargar nombre de usuario
   try {
-    const userDoc = doc(db, 'users', user.uid);
-    const snap = await getDoc(userDoc);
+    const snap = await getDoc(doc(db, 'users', user.uid));
     const data = snap.exists() ? snap.data() : {};
-    const name = [data.firstName, data.lastName]
-      .filter(Boolean).join(' ') || 'Usuario';
+    const name = [data.firstName, data.lastName].filter(Boolean).join(' ') || 'Usuario';
     document.getElementById('user-name').textContent = name;
   } catch (e) {
     console.error('[HOME] load profile failed:', e);
   }
 
-  // Lógica de la app
+  // Arrancar la app
   await manualSync(user.uid);
   await loadBalances(user.uid);
   await saveUID(user.uid);
   await loadMonthlyChart(user.uid);
 });
 
-// ── Manual Sync (throttle 24h) ─────────────────────────────────────────────
+// ── Manual Sync (24h throttle) ────────────────────────────────────────────
 async function manualSync(uid) {
   const key = `lastSync_${uid}`;
   const last = Number(localStorage.getItem(key));
   const now = Date.now();
-  if (last && now - last < 24 * 60 * 60 * 1000) {
+  if (last && now - last < 86400e3) {
     console.log('[HOME] Manual sync skipped (recent)');
     return;
   }
-  console.log('[HOME] Performing manual sync');
   try {
     const res = await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
       method: 'POST',
@@ -199,13 +196,10 @@ async function manualSync(uid) {
 
 // ── Carga de balances en slider ────────────────────────────────────────────
 async function loadBalances(userId) {
-  console.log('[HOME] Loading balances for', userId);
-  const userDoc = doc(db, 'users', userId);
-  const snap = await getDoc(userDoc);
+  const snap = await getDoc(doc(db, 'users', userId));
   const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
   const slider = document.querySelector('.balance-slider');
   slider.innerHTML = '';
-
   for (const { accessToken } of accounts) {
     try {
       const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
@@ -216,15 +210,15 @@ async function loadBalances(userId) {
       if (!res.ok) continue;
       const { accounts: accs = [] } = await res.json();
       const acc = accs[0] || {};
-      const slide = document.createElement('div');
-      slide.className = 'balance-slide';
-      slide.innerHTML = `
+      const card = document.createElement('div');
+      card.className = 'balance-slide';
+      card.innerHTML = `
         <div class="card">
           <p class="card-title">${acc.name || 'Cuenta'}</p>
           <p class="card-subtitle">Saldo actual</p>
           <p class="card-balance">${(acc.balances?.current || 0).toFixed(2)} €</p>
         </div>`;
-      slider.appendChild(slide);
+      slider.appendChild(card);
     } catch (e) {
       console.error('[HOME] Balance fetch error:', e);
     }
@@ -238,27 +232,23 @@ function initSlider() {
   const slides = Array.from(slider.children);
   let idx = 0;
   const dots = document.getElementById('balance-dots');
-  const prev = document.getElementById('balance-prev');
-  const next = document.getElementById('balance-next');
   dots.innerHTML = '';
   slides.forEach((_, i) => {
-    const d = document.createElement('div');
-    d.className = `slider-dot${i === 0 ? ' active' : ''}`;
-    d.onclick = () => { idx = i; update(); };
-    dots.appendChild(d);
+    const dot = document.createElement('div');
+    dot.className = `slider-dot${i === 0 ? ' active' : ''}`;
+    dot.onclick = () => { idx = i; update(); };
+    dots.appendChild(dot);
   });
-  prev.onclick = () => { idx = (idx - 1 + slides.length) % slides.length; update(); };
-  next.onclick = () => { idx = (idx + 1) % slides.length; update(); };
+  document.getElementById('balance-prev').onclick = () => { idx = (idx + slides.length - 1) % slides.length; update(); };
+  document.getElementById('balance-next').onclick = () => { idx = (idx + 1) % slides.length; update(); };
   function update() {
     slider.style.transform = `translateX(-${idx * 100}%)`;
-    dots.childNodes.forEach((dot, i) =>
-      dot.classList.toggle('active', i === idx)
-    );
+    dots.childNodes.forEach((d,i) => d.classList.toggle('active', i===idx));
   }
   update();
 }
 
-// ── Guardar UID en IndexedDB ──────────────────────────────────────────────
+// ── Guarda UID en IndexedDB ────────────────────────────────────────────────
 async function saveUID(uid) {
   if (!('indexedDB' in window)) return;
   const req = indexedDB.open('fintrack-db', 1);
@@ -271,40 +261,38 @@ async function saveUID(uid) {
   };
 }
 
-// ── Monthly Chart (historySummary) ────────────────────────────────────────
+// ── Carga de gráfico mensual ───────────────────────────────────────────────
 async function loadMonthlyChart(userId) {
-  console.log('[HOME] Loading chart for', userId);
-  const col = collection(db, 'users', userId, 'historySummary');
   let snap;
   try {
-    snap = await getDocsFromServer(col);
-    console.log('[HOME] Chart data from server');
+    snap = await getDocsFromServer(collection(db, 'users', userId, 'historySummary'));
   } catch {
-    snap = await getDocs(col);
-    console.log('[HOME] Chart data from cache');
+    snap = await getDocs(collection(db, 'users', userId, 'historySummary'));
   }
-  const docs = snap.docs.sort((a, b) => a.id.localeCompare(b.id));
-  const categories = docs.map(d => d.id);
-  const expenses = docs.map(d => d.data().totalExpenses || 0);
-  const incomes = docs.map(d => d.data().totalIncomes || 0);
+  const docs = snap.docs.sort((a,b) => a.id.localeCompare(b.id));
+  const categories = docs.map(d=>d.id);
+  const expenses   = docs.map(d=>d.data().totalExpenses || 0);
+  const incomes    = docs.map(d=>d.data().totalIncomes  || 0);
   const options = {
-    chart: { type: 'bar', toolbar: { show: false } },
+    chart: { type:'bar', toolbar:{ show:false } },
     series: [
-      { name: 'Gastos', data: expenses },
-      { name: 'Ingresos', data: incomes }
+      { name:'Gastos',   data: expenses },
+      { name:'Ingresos', data: incomes  }
     ],
-    plotOptions: { bar: { borderRadius: 4, columnWidth: '40%' } },
-    dataLabels: { enabled: true, offsetY: -10, style: { fontSize: '12px' }, formatter: v => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(v) },
-    xaxis: { categories },
-    yaxis: { labels: { formatter: v => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(v) } },
-    tooltip: { y: { formatter: v => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(v) } },
-    legend: { position: 'bottom' },
-    grid: { borderColor: '#eee' }
+    plotOptions: { bar:{ borderRadius:4, columnWidth:'40%' } },
+    dataLabels:{ enabled:true, offsetY:-10, style:{ fontSize:'12px' },
+      formatter:v=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(v)
+    },
+    xaxis:{ categories },
+    yaxis:{ labels:{ formatter:v=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(v) } },
+    tooltip:{ y:{ formatter:v=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(v) } },
+    legend:{ position:'bottom' },
+    grid:{ borderColor:'#eee' }
   };
   const el = document.querySelector('#monthlyChart');
   if (!el) return;
   el.innerHTML = '';
-  if (monthlyChart) { try { monthlyChart.destroy(); } catch {} }
+  if (monthlyChart) try{ monthlyChart.destroy(); }catch{}
   monthlyChart = new ApexCharts(el, options);
   monthlyChart.render();
 }

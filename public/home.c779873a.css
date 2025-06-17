@@ -66,6 +66,76 @@ button {
   height: 32px;
 }
 
+.notification-button {
+  cursor: pointer;
+  background: none;
+  border: none;
+  position: relative;
+}
+
+.badge {
+  color: #fff;
+  pointer-events: none;
+  background: red;
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  min-width: 1.2em;
+  height: 1.2em;
+  font-size: .75rem;
+  display: flex;
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translate(50%, -50%);
+}
+
+.notif-dropdown {
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  flex-direction: column;
+  width: 260px;
+  max-height: 320px;
+  display: flex;
+  position: absolute;
+  top: 60px;
+  right: 1rem;
+  overflow: hidden;
+  box-shadow: 0 4px 12px #0000001a;
+}
+
+.notif-dropdown.hidden {
+  display: none;
+}
+
+#notif-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+#notif-list li {
+  border-bottom: 1px solid #eee;
+  padding: .75rem 1rem;
+  font-size: .9rem;
+}
+
+#notif-list li:last-child {
+  border-bottom: none;
+}
+
+#notif-clear-all {
+  text-align: center;
+  cursor: pointer;
+  background: #f4f4f4;
+  border-top: 1px solid #ddd;
+  padding: .5rem 1rem;
+  font-size: .85rem;
+}
+
 @media (width >= 800px) {
   .grid-2 {
     grid-template-columns: 1fr 1fr;
@@ -116,15 +186,7 @@ button {
   box-shadow: 0 2px 4px #0000001a;
 }
 
-.card-logo {
-  border-radius: 4px;
-  width: 48px;
-  margin: 0 auto .75rem;
-  display: block;
-}
-
 .slider-btn {
-  cursor: pointer;
   z-index: 2;
   background: #fffc;
   border-radius: 50%;

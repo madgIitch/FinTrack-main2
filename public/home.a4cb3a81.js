@@ -673,41 +673,31 @@ const messaging = (0, _messaging.getMessaging)((0, _firebaseJs.app));
 // API URL (ajústalo según tu entorno)
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 let monthlyChart = null;
-// ── Petición de permiso de notificaciones (requiere gesto de usuario) ─────
+// ── Petición de permiso de notificaciones ─────────────────────────────────
 async function requestNotificationPermission() {
     if (!('Notification' in window)) {
         console.warn('[HOME] Este navegador no soporta notificaciones');
         return;
     }
-    // Si ya otorgado, refrescar token en background
-    if (Notification.permission === 'granted') {
+    async function requestNotificationPermission() {
+        if (!('Notification' in window)) return;
+        let fmSW;
+        try {
+            // --> scope ajustado a /js/
+            fmSW = await navigator.serviceWorker.register(require("5a445ba2a79b46bc"), {
+                scope: '/js/'
+            });
+            console.log('[HOME] FCM SW registrado con scope:', fmSW.scope);
+        } catch (e) {
+            console.error('[HOME] Error registrando FCM SW:', e);
+            return;
+        }
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') return;
         try {
             const token = await (0, _messaging.getToken)(messaging, {
-                vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao'
-            });
-            console.log('[HOME] FCM token refrescado:', token);
-            await fetch(`${apiUrl}/save_fcm_token`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    token,
-                    userId: (0, _firebaseJs.auth).currentUser.uid
-                })
-            });
-        } catch (e) {
-            console.warn('[HOME] No se pudo obtener/guardar FCM token:', e);
-        }
-        return;
-    }
-    // Solicitar permiso al usuario
-    try {
-        const perm = await Notification.requestPermission();
-        console.log('[HOME] Notification.permission:', perm);
-        if (perm === 'granted') {
-            const token = await (0, _messaging.getToken)(messaging, {
-                vapidKey: 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao'
+                vapidKey: '<TU_VAPID_KEY>',
+                serviceWorkerRegistration: fmSW
             });
             console.log('[HOME] FCM token obtenido:', token);
             await fetch(`${apiUrl}/save_fcm_token`, {
@@ -720,12 +710,12 @@ async function requestNotificationPermission() {
                     userId: (0, _firebaseJs.auth).currentUser.uid
                 })
             });
+        } catch (e) {
+            console.warn('[HOME] No se pudo guardar el token:', e);
         }
-    } catch (e) {
-        console.error('[HOME] Error al solicitar permiso de notificaciones:', e);
     }
 }
-// ── Registrar Service Worker y periodicSync ────────────────────────────────
+// ── Service Worker + Background Sync ───────────────────────────────────────
 async function setupBackgroundSync() {
     if (!('serviceWorker' in navigator)) {
         console.log('[HOME] Service Worker no soportado');
@@ -743,60 +733,56 @@ async function setupBackgroundSync() {
         } catch (e) {
             console.warn('[HOME] One-off sync failed:', e);
         }
-        // Periodic sync cada 15 minutos (si está permitido)
-        if ('periodicSync' in registration) try {
+        // Periodic sync cada 15 minutos
+        if ('periodicSync' in registration) {
             const status = await navigator.permissions.query({
                 name: 'periodic-background-sync'
             });
-            console.log('[HOME] periodic-background-sync permiso:', status.state);
-            if (status.state === 'granted') {
+            if (status.state === 'granted') try {
                 await registration.periodicSync.register('sync-transactions', {
                     minInterval: 900000
                 });
                 console.log('[HOME] periodicSync registered');
+            } catch (e) {
+                console.warn('[HOME] periodicSync failed:', e);
             }
-        } catch (e) {
-            console.warn('[HOME] periodicSync failed:', e);
+            else console.log('[HOME] periodic-background-sync permiso:', status.state);
         }
     } catch (err) {
         console.error('[HOME] SW registration failed:', err);
     }
 }
 window.addEventListener('load', setupBackgroundSync);
+// ── DOM Ready & Handlers ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', ()=>{
     console.log('[HOME] DOM ready');
-    // Sidebar controls
-    const sidebar = document.getElementById('sidebar');
-    const btnOpen = document.getElementById('open-sidebar');
-    const btnClose = document.getElementById('close-sidebar');
-    btnOpen?.addEventListener('click', ()=>sidebar?.classList.add('open'));
-    btnClose?.addEventListener('click', ()=>sidebar?.classList.remove('open'));
+    // Sidebar open/close
+    document.getElementById('open-sidebar')?.addEventListener('click', ()=>document.getElementById('sidebar')?.classList.add('open'));
+    document.getElementById('close-sidebar')?.addEventListener('click', ()=>document.getElementById('sidebar')?.classList.remove('open'));
     // Logout
     document.getElementById('logout-link')?.addEventListener('click', async (e)=>{
         e.preventDefault();
-        try {
-            await (0, _auth.signOut)((0, _firebaseJs.auth));
-            location.href = '../index.html';
-        } catch (e) {
-            console.error('[HOME] signOut failed:', e);
-        }
+        await (0, _auth.signOut)((0, _firebaseJs.auth));
+        location.href = '../index.html';
+    });
+    // Botón de notificaciones
+    document.getElementById('btn-notifications')?.addEventListener('click', async ()=>{
+        await requestNotificationPermission();
+        location.href = 'notifications.html';
     });
 });
-// ── Auth state listener y lógica de notificaciones (solo un prompt) ────────
+// ── Auth State & Primera petición de permiso ──────────────────────────────
 (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
     console.log('[HOME] Auth state changed:', user);
     if (!user) {
         location.href = '../index.html';
         return;
     }
-    // Solicitar permiso de notificaciones si no se ha decidido
+    // Primer prompt si no se ha decidido aún
     if (Notification.permission === 'default') await requestNotificationPermission();
-    else if (Notification.permission === 'granted') // Refrescar token en segundo plano
-    await requestNotificationPermission();
-    // Mostrar nombre de usuario
+    // Cargar nombre de usuario
     try {
-        const userDoc = (0, _firestore.doc)(db, 'users', user.uid);
-        const snap = await (0, _firestore.getDoc)(userDoc);
+        const snap = await (0, _firestore.getDoc)((0, _firestore.doc)(db, 'users', user.uid));
         const data = snap.exists() ? snap.data() : {};
         const name = [
             data.firstName,
@@ -806,22 +792,21 @@ document.addEventListener('DOMContentLoaded', ()=>{
     } catch (e) {
         console.error('[HOME] load profile failed:', e);
     }
-    // Lógica de la app
+    // Arrancar la app
     await manualSync(user.uid);
     await loadBalances(user.uid);
     await saveUID(user.uid);
     await loadMonthlyChart(user.uid);
 });
-// ── Manual Sync (throttle 24h) ─────────────────────────────────────────────
+// ── Manual Sync (24h throttle) ────────────────────────────────────────────
 async function manualSync(uid) {
     const key = `lastSync_${uid}`;
     const last = Number(localStorage.getItem(key));
     const now = Date.now();
-    if (last && now - last < 86400000) {
+    if (last && now - last < 86400e3) {
         console.log('[HOME] Manual sync skipped (recent)');
         return;
     }
-    console.log('[HOME] Performing manual sync');
     try {
         const res = await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
             method: 'POST',
@@ -842,9 +827,7 @@ async function manualSync(uid) {
 }
 // ── Carga de balances en slider ────────────────────────────────────────────
 async function loadBalances(userId) {
-    console.log('[HOME] Loading balances for', userId);
-    const userDoc = (0, _firestore.doc)(db, 'users', userId);
-    const snap = await (0, _firestore.getDoc)(userDoc);
+    const snap = await (0, _firestore.getDoc)((0, _firestore.doc)(db, 'users', userId));
     const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
     const slider = document.querySelector('.balance-slider');
     slider.innerHTML = '';
@@ -861,15 +844,15 @@ async function loadBalances(userId) {
         if (!res.ok) continue;
         const { accounts: accs = [] } = await res.json();
         const acc = accs[0] || {};
-        const slide = document.createElement('div');
-        slide.className = 'balance-slide';
-        slide.innerHTML = `
+        const card = document.createElement('div');
+        card.className = 'balance-slide';
+        card.innerHTML = `
         <div class="card">
           <p class="card-title">${acc.name || 'Cuenta'}</p>
           <p class="card-subtitle">Saldo actual</p>
           <p class="card-balance">${(acc.balances?.current || 0).toFixed(2)} \u{20AC}</p>
         </div>`;
-        slider.appendChild(slide);
+        slider.appendChild(card);
     } catch (e) {
         console.error('[HOME] Balance fetch error:', e);
     }
@@ -881,33 +864,31 @@ function initSlider() {
     const slides = Array.from(slider.children);
     let idx = 0;
     const dots = document.getElementById('balance-dots');
-    const prev = document.getElementById('balance-prev');
-    const next = document.getElementById('balance-next');
     dots.innerHTML = '';
     slides.forEach((_, i)=>{
-        const d = document.createElement('div');
-        d.className = `slider-dot${i === 0 ? ' active' : ''}`;
-        d.onclick = ()=>{
+        const dot = document.createElement('div');
+        dot.className = `slider-dot${i === 0 ? ' active' : ''}`;
+        dot.onclick = ()=>{
             idx = i;
             update();
         };
-        dots.appendChild(d);
+        dots.appendChild(dot);
     });
-    prev.onclick = ()=>{
-        idx = (idx - 1 + slides.length) % slides.length;
+    document.getElementById('balance-prev').onclick = ()=>{
+        idx = (idx + slides.length - 1) % slides.length;
         update();
     };
-    next.onclick = ()=>{
+    document.getElementById('balance-next').onclick = ()=>{
         idx = (idx + 1) % slides.length;
         update();
     };
     function update() {
         slider.style.transform = `translateX(-${idx * 100}%)`;
-        dots.childNodes.forEach((dot, i)=>dot.classList.toggle('active', i === idx));
+        dots.childNodes.forEach((d, i)=>d.classList.toggle('active', i === idx));
     }
     update();
 }
-// ── Guardar UID en IndexedDB ──────────────────────────────────────────────
+// ── Guarda UID en IndexedDB ────────────────────────────────────────────────
 async function saveUID(uid) {
     if (!('indexedDB' in window)) return;
     const req = indexedDB.open('fintrack-db', 1);
@@ -919,17 +900,13 @@ async function saveUID(uid) {
         tx.oncomplete = ()=>db.close();
     };
 }
-// ── Monthly Chart (historySummary) ────────────────────────────────────────
+// ── Carga de gráfico mensual ───────────────────────────────────────────────
 async function loadMonthlyChart(userId) {
-    console.log('[HOME] Loading chart for', userId);
-    const col = (0, _firestore.collection)(db, 'users', userId, 'historySummary');
     let snap;
     try {
-        snap = await (0, _firestore.getDocsFromServer)(col);
-        console.log('[HOME] Chart data from server');
+        snap = await (0, _firestore.getDocsFromServer)((0, _firestore.collection)(db, 'users', userId, 'historySummary'));
     } catch  {
-        snap = await (0, _firestore.getDocs)(col);
-        console.log('[HOME] Chart data from cache');
+        snap = await (0, _firestore.getDocs)((0, _firestore.collection)(db, 'users', userId, 'historySummary'));
     }
     const docs = snap.docs.sort((a, b)=>a.id.localeCompare(b.id));
     const categories = docs.map((d)=>d.id);
@@ -1005,7 +982,10 @@ async function loadMonthlyChart(userId) {
     monthlyChart.render();
 }
 
-},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","firebase/messaging":"h14Q4","f49e69e7fb1d94f5":"170CW"}],"170CW":[function(require,module,exports,__globalThis) {
+},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","firebase/messaging":"h14Q4","5a445ba2a79b46bc":"dWkJT","f49e69e7fb1d94f5":"170CW"}],"dWkJT":[function(require,module,exports,__globalThis) {
+module.exports = module.bundle.resolve("js\\firebase-messaging-sw.js");
+
+},{}],"170CW":[function(require,module,exports,__globalThis) {
 module.exports = module.bundle.resolve("service-worker.js");
 
 },{}]},["Ahhet","9wRWw"], "9wRWw", "parcelRequire94c2", "./", "/")
