@@ -7,8 +7,6 @@
   <link rel="stylesheet" href="../css/styles.css" />
   <link rel="stylesheet" href="../css/home.css" />
   <link rel="stylesheet" href="../css/sidebar.css" />
-  <!-- Aquí podrías tener un CSS adicional para el dropdown de notificaciones -->
-  <!-- <link rel="stylesheet" href="../css/notifications.css" /> -->
   <script src="../js/apexcharts.min.js"></script>
   <script type="module" src="../js/sidebar.js"></script>
   <script type="module" src="../js/home.js"></script>
@@ -20,6 +18,7 @@
     <h2>Menú</h2>
     <ul>
       <li><a href="profile.html" class="sidebar-btn">Perfil</a></li>
+      <li><a href="notifications.html" class="sidebar-btn">Notificaciones</a></li> <!-- NUEVO ITEM -->
       <li><button id="logout-link" class="sidebar-btn">Cerrar Sesión</button></li>
     </ul>
   </aside>
@@ -93,5 +92,17 @@
       </a>
     </nav>
   </div>
+
+  <!-- Activar notificaciones desde la campana -->
+  <script>
+    document.getElementById('btn-notifications')?.addEventListener('click', async () => {
+      if ('Notification' in window && Notification.permission === 'default') {
+        const { requestNotificationPermission } = await import('../js/home.js');
+        requestNotificationPermission(); // activador sin redirigir
+      } else {
+        alert('Las notificaciones ya están activadas o denegadas.');
+      }
+    });
+  </script>
 </body>
 </html>
