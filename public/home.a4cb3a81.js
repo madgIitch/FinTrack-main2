@@ -667,55 +667,44 @@ var _firestore = require("firebase/firestore");
 var _auth = require("firebase/auth");
 var _messaging = require("firebase/messaging");
 console.log('[HOME] loaded');
-// ── Firestore & Messaging ─────────────────────────────────────────────────
 const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
 const messaging = (0, _messaging.getMessaging)((0, _firebaseJs.app));
-// API URL (ajústalo según tu entorno)
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 let monthlyChart = null;
-// ── Petición de permiso de notificaciones ─────────────────────────────────
 async function requestNotificationPermission() {
-    if (!('Notification' in window)) {
-        console.warn('[HOME] Este navegador no soporta notificaciones');
+    if (!('Notification' in window)) return;
+    let fmSW;
+    try {
+        fmSW = await navigator.serviceWorker.register(require("5a445ba2a79b46bc"), {
+            scope: '/js/'
+        });
+        console.log('[HOME] FCM SW registrado con scope:', fmSW.scope);
+    } catch (e) {
+        console.error('[HOME] Error registrando FCM SW:', e);
         return;
     }
-    async function requestNotificationPermission() {
-        if (!('Notification' in window)) return;
-        let fmSW;
-        try {
-            // --> scope ajustado a /js/
-            fmSW = await navigator.serviceWorker.register(require("5a445ba2a79b46bc"), {
-                scope: '/js/'
-            });
-            console.log('[HOME] FCM SW registrado con scope:', fmSW.scope);
-        } catch (e) {
-            console.error('[HOME] Error registrando FCM SW:', e);
-            return;
-        }
-        const perm = await Notification.requestPermission();
-        if (perm !== 'granted') return;
-        try {
-            const token = await (0, _messaging.getToken)(messaging, {
-                vapidKey: '<TU_VAPID_KEY>',
-                serviceWorkerRegistration: fmSW
-            });
-            console.log('[HOME] FCM token obtenido:', token);
-            await fetch(`${apiUrl}/save_fcm_token`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    token,
-                    userId: (0, _firebaseJs.auth).currentUser.uid
-                })
-            });
-        } catch (e) {
-            console.warn('[HOME] No se pudo guardar el token:', e);
-        }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return;
+    try {
+        const token = await (0, _messaging.getToken)(messaging, {
+            vapidKey: 'BEs_JKncyv0tDBfuEy2IEtS-rwbEmC5SKfCNQXZ2I70o_aXlfLEbZqDPKqERtrgvlH-FXYPjxqChIcr4UjtpKzI',
+            serviceWorkerRegistration: fmSW
+        });
+        console.log('[HOME] FCM token obtenido:', token);
+        await fetch(`${apiUrl}/save_fcm_token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                token,
+                userId: (0, _firebaseJs.auth).currentUser.uid
+            })
+        });
+    } catch (e) {
+        console.warn('[HOME] No se pudo guardar el token:', e);
     }
 }
-// ── Service Worker + Background Sync ───────────────────────────────────────
 async function setupBackgroundSync() {
     if (!('serviceWorker' in navigator)) {
         console.log('[HOME] Service Worker no soportado');
@@ -725,15 +714,15 @@ async function setupBackgroundSync() {
         const registration = await navigator.serviceWorker.register(require("f49e69e7fb1d94f5"), {
             scope: '/'
         });
-        console.log('[HOME] SW registered, scope:', registration.scope);
-        // One-off sync
+        await navigator.serviceWorker.ready;
+        console.log('[HOME] SW registered and ready, scope:', registration.scope);
         if ('sync' in registration) try {
             await registration.sync.register('sync-transactions');
             console.log('[HOME] One-off sync registered');
         } catch (e) {
-            console.warn('[HOME] One-off sync failed:', e);
+            if (e.name === 'NotAllowedError') console.warn('[HOME] SyncManager deshabilitado por permisos del navegador');
+            else console.warn('[HOME] One-off sync failed:', e);
         }
-        // Periodic sync cada 15 minutos
         if ('periodicSync' in registration) {
             const status = await navigator.permissions.query({
                 name: 'periodic-background-sync'
@@ -752,35 +741,30 @@ async function setupBackgroundSync() {
         console.error('[HOME] SW registration failed:', err);
     }
 }
-window.addEventListener('load', setupBackgroundSync);
-// ── DOM Ready & Handlers ──────────────────────────────────────────────────
+window.addEventListener('load', async ()=>{
+    await setupBackgroundSync();
+    await requestNotificationPermission();
+});
 document.addEventListener('DOMContentLoaded', ()=>{
     console.log('[HOME] DOM ready');
-    // Sidebar open/close
     document.getElementById('open-sidebar')?.addEventListener('click', ()=>document.getElementById('sidebar')?.classList.add('open'));
     document.getElementById('close-sidebar')?.addEventListener('click', ()=>document.getElementById('sidebar')?.classList.remove('open'));
-    // Logout
     document.getElementById('logout-link')?.addEventListener('click', async (e)=>{
         e.preventDefault();
         await (0, _auth.signOut)((0, _firebaseJs.auth));
         location.href = '../index.html';
     });
-    // Botón de notificaciones
     document.getElementById('btn-notifications')?.addEventListener('click', async ()=>{
-        await requestNotificationPermission();
         location.href = 'notifications.html';
     });
 });
-// ── Auth State & Primera petición de permiso ──────────────────────────────
 (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
     console.log('[HOME] Auth state changed:', user);
     if (!user) {
         location.href = '../index.html';
         return;
     }
-    // Primer prompt si no se ha decidido aún
     if (Notification.permission === 'default') await requestNotificationPermission();
-    // Cargar nombre de usuario
     try {
         const snap = await (0, _firestore.getDoc)((0, _firestore.doc)(db, 'users', user.uid));
         const data = snap.exists() ? snap.data() : {};
@@ -792,13 +776,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
     } catch (e) {
         console.error('[HOME] load profile failed:', e);
     }
-    // Arrancar la app
     await manualSync(user.uid);
     await loadBalances(user.uid);
     await saveUID(user.uid);
     await loadMonthlyChart(user.uid);
 });
-// ── Manual Sync (24h throttle) ────────────────────────────────────────────
 async function manualSync(uid) {
     const key = `lastSync_${uid}`;
     const last = Number(localStorage.getItem(key));
@@ -825,7 +807,6 @@ async function manualSync(uid) {
         console.error('[HOME] Manual sync error:', e);
     }
 }
-// ── Carga de balances en slider ────────────────────────────────────────────
 async function loadBalances(userId) {
     const snap = await (0, _firestore.getDoc)((0, _firestore.doc)(db, 'users', userId));
     const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
@@ -888,7 +869,6 @@ function initSlider() {
     }
     update();
 }
-// ── Guarda UID en IndexedDB ────────────────────────────────────────────────
 async function saveUID(uid) {
     if (!('indexedDB' in window)) return;
     const req = indexedDB.open('fintrack-db', 1);
@@ -900,7 +880,6 @@ async function saveUID(uid) {
         tx.oncomplete = ()=>db.close();
     };
 }
-// ── Carga de gráfico mensual ───────────────────────────────────────────────
 async function loadMonthlyChart(userId) {
     let snap;
     try {
