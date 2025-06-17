@@ -5,10 +5,9 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  /* Suponiendo header ~56px y bottom-nav ~56px */
   height: calc(100vh - 112px);
   padding: 8px 16px;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 /* Filtro */
@@ -21,7 +20,10 @@
   border-radius: 8px;
   box-shadow: var(--shadow-sm);
 }
-.filters { display: flex; gap: 8px; }
+.filters {
+  display: flex;
+  gap: 8px;
+}
 .filter-btn {
   background: transparent;
   border: none;
@@ -53,9 +55,10 @@
   display: flex;
   gap: 12px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 .kpi-card {
-  flex: 1;
+  flex: 1 1 150px;
   max-width: 200px;
   background: var(--surface);
   padding: 12px;
@@ -90,26 +93,44 @@
   padding: 8px;
   border-radius: 8px;
   box-shadow: var(--shadow-sm);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 140px;
+  height: 100%;
 }
 
-/* ApexCharts va en un div, aquí forzamos un tamaño compacto */
-.chart-card > div, /* el SVG interno de Apex */
-.chart-card > svg {
+/* Estilo base para gráficos Apex */
+.chart-card > div {
   width: 100% !important;
   height: 100% !important;
-  max-height: 120px;
+  max-height: 100px;
 }
+
+/* Estilo específico para el gráfico de tarta */
+#pieChart {
+  min-height: 220px;
+  max-height: 260px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 
 /* Ajuste responsivo de altura */
 @media (min-width: 600px) {
-  .chart-card > div,
-  .chart-card > svg {
-    max-height: 140px;
+  .chart-card > div {
+    max-height: 180px;
+  }
+  #pieChart {
+    max-height: 280px;
   }
 }
 @media (min-width: 900px) {
-  .chart-card > div,
-  .chart-card > svg {
-    max-height: 160px;
+  .chart-card > div {
+    max-height: 200px;
+  }
+  #pieChart {
+    max-height: 300px;
   }
 }
