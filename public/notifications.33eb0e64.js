@@ -666,27 +666,43 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
 const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
-document.addEventListener('DOMContentLoaded', async ()=>{
-    const user = (0, _firebaseJs.auth).currentUser;
-    if (!user) return;
+document.addEventListener('DOMContentLoaded', ()=>{
     const notifList = document.querySelector('.notifications-list');
-    const notifRef = (0, _firestore.collection)(db, `users/${user.uid}/notifications`);
-    const snapshot = await (0, _firestore.getDocs)(notifRef);
-    notifList.innerHTML = ''; // limpia contenido hardcoded
-    snapshot.forEach((doc)=>{
-        const n = doc.data();
-        const li = document.createElement('li');
-        li.className = `notification-card ${n.type}`;
-        li.innerHTML = `
-      <span class="material-icons notification-icon">
-        ${n.type === 'alert' ? 'warning' : 'insert_drive_file'}
-      </span>
-      <div class="notification-content">
-        <h2 class="notification-title">${n.title}</h2>
-        <p class="notification-body">${n.body}</p>
-      </div>
-    `;
-        notifList.appendChild(li);
+    notifList.innerHTML = '';
+    const backBtn = document.getElementById('back-button');
+    if (backBtn) backBtn.addEventListener('click', ()=>{
+        window.location.href = '/pages/home.html';
+    });
+    (0, _firebaseJs.auth).onAuthStateChanged(async (user)=>{
+        if (!user) {
+            console.warn('[NOTIFICATIONS] Usuario no autenticado');
+            return;
+        }
+        const notifRef = (0, _firestore.collection)(db, `users/${user.uid}/notifications`);
+        const q = (0, _firestore.query)(notifRef, (0, _firestore.orderBy)('data.timestamp', 'desc'));
+        const snapshot = await (0, _firestore.getDocs)(q);
+        if (snapshot.empty) {
+            notifList.innerHTML = '<p style="text-align:center; margin-top: 2rem; color: #777;">No tienes notificaciones por ahora.</p>';
+            return;
+        }
+        snapshot.forEach((doc)=>{
+            const n = doc.data();
+            const li = document.createElement('li');
+            li.className = `notification-card ${n.type}`;
+            li.innerHTML = `
+        <span class="material-icons notification-icon">
+          ${n.type === 'alert' ? 'warning' : 'insert_drive_file'}
+        </span>
+        <div class="notification-content">
+          <h2 class="notification-title">${n.title}</h2>
+          <p class="notification-body">${n.body}</p>
+          <time class="notification-time" style="font-size: 0.85rem; color: #888; margin-top: 6px; display: block;">
+            ${n.data?.timestamp?.toDate?.().toLocaleString?.('es-ES') || ''}
+          </time>
+        </div>
+      `;
+            notifList.appendChild(li);
+        });
     });
 });
 
