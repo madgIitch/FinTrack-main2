@@ -35,6 +35,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let trendChart, barChart, pieChart;
 
+const groupColors = {
+  'Agricultura y Medio Ambiente': '#A8D5BA',
+  'Alimentos y Restauración': '#FFB6B9',
+  'Arte y Cultura': '#FFD3B4',
+  'Automoción y Transporte': '#C3B1E1',
+  'Belleza y Cuidado Personal': '#FFDAC1',
+  'Bienes Raíces y Vivienda': '#E2F0CB',
+  'Compras y Retail': '#C0E8F9',
+  'Deportes y Recreación': '#FFC3A0',
+  'Educación y Capacitación': '#B5EAD7',
+  'Entretenimiento y Ocio': '#D5AAFF',
+  'Eventos y Celebraciones': '#FDCBBA',
+  'Finanzas y Seguros': '#D4A5A5',
+  'Gobierno y Servicios Públicos': '#AED9E0',
+  'Hogar y Jardín': '#FFF5BA',
+  'Industrial y Manufactura': '#F1C0E8',
+  'Mascotas y Animales': '#B5B9F8',
+  'Otros': '#D9D9D9',
+  'Religión y Comunidad': '#FFCBC1',
+  'Salud y Medicina': '#BEE1E6',
+  'Servicios Profesionales': '#E4BAD4',
+  'Tecnología e Internet': '#A2D2FF',
+  'Viajes y Hostelería': '#FFC9DE',
+  'Loan Payments': '#B0BEC5'
+};
+
 function reactiveAnalysis(userId) {
   console.log('[ANALYSIS] Start reactiveAnalysis for', userId);
   const db = getFirestore(app);
@@ -75,6 +101,7 @@ function reactiveAnalysis(userId) {
 
     const catLabels = Object.keys(catMap);
     const catData = catLabels.map(c => +catMap[c].toFixed(2));
+    const catColors = catLabels.map(label => groupColors[label] || '#999');
 
     console.log('[RENDER] Pie labels:', catLabels);
     console.log('[RENDER] Pie data:', catData);
@@ -110,6 +137,7 @@ function reactiveAnalysis(userId) {
       chart: { type: 'pie', height: 220, animations: { enabled: false } },
       series: catData,
       labels: catLabels,
+      colors: catColors,
       legend: { position: 'bottom' },
       noData: {
         text: 'Sin datos de categorías',
@@ -201,6 +229,7 @@ function initCharts() {
     chart: { type: 'pie', height: 220, animations: { enabled: false } },
     series: [],
     labels: [],
+    colors: [],
     legend: { position: 'bottom' },
     noData: {
       text: 'Cargando datos...',
