@@ -180,7 +180,16 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
               console.log(`✅ Notificación enviada a ${token}:`, response);
             } catch (err) {
               console.warn(`❌ Falló el envío al token ${token}:`, err.message);
+              // Si el token no es válido, lo eliminamos de Firestore
+              if (
+                err.code === 'messaging/registration-token-not-registered' ||
+                err.message.includes('Requested entity was not found')
+              ) {
+                await db.collection('users').doc(userId).collection('fcmTokens').doc(token).delete();
+                console.log(`🗑️ Token inválido eliminado: ${token}`);
+              }
             }
+
           }
         } else {
           console.log(`[FCM] No hay tokens disponibles para ${userId}`);
