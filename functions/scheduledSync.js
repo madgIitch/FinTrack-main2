@@ -29,7 +29,6 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
 
   console.log('🕒 scheduledSync HTTP iniciada:', new Date().toISOString());
 
-  // Determinar URL base de la API con el ID de proyecto
   const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
   if (!projectId) {
     console.error('❌ ERROR: No se ha detectado el ID de proyecto en entorno');
@@ -38,25 +37,21 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
   const apiBaseUrl = `https://us-central1-${projectId}.cloudfunctions.net`;
 
   try {
-    // Obtener todos los usuarios
     const usersSnap = await db.collection('users').get();
     for (const userDoc of usersSnap.docs) {
       const userId = userDoc.id;
       console.log(`🔄 Sync usuario: ${userId}`);
 
-      // ── 1) Migrar legacy history plano → history/{YYYY-MM}/items
-      const plainHistory = await db.collection('users').doc(userId)
-        .collection('history').listDocuments();
+      // ── 1) Migración legacy
+      const plainHistory = await db.collection('users').doc(userId).collection('history').listDocuments();
       const migrateBatch = db.batch();
       for (const docRef of plainHistory) {
         if (docRef.parent.id === 'history') {
           const snap = await docRef.get();
           const tx = snap.data();
-          if (tx?.date?.slice?.(0,7)) {
-            const mon = tx.date.slice(0,7);
-            const newRef = db.collection('users').doc(userId)
-              .collection('history').doc(mon)
-              .collection('items').doc(snap.id);
+          if (tx?.date?.slice?.(0, 7)) {
+            const mon = tx.date.slice(0, 7);
+            const newRef = db.collection('users').doc(userId).collection('history').doc(mon).collection('items').doc(snap.id);
             migrateBatch.set(newRef, tx, { merge: true });
           }
         }
@@ -64,26 +59,21 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
       await migrateBatch.commit();
       console.log('📦 Migración legacy history completada');
 
-      // ── 2) Traer transacciones de Plaid
+      // ── 2) Obtener transacciones Plaid
       let newTxs = [];
       try {
-        const resp = await axios.post(
-          `${apiBaseUrl}/api/plaid/get_transactions`,
-          { userId }
-        );
+        const resp = await axios.post(`${apiBaseUrl}/api/plaid/get_transactions`, { userId });
         newTxs = Array.isArray(resp.data.transactions) ? resp.data.transactions : [];
       } catch (err) {
         console.error(`❌ get_transactions falló para ${userId}:`, err.message);
       }
 
-      // ── 3) Guardar nuevas transacciones en Firestore
+      // ── 3) Guardar transacciones nuevas
       if (newTxs.length) {
         const batch = db.batch();
         for (const tx of newTxs) {
-          const mon = tx.date.slice(0,7);
-          const ref = db.collection('users').doc(userId)
-            .collection('history').doc(mon)
-            .collection('items').doc(tx.transaction_id || tx.id);
+          const mon = tx.date.slice(0, 7);
+          const ref = db.collection('users').doc(userId).collection('history').doc(mon).collection('items').doc(tx.transaction_id || tx.id);
           batch.set(ref, tx, { merge: true });
         }
         await batch.commit();
@@ -91,8 +81,7 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
       }
 
       // ── 4) Recolectar transacciones por mes
-      const monthDocs = await db.collection('users').doc(userId)
-        .collection('history').listDocuments();
+      const monthDocs = await db.collection('users').doc(userId).collection('history').listDocuments();
       const txsByMonth = {};
       for (const monRef of monthDocs) {
         const mon = monRef.id;
@@ -100,9 +89,9 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         txsByMonth[mon] = itemsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       }
 
-      // ── 5) Cargar budgets y grupos de categoría
+      // ── 5) Cargar budgets y categorías
       const userSettings = (await db.collection('users').doc(userId).get()).data().settings || {};
-      const budgetsMap   = userSettings.budgets || {};
+      const budgetsMap = userSettings.budgets || {};
       const catGroupsSnap = await db.collection('categoryGroups').get();
       const catToGroup = {};
       catGroupsSnap.forEach(doc => {
@@ -114,18 +103,14 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         });
       });
 
-      // ── 6) Recalcular historySummary, historyCategorias y historyLimits
+      // ── 6) Recalcular resúmenes
       for (const [mon, txs] of Object.entries(txsByMonth)) {
-        // 6a) historySummary
-        const sumRef = db.collection('users').doc(userId)
-          .collection('historySummary').doc(mon);
-        const totalExp = txs.filter(t => t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
-        const totalInc = txs.filter(t => t.amount >= 0).reduce((s,t) => s + t.amount, 0);
+        const sumRef = db.collection('users').doc(userId).collection('historySummary').doc(mon);
+        const totalExp = txs.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+        const totalInc = txs.filter(t => t.amount >= 0).reduce((s, t) => s + t.amount, 0);
         await sumRef.set({ totalExpenses: totalExp, totalIncomes: totalInc, updatedAt: admin.firestore.Timestamp.now() });
 
-        // 6b) historyCategorias
-        const catRef = db.collection('users').doc(userId)
-          .collection('historyCategorias').doc(mon);
+        const catRef = db.collection('users').doc(userId).collection('historyCategorias').doc(mon);
         const spentByGroup = {};
         const batchCat = db.batch();
         for (const tx of txs) {
@@ -142,10 +127,7 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         batchCat.set(catRef, spentByGroup, { merge: true });
         await batchCat.commit();
 
-        // 6c) historyLimits
-        const limGroupsRef = db.collection('users').doc(userId)
-          .collection('historyLimits').doc(mon)
-          .collection('groups');
+        const limGroupsRef = db.collection('users').doc(userId).collection('historyLimits').doc(mon).collection('groups');
         const batchLim = db.batch();
         for (const [grp, limit] of Object.entries(budgetsMap)) {
           const spent = spentByGroup[grp] || 0;
@@ -154,12 +136,9 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         await batchLim.commit();
       }
 
-      // ── 7) Detectar excesos y enviar notificaciones vía FCM
-      const currentMon = new Date().toISOString().slice(0,7);
-      const overSnap = await db.collection('users').doc(userId)
-        .collection('historyLimits').doc(currentMon)
-        .collection('groups').get();
-
+      // ── 7) Detectar excesos y enviar notificaciones (con .send individual)
+      const currentMon = new Date().toISOString().slice(0, 7);
+      const overSnap = await db.collection('users').doc(userId).collection('historyLimits').doc(currentMon).collection('groups').get();
       const exceeded = [];
       overSnap.forEach(doc => {
         const { spent, limit } = doc.data();
@@ -168,21 +147,43 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
 
       if (exceeded.length) {
         console.log(`⚠️ Excesos detectados para ${userId}:`, exceeded);
-        // Obtener tokens FCM del usuario
-        const tokensSnap = await db.collection('users').doc(userId)
-          .collection('fcmTokens').get();
+
+        const tokensSnap = await db.collection('users').doc(userId).collection('fcmTokens').get();
         const tokens = tokensSnap.docs.map(d => d.id);
+        console.log(`[FCM] Tokens detectados:`, tokens);
+
         if (tokens.length) {
-          const message = {
-            tokens,
-            notification: {
-              title: '⚠️ Límite Excedido',
-              body: exceeded.map(e => `${e.group}: ${e.spent}€ / ${e.limit}€`).join('\n')
-            },
-            data: { period: currentMon, userId }
-          };
-          const response = await admin.messaging().sendMulticast(message);
-          console.log(`📣 Notificaciones FCM enviadas (${response.successCount}/${tokens.length}) para ${userId}`);
+          const title = exceeded.length === 1
+            ? `⚠️ Exceso en ${exceeded[0].group}`
+            : 'Presupuesto superado en varias categorías';
+
+          const body = exceeded.map(e =>
+            `${e.group}: ${e.spent.toFixed(2)}€ de ${e.limit.toFixed(2)}€`
+          ).join('\n');
+
+          for (const token of tokens) {
+            const message = {
+              token,
+              notification: { title, body },
+              android: { priority: 'high' },
+              apns: { headers: { 'apns-priority': '10' } },
+              data: {
+                period: currentMon,
+                userId,
+                alertType: 'budget_overrun',
+                categories: JSON.stringify(exceeded.map(e => e.group))
+              }
+            };
+
+            try {
+              const response = await admin.messaging().send(message);
+              console.log(`✅ Notificación enviada a ${token}:`, response);
+            } catch (err) {
+              console.warn(`❌ Falló el envío al token ${token}:`, err.message);
+            }
+          }
+        } else {
+          console.log(`[FCM] No hay tokens disponibles para ${userId}`);
         }
       }
 
