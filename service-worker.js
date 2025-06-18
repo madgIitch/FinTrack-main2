@@ -27,17 +27,8 @@ messaging.onBackgroundMessage(payload => {
 // ── Instalación del Service Worker ─────────────────────────────────────────
 self.addEventListener('install', event => {
   console.log('[SW] Instalado');
-  event.waitUntil(
-    caches.open('fintrack-api-cache').then(cache =>
-      cache.addAll([
-        'https://us-central1-fintrack-1bced.cloudfunctions.net/api/plaid/get_daily_summary',
-        'https://us-central1-fintrack-1bced.cloudfunctions.net/api/plaid/get_limits_and_store'
-      ])
-    )
-  );
   self.skipWaiting();
 });
-
 
 // ── Activación del Service Worker ─────────────────────────────────────────
 self.addEventListener('activate', event => {
@@ -88,7 +79,8 @@ async function doFullSync() {
       console.error('[SW] sync_history_limits_and_store falló:', limRes.status);
       return;
     }
-    const { period, groups } = await limRes.json();
+    const { period, groups } = await limRes.clone().json();
+    await storeInIndexedDB('historyLimits', { period, groups });
     console.log(`[SW] historyLimits recibidos para ${period}:`, groups);
 
     // 3) Comprobar excesos y notificar solo una vez
@@ -116,6 +108,34 @@ async function doFullSync() {
   } catch (err) {
     console.error('[SW] Error en doFullSync:', err);
   }
+}
+
+// ── Guardar JSON en IndexedDB ─────────────────────────────────────────────
+function storeInIndexedDB(key, value) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('fintrack-db', 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('metadata')) {
+        db.createObjectStore('metadata');
+      }
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction('metadata', 'readwrite');
+      const store = tx.objectStore('metadata');
+      store.put(value, key);
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
+    };
+    request.onerror = () => reject(request.error);
+  });
 }
 
 // ── Escuchar push manualmente desde Push API ───────────────────────────────
@@ -204,12 +224,15 @@ function getUIDFromIndexedDB() {
   });
 }
 
-
+// ── Interceptar llamadas GET a API y cachearlas ───────────────────────────
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Solo interceptamos las llamadas a tu backend API
-  if (url.origin.includes('fintrack') && url.pathname.includes('/api/')) {
+  if (
+    event.request.method === 'GET' &&
+    url.origin.includes('fintrack') &&
+    url.pathname.includes('/api/')
+  ) {
     event.respondWith(
       caches.open('fintrack-api-cache').then(async cache => {
         try {
