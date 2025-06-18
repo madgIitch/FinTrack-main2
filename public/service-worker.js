@@ -37,16 +37,26 @@ self.addEventListener('periodicsync', (event)=>{
         event.waitUntil(doFullSync());
     }
 });
+// ── Listener para mensajes desde el cliente ───────────────────────────────
+self.addEventListener('message', (event)=>{
+    if (event.data?.type === 'TRIGGER_SYNC') {
+        console.log('[SW] Mensaje recibido: TRIGGER_SYNC');
+        event.waitUntil(doFullSync());
+    }
+});
 // ── Flujo completo de sincronización, límites y notificaciones de excesos ──
 async function doFullSync() {
+    console.log('[SW] doFullSync INICIADO');
     try {
         const uid = await getUIDFromIndexedDB();
+        console.log('[SW] UID obtenido desde IndexedDB:', uid);
         if (!uid) {
             console.warn('[SW] Sin UID en IndexedDB, abortando sync');
             return;
         }
         const apiUrl = self.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
-        // 1) Sincronizar transacciones
+        // ── Paso 1: Transacciones ──────────────────────────────────────
+        console.log("[SW] Enviando petici\xf3n a sync_transactions_and_store...");
         const txRes = await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
             method: 'POST',
             headers: {
@@ -56,12 +66,15 @@ async function doFullSync() {
                 userId: uid
             })
         });
+        console.log('[SW] Respuesta transacciones status:', txRes.status);
         if (!txRes.ok) {
-            console.error("[SW] sync_transactions_and_store fall\xf3:", txRes.status);
+            const errorText = await txRes.text();
+            console.error("[SW] sync_transactions_and_store fall\xf3:", txRes.status, errorText);
             return;
         }
         console.log("[SW] Transacciones sincronizadas con \xe9xito");
-        // 2) Sincronizar límites y obtener datos
+        // ── Paso 2: Límites ────────────────────────────────────────────
+        console.log("[SW] Enviando petici\xf3n a sync_history_limits_and_store...");
         const limRes = await fetch(`${apiUrl}/plaid/sync_history_limits_and_store`, {
             method: 'POST',
             headers: {
@@ -71,17 +84,23 @@ async function doFullSync() {
                 userId: uid
             })
         });
+        console.log("[SW] Respuesta l\xedmites status:", limRes.status);
         if (!limRes.ok) {
-            console.error("[SW] sync_history_limits_and_store fall\xf3:", limRes.status);
+            const errorText = await limRes.text();
+            console.error("[SW] sync_history_limits_and_store fall\xf3:", limRes.status, errorText);
             return;
         }
-        const { period, groups } = await limRes.clone().json();
+        const json = await limRes.clone().json();
+        console.log('[SW] JSON recibido de sync_history_limits_and_store:', json);
+        const { period, groups } = json;
+        console.log(`[SW] historyLimits recibidos para ${period}:`, groups);
+        // ── Guardar localmente ─────────────────────────────────────────
         await storeInIndexedDB('historyLimits', {
             period,
             groups
         });
-        console.log(`[SW] historyLimits recibidos para ${period}:`, groups);
-        // 3) Comprobar excesos y notificar solo una vez
+        console.log('[SW] historyLimits guardados en IndexedDB');
+        // ── Paso 3: Notificaciones ─────────────────────────────────────
         for (const [groupName, data] of Object.entries(groups || {})){
             const { limit, spent } = data;
             if (spent <= limit) continue;
@@ -108,32 +127,46 @@ async function doFullSync() {
             console.log(`[SW] Notificaci\xf3n enviada para ${groupName}`);
         }
     } catch (err) {
-        console.error('[SW] Error en doFullSync:', err);
+        console.error('[SW] Error inesperado en doFullSync:', err);
     }
 }
 // ── Guardar JSON en IndexedDB ─────────────────────────────────────────────
 function storeInIndexedDB(key, value) {
+    console.log('[SW] Intentando guardar en IndexedDB:', key, value);
     return new Promise((resolve, reject)=>{
         const request = indexedDB.open('fintrack-db', 1);
         request.onupgradeneeded = ()=>{
+            console.log('[SW] onupgradeneeded - creando objectStore si no existe');
             const db = request.result;
             if (!db.objectStoreNames.contains('metadata')) db.createObjectStore('metadata');
         };
         request.onsuccess = ()=>{
+            console.log('[SW] open success');
             const db = request.result;
             const tx = db.transaction('metadata', 'readwrite');
             const store = tx.objectStore('metadata');
-            store.put(value, key);
+            const putRequest = store.put(value, key);
+            putRequest.onsuccess = ()=>{
+                console.log('[SW] Guardado correctamente en IndexedDB:', key);
+            };
+            putRequest.onerror = (e)=>{
+                console.error('[SW] Error al guardar en IndexedDB:', e.target.error);
+            };
             tx.oncomplete = ()=>{
+                console.log("[SW] Transacci\xf3n completada");
                 db.close();
                 resolve();
             };
-            tx.onerror = ()=>{
+            tx.onerror = (e)=>{
+                console.error("[SW] Transacci\xf3n fallida:", tx.error);
                 db.close();
                 reject(tx.error);
             };
         };
-        request.onerror = ()=>reject(request.error);
+        request.onerror = (e)=>{
+            console.error('[SW] Error abriendo IndexedDB:', e.target.error);
+            reject(request.error);
+        };
     });
 }
 // ── Escuchar push manualmente desde Push API ───────────────────────────────

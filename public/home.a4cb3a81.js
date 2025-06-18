@@ -701,6 +701,7 @@ async function setupBackgroundSync() {
         });
         await navigator.serviceWorker.ready;
         console.log('[HOME] SW registered and ready, scope:', registration.scope);
+        // ── Registro del One-off Sync ───────────────────────────────────────
         if ('sync' in registration) try {
             await registration.sync.register('sync-transactions');
             console.log('[HOME] One-off sync registered');
@@ -708,20 +709,27 @@ async function setupBackgroundSync() {
             if (e.name === 'NotAllowedError') console.warn('[HOME] SyncManager deshabilitado por permisos del navegador');
             else console.warn('[HOME] One-off sync failed:', e);
         }
-        if ('periodicSync' in registration) {
+        // ── Registro del Periodic Background Sync ───────────────────────────
+        if ('periodicSync' in registration) try {
             const status = await navigator.permissions.query({
                 name: 'periodic-background-sync'
             });
-            if (status.state === 'granted') try {
+            if (status.state === 'granted') {
                 await registration.periodicSync.register('sync-transactions', {
-                    minInterval: 900000
+                    minInterval: 900000 // 15 minutos
                 });
                 console.log('[HOME] periodicSync registered');
-            } catch (e) {
-                console.warn('[HOME] periodicSync failed:', e);
-            }
-            else console.log('[HOME] periodic-background-sync permiso:', status.state);
+            } else console.log('[HOME] periodic-background-sync permiso:', status.state);
+        } catch (e) {
+            console.warn('[HOME] periodicSync failed:', e);
         }
+        // ── Lanzar sincronización forzada manual mediante postMessage ──────
+        if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'TRIGGER_SYNC'
+            });
+            console.log("[HOME] Sincronizaci\xf3n forzada enviada al SW");
+        } else console.warn('[HOME] No hay controlador activo para el SW, no se pudo lanzar TRIGGER_SYNC');
     } catch (err) {
         console.error('[HOME] SW registration failed:', err);
     }
