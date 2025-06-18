@@ -85,10 +85,17 @@
 }
 
 .charts-row {
+  flex-direction: column;
   flex: 1;
-  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  display: grid;
+  display: flex;
+}
+
+@media (width >= 768px) {
+  .charts-row {
+    grid-template-columns: repeat(3, 1fr);
+    display: grid;
+  }
 }
 
 .chart-card {

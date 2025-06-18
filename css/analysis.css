@@ -81,13 +81,20 @@
   color: var(--text-muted);
 }
 
-/* Gráficas: fila de 3 columnas */
+/* Gráficas: columna en móvil, fila de 3 en escritorio */
 .charts-row {
   flex: 1;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
+@media (min-width: 768px) {
+  .charts-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 .chart-card {
   background: var(--surface);
   padding: 8px;
@@ -115,7 +122,6 @@
   justify-content: center;
   align-items: center;
 }
-
 
 /* Ajuste responsivo de altura */
 @media (min-width: 600px) {
