@@ -27,8 +27,17 @@ messaging.onBackgroundMessage(payload => {
 // ── Instalación del Service Worker ─────────────────────────────────────────
 self.addEventListener('install', event => {
   console.log('[SW] Instalado');
+  event.waitUntil(
+    caches.open('fintrack-api-cache').then(cache =>
+      cache.addAll([
+        'https://us-central1-fintrack-1bced.cloudfunctions.net/api/plaid/get_daily_summary',
+        'https://us-central1-fintrack-1bced.cloudfunctions.net/api/plaid/get_limits_and_store'
+      ])
+    )
+  );
   self.skipWaiting();
 });
+
 
 // ── Activación del Service Worker ─────────────────────────────────────────
 self.addEventListener('activate', event => {
@@ -194,3 +203,34 @@ function getUIDFromIndexedDB() {
     request.onerror = () => reject(request.error);
   });
 }
+
+
+self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+
+  // Solo interceptamos las llamadas a tu backend API
+  if (url.origin.includes('fintrack') && url.pathname.includes('/api/')) {
+    event.respondWith(
+      caches.open('fintrack-api-cache').then(async cache => {
+        try {
+          const networkResponse = await fetch(event.request.clone());
+          if (networkResponse.ok) {
+            cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        } catch (error) {
+          return cache.match(event.request).then(cached => {
+            if (cached) {
+              console.log('[SW] Modo offline: usando caché para', url.pathname);
+              return cached;
+            }
+            return new Response(JSON.stringify({ error: 'Sin conexión y sin datos cacheados' }), {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          });
+        }
+      })
+    );
+  }
+});

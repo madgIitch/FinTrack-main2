@@ -892,7 +892,7 @@ async function loadDailyChart(userId) {
                     fontWeight: 'bold',
                     colors: [
                         '#000'
-                    ] // negro
+                    ]
                 },
                 background: {
                     enabled: false

@@ -231,7 +231,7 @@ async function loadDailyChart(userId) {
         style: {
           fontSize: '12px',
           fontWeight: 'bold',
-          colors: ['#000']  // negro
+          colors: ['#000']
         },
         background: {
           enabled: false
@@ -261,4 +261,3 @@ async function loadDailyChart(userId) {
     console.error('[HOME] Daily chart error:', e);
   }
 }
-
