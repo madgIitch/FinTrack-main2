@@ -190,6 +190,54 @@ router.post('/get_transactions', async (req, res) => {
   }
 });
 
+router.post('/get_daily_summary', async (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'Falta userId' });
+
+  try {
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) throw new Error('Usuario no encontrado');
+    const accounts = userDoc.data().plaid?.accounts || [];
+
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const startStr = start.toISOString().slice(0, 10);
+    const endStr = end.toISOString().slice(0, 10);
+
+    let allTxs = [];
+    for (const { accessToken } of accounts) {
+      const resp = await plaidClient.transactionsGet({
+        access_token: accessToken,
+        start_date: startStr,
+        end_date: endStr,
+        options: { count: 500, offset: 0 }
+      });
+      allTxs.push(...resp.data.transactions);
+    }
+
+    // Agrupar por día
+    const grouped = {};
+    allTxs.forEach(tx => {
+      const d = tx.date;
+      if (!grouped[d]) grouped[d] = { gastos: 0, ingresos: 0 };
+      if (tx.amount < 0) grouped[d].gastos += Math.abs(tx.amount);
+      else grouped[d].ingresos += tx.amount;
+    });
+
+    const dias = Object.keys(grouped).sort();
+    const gastos = dias.map(d => grouped[d].gastos);
+    const ingresos = dias.map(d => grouped[d].ingresos);
+
+    return res.json({ dias, gastos, ingresos });
+  } catch (err) {
+    console.error('[get_daily_summary] error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
+
 // ── Sync transactions, historyCategorias, historyLimits & historySummary ─────
 router.post('/sync_transactions_and_store', async (req, res) => {
   console.log('[PLAIDROUTES] → sync_transactions_and_store START');

@@ -746,7 +746,7 @@ async function setupBackgroundSync() {
     await manualSync(user.uid);
     await loadBalances(user.uid);
     await saveUID(user.uid);
-    await loadMonthlyChart(user.uid);
+    await loadDailyChart(user.uid);
 });
 async function manualSync(uid) {
     const key = `lastSync_${uid}`;
@@ -847,85 +847,103 @@ async function saveUID(uid) {
         tx.oncomplete = ()=>db.close();
     };
 }
-async function loadMonthlyChart(userId) {
-    let snap;
+async function loadDailyChart(userId) {
     try {
-        snap = await (0, _firestore.getDocsFromServer)((0, _firestore.collection)(db, 'users', userId, 'historySummary'));
-    } catch  {
-        snap = await (0, _firestore.getDocs)((0, _firestore.collection)(db, 'users', userId, 'historySummary'));
+        const res = await fetch(`${apiUrl}/plaid/get_daily_summary`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId
+            })
+        });
+        if (!res.ok) throw new Error('Error cargando resumen diario');
+        const { dias, gastos, ingresos } = await res.json();
+        const options = {
+            chart: {
+                type: 'bar',
+                toolbar: {
+                    show: false
+                },
+                height: 300
+            },
+            series: [
+                {
+                    name: 'Gastos',
+                    data: gastos
+                },
+                {
+                    name: 'Ingresos',
+                    data: ingresos
+                }
+            ],
+            plotOptions: {
+                bar: {
+                    borderRadius: 4,
+                    columnWidth: '40%'
+                }
+            },
+            dataLabels: {
+                enabled: true,
+                offsetY: -6,
+                style: {
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    colors: [
+                        '#000'
+                    ] // negro
+                },
+                background: {
+                    enabled: false
+                },
+                formatter: (v)=>new Intl.NumberFormat('es-ES', {
+                        style: 'currency',
+                        currency: 'EUR',
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                    }).format(v)
+            },
+            xaxis: {
+                categories: dias,
+                labels: {
+                    rotate: -45
+                }
+            },
+            yaxis: {
+                labels: {
+                    formatter: (v)=>new Intl.NumberFormat('es-ES', {
+                            style: 'currency',
+                            currency: 'EUR'
+                        }).format(v)
+                }
+            },
+            tooltip: {
+                y: {
+                    formatter: (v)=>new Intl.NumberFormat('es-ES', {
+                            style: 'currency',
+                            currency: 'EUR'
+                        }).format(v)
+                }
+            },
+            legend: {
+                position: 'bottom'
+            },
+            grid: {
+                borderColor: '#eee'
+            }
+        };
+        const el = document.querySelector('#monthlyChart');
+        if (!el) return;
+        el.innerHTML = '';
+        if (monthlyChart) try {
+            monthlyChart.destroy();
+        } catch  {}
+        monthlyChart = new ApexCharts(el, options);
+        monthlyChart.render();
+    } catch (e) {
+        console.error('[HOME] Daily chart error:', e);
     }
-    const docs = snap.docs.sort((a, b)=>a.id.localeCompare(b.id));
-    const categories = docs.map((d)=>d.id);
-    const expenses = docs.map((d)=>d.data().totalExpenses || 0);
-    const incomes = docs.map((d)=>d.data().totalIncomes || 0);
-    const options = {
-        chart: {
-            type: 'bar',
-            toolbar: {
-                show: false
-            }
-        },
-        series: [
-            {
-                name: 'Gastos',
-                data: expenses
-            },
-            {
-                name: 'Ingresos',
-                data: incomes
-            }
-        ],
-        plotOptions: {
-            bar: {
-                borderRadius: 4,
-                columnWidth: '40%'
-            }
-        },
-        dataLabels: {
-            enabled: true,
-            offsetY: -10,
-            style: {
-                fontSize: '12px'
-            },
-            formatter: (v)=>new Intl.NumberFormat('es-ES', {
-                    style: 'currency',
-                    currency: 'EUR'
-                }).format(v)
-        },
-        xaxis: {
-            categories
-        },
-        yaxis: {
-            labels: {
-                formatter: (v)=>new Intl.NumberFormat('es-ES', {
-                        style: 'currency',
-                        currency: 'EUR'
-                    }).format(v)
-            }
-        },
-        tooltip: {
-            y: {
-                formatter: (v)=>new Intl.NumberFormat('es-ES', {
-                        style: 'currency',
-                        currency: 'EUR'
-                    }).format(v)
-            }
-        },
-        legend: {
-            position: 'bottom'
-        },
-        grid: {
-            borderColor: '#eee'
-        }
-    };
-    const el = document.querySelector('#monthlyChart');
-    if (!el) return;
-    el.innerHTML = '';
-    if (monthlyChart) try {
-        monthlyChart.destroy();
-    } catch  {}
-    monthlyChart = new ApexCharts(el, options);
-    monthlyChart.render();
 }
 
 },{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","f49e69e7fb1d94f5":"170CW"}],"170CW":[function(require,module,exports,__globalThis) {

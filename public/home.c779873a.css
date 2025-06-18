@@ -7,6 +7,7 @@ html, body {
   margin: 0;
   padding: 0;
   font-family: Arial, sans-serif;
+  overflow-y: auto;
 }
 
 *, :before, :after {
@@ -138,16 +139,33 @@ button {
 
 @media (width >= 800px) {
   .grid-2 {
-    grid-template-columns: 1fr 1fr;
-    align-items: flex-start;
+    grid-template-columns: 320px 1fr;
+    align-items: start;
     gap: 2rem;
     display: grid;
   }
+
+  .balance-section {
+    max-width: 100%;
+  }
+
+  .chart-section {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #monthlyChart {
+    width: 100%;
+  }
+}
+
+main.content {
+  height: auto;
+  overflow-y: auto;
 }
 
 .balance-section {
   width: 90%;
-  max-width: 600px;
   margin: 1rem auto;
 }
 
@@ -159,7 +177,7 @@ button {
 
 .balance-slider-container {
   width: 100%;
-  max-width: 400px;
+  max-width: 320px;
   margin: 0 auto;
   position: relative;
   overflow: hidden;
@@ -224,8 +242,8 @@ button {
 }
 
 .chart-section {
-  width: 90%;
-  max-width: 600px;
+  width: 100%;
+  height: auto;
   margin: 1rem auto;
 }
 
@@ -241,11 +259,6 @@ button {
   padding: .5rem 0;
   display: flex;
   overflow-x: auto;
-}
-
-#monthlyChart {
-  width: 100%;
-  height: 300px;
 }
 
 .chart-footer {
