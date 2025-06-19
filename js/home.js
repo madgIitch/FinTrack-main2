@@ -2,10 +2,7 @@ import { auth, app } from './firebase.js';
 import {
   getFirestore,
   doc,
-  getDoc,
-  collection,
-  getDocsFromServer,
-  getDocs
+  getDoc
 } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 
@@ -55,7 +52,6 @@ async function setupBackgroundSync() {
     return;
   }
 
-  // ── Registro adicional del Service Worker de caché ─────────────────────
   try {
     const cacheSWReg = await navigator.serviceWorker.register(
       new URL('/sw-static-cache.js', import.meta.url)
@@ -74,7 +70,6 @@ async function setupBackgroundSync() {
     await navigator.serviceWorker.ready;
     console.log('[HOME] SW registered and ready, scope:', registration.scope);
 
-    // ── Registro del One-off Sync ───────────────────────────────────────
     if ('sync' in registration) {
       try {
         await registration.sync.register('sync-transactions');
@@ -88,13 +83,12 @@ async function setupBackgroundSync() {
       }
     }
 
-    // ── Registro del Periodic Background Sync ───────────────────────────
     if ('periodicSync' in registration) {
       try {
         const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
         if (status.state === 'granted') {
           await registration.periodicSync.register('sync-transactions', {
-            minInterval: 15 * 60 * 1000 // 15 minutos
+            minInterval: 15 * 60 * 1000
           });
           console.log('[HOME] periodicSync registered');
         } else {
@@ -105,7 +99,6 @@ async function setupBackgroundSync() {
       }
     }
 
-    // ── Lanzar sincronización forzada manual mediante postMessage ──────
     if (navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({ type: 'TRIGGER_SYNC' });
       console.log('[HOME] Sincronización forzada enviada al SW');
@@ -117,8 +110,6 @@ async function setupBackgroundSync() {
     console.error('[HOME] SW registration failed:', err);
   }
 }
-
-
 
 onAuthStateChanged(auth, async user => {
   console.log('[HOME] Auth state changed:', user);
@@ -168,10 +159,28 @@ async function manualSync(uid) {
 }
 
 async function loadBalances(userId) {
-  const snap = await getDoc(doc(db, 'users', userId));
-  const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
   const slider = document.querySelector('.balance-slider');
   slider.innerHTML = '';
+
+  if (!navigator.onLine) {
+    console.warn('[HOME] Modo offline: usando IndexedDB para cuentas');
+    const balanceData = await readFromIndexedDB('currentBalance');
+    if (balanceData?.accounts) {
+      for (const acc of balanceData.accounts) {
+        appendBalanceCard(slider, acc);
+      }
+      initSlider();
+    } else {
+      console.warn('[HOME] No hay cuentas en IndexedDB');
+    }
+    return;
+  }
+
+  const snap = await getDoc(doc(db, 'users', userId));
+  const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
+
+  let rendered = false;
+
   for (const { accessToken } of accounts) {
     try {
       const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
@@ -179,23 +188,42 @@ async function loadBalances(userId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken })
       });
-      if (!res.ok) continue;
+      if (!res.ok) throw new Error('API balance failed');
       const { accounts: accs = [] } = await res.json();
       const acc = accs[0] || {};
-      const card = document.createElement('div');
-      card.className = 'balance-slide';
-      card.innerHTML = `
-        <div class="card">
-          <p class="card-title">${acc.name || 'Cuenta'}</p>
-          <p class="card-subtitle">Saldo actual</p>
-          <p class="card-balance">${(acc.balances?.current || 0).toFixed(2)} €</p>
-        </div>`;
-      slider.appendChild(card);
+
+      appendBalanceCard(slider, acc);
+      rendered = true;
+
     } catch (e) {
-      console.error('[HOME] Balance fetch error:', e);
+      console.warn('[HOME] Balance fetch error (intentando fallback):', e);
+      try {
+        const balanceData = await readFromIndexedDB('currentBalance');
+        if (balanceData?.accounts) {
+          for (const acc of balanceData.accounts) {
+            appendBalanceCard(slider, acc);
+          }
+          rendered = true;
+        }
+      } catch (err) {
+        console.error('[HOME] Error leyendo balance de IndexedDB:', err);
+      }
     }
   }
-  initSlider();
+
+  if (rendered) initSlider();
+}
+
+function appendBalanceCard(slider, acc) {
+  const card = document.createElement('div');
+  card.className = 'balance-slide';
+  card.innerHTML = `
+    <div class="card">
+      <p class="card-title">${acc.name || 'Cuenta'}</p>
+      <p class="card-subtitle">Saldo actual</p>
+      <p class="card-balance">${(acc.balances?.current || 0).toFixed(2)} €</p>
+    </div>`;
+  slider.appendChild(card);
 }
 
 function initSlider() {
@@ -215,7 +243,7 @@ function initSlider() {
   document.getElementById('balance-next').onclick = () => { idx = (idx + 1) % slides.length; update(); };
   function update() {
     slider.style.transform = `translateX(-${idx * 100}%)`;
-    dots.childNodes.forEach((d,i) => d.classList.toggle('active', i===idx));
+    dots.childNodes.forEach((d, i) => d.classList.toggle('active', i === idx));
   }
   update();
 }
@@ -233,55 +261,122 @@ async function saveUID(uid) {
 }
 
 async function loadDailyChart(userId) {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+
+  if (!navigator.onLine) {
+    console.warn('[HOME] Modo offline: usando IndexedDB para resumen diario');
+    const fallback = await readFromIndexedDB(`dailySummary-${currentMonth}`);
+    if (fallback) {
+      const { dias = [], gastos = [], ingresos = [] } = fallback;
+      renderDailyChart(dias, gastos, ingresos);
+    } else {
+      console.warn('[HOME] No se encontró resumen diario en IndexedDB');
+    }
+    return;
+  }
+
   try {
     const res = await fetch(`${apiUrl}/plaid/get_daily_summary`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId })
     });
-    if (!res.ok) throw new Error('Error cargando resumen diario');
+
+    if (!res.ok) throw new Error('Error en respuesta HTTP');
+
     const { dias, gastos, ingresos } = await res.json();
-
-    const options = {
-      chart: { type:'bar', toolbar:{ show:false }, height : 300 },
-      series: [
-        { name:'Gastos',   data: gastos },
-        { name:'Ingresos', data: ingresos }
-      ],
-      plotOptions: { bar:{ borderRadius:4, columnWidth:'40%' } },
-      dataLabels: {
-        enabled: true,
-        offsetY: -6,
-        style: {
-          fontSize: '12px',
-          fontWeight: 'bold',
-          colors: ['#000']
-        },
-        background: {
-          enabled: false
-        },
-        formatter: v => new Intl.NumberFormat('es-ES', {
-          style: 'currency',
-          currency: 'EUR',
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0
-        }).format(v)
-      },
-      xaxis:{ categories: dias, labels: { rotate: -45 } },
-      yaxis:{ labels:{ formatter:v=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(v) } },
-      tooltip:{ y:{ formatter:v=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(v) } },
-      legend:{ position:'bottom' },
-      grid:{ borderColor:'#eee' }
-    };
-
-    const el = document.querySelector('#monthlyChart');
-    if (!el) return;
-    el.innerHTML = '';
-    if (monthlyChart) try{ monthlyChart.destroy(); }catch{}
-    monthlyChart = new ApexCharts(el, options);
-    monthlyChart.render();
+    renderDailyChart(dias, gastos, ingresos);
 
   } catch (e) {
-    console.error('[HOME] Daily chart error:', e);
+    console.warn('[HOME] Daily chart error (intentando fallback):', e);
+    try {
+      const fallback = await readFromIndexedDB(`dailySummary-${currentMonth}`);
+      if (fallback) {
+        const { dias = [], gastos = [], ingresos = [] } = fallback;
+        renderDailyChart(dias, gastos, ingresos);
+      } else {
+        console.warn('[HOME] No se encontró resumen diario en IndexedDB');
+      }
+    } catch (err) {
+      console.error('[HOME] Error leyendo dailySummary de IndexedDB:', err);
+    }
   }
+}
+
+function renderDailyChart(dias, gastos, ingresos) {
+  const options = {
+    chart: { type: 'bar', toolbar: { show: false }, height: 300 },
+    series: [
+      { name: 'Gastos', data: gastos },
+      { name: 'Ingresos', data: ingresos }
+    ],
+    plotOptions: { bar: { borderRadius: 4, columnWidth: '40%' } },
+    dataLabels: {
+      enabled: true,
+      offsetY: -6,
+      style: {
+        fontSize: '12px',
+        fontWeight: 'bold',
+        colors: ['#000']
+      },
+      background: { enabled: false },
+      formatter: v => new Intl.NumberFormat('es-ES', {
+        style: 'currency',
+        currency: 'EUR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(v)
+    },
+    xaxis: { categories: dias, labels: { rotate: -45 } },
+    yaxis: { labels: { formatter: v => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(v) } },
+    tooltip: { y: { formatter: v => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(v) } },
+    legend: { position: 'bottom' },
+    grid: { borderColor: '#eee' }
+  };
+
+  const el = document.querySelector('#monthlyChart');
+  if (!el) return;
+  el.innerHTML = '';
+  if (monthlyChart) try { monthlyChart.destroy(); } catch { }
+  monthlyChart = new ApexCharts(el, options);
+  monthlyChart.render();
+}
+
+async function readFromIndexedDB(key) {
+  console.log(`[HOME] readFromIndexedDB → leyendo clave: ${key}`);
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('fintrack-db', 1);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('metadata')) {
+        db.createObjectStore('metadata');
+        console.log('[HOME] readFromIndexedDB → metadata store creado');
+      }
+    };
+
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction('metadata', 'readonly');
+      const store = tx.objectStore('metadata');
+      const getReq = store.get(key);
+
+      getReq.onsuccess = () => {
+        const result = getReq.result || null;
+        console.log(`[HOME] readFromIndexedDB → OK: ${key}`, result);
+        resolve(result);
+        db.close();
+      };
+      getReq.onerror = () => {
+        console.error(`[HOME] readFromIndexedDB → ERROR get: ${getReq.error}`);
+        reject(getReq.error);
+        db.close();
+      };
+    };
+
+    request.onerror = e => {
+      console.error(`[HOME] readFromIndexedDB → ERROR open: ${e}`);
+      reject(request.error);
+    };
+  });
 }
