@@ -695,6 +695,13 @@ async function setupBackgroundSync() {
         console.log('[HOME] Service Worker no soportado');
         return;
     }
+    // ── Registro adicional del Service Worker de caché ─────────────────────
+    try {
+        const cacheSWReg = await navigator.serviceWorker.register(require("fec80ec6b0af4d58"));
+        console.log("[HOME] SW de cach\xe9 registrado:", cacheSWReg.scope);
+    } catch (err) {
+        console.warn("[HOME] Error al registrar SW de cach\xe9:", err);
+    }
     try {
         const registration = await navigator.serviceWorker.register(require("f49e69e7fb1d94f5"), {
             scope: '/'
@@ -954,7 +961,10 @@ async function loadDailyChart(userId) {
     }
 }
 
-},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","f49e69e7fb1d94f5":"170CW"}],"170CW":[function(require,module,exports,__globalThis) {
+},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","fec80ec6b0af4d58":"9Shij","f49e69e7fb1d94f5":"170CW"}],"9Shij":[function(require,module,exports,__globalThis) {
+module.exports = module.bundle.resolve("sw-static-cache.js");
+
+},{}],"170CW":[function(require,module,exports,__globalThis) {
 module.exports = module.bundle.resolve("service-worker.js");
 
 },{}]},["7SMtZ","9wRWw"], "9wRWw", "parcelRequire94c2", "./", "/")

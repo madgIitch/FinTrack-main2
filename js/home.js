@@ -55,6 +55,16 @@ async function setupBackgroundSync() {
     return;
   }
 
+  // ── Registro adicional del Service Worker de caché ─────────────────────
+  try {
+    const cacheSWReg = await navigator.serviceWorker.register(
+      new URL('/sw-static-cache.js', import.meta.url)
+    );
+    console.log('[HOME] SW de caché registrado:', cacheSWReg.scope);
+  } catch (err) {
+    console.warn('[HOME] Error al registrar SW de caché:', err);
+  }
+
   try {
     const registration = await navigator.serviceWorker.register(
       new URL('../service-worker.js', import.meta.url),
@@ -107,6 +117,7 @@ async function setupBackgroundSync() {
     console.error('[HOME] SW registration failed:', err);
   }
 }
+
 
 
 onAuthStateChanged(auth, async user => {

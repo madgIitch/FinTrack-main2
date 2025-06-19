@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js');
 
-// ── Inicializar Firebase en el Service Worker ─────────────────────────────
+// ── Inicializar Firebase ──────────────────────────────────────
 firebase.initializeApp({
   apiKey: "AIzaSyCV05aIQnCR5803w-cWAKxc6U23bwF13-0",
   authDomain: "fintrack-1bced.firebaseapp.com",
@@ -12,31 +12,29 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// ── Manejar notificaciones en segundo plano desde FCM ─────────────────────
+// ── Notificaciones en segundo plano ───────────────────────────
 messaging.onBackgroundMessage(payload => {
-  console.log('[firebase-messaging-sw.js] Received background message', payload);
+  console.log('[firebase-messaging-sw.js] Background message', payload);
   const { title, body, icon } = payload.notification || {};
-  const options = {
+  self.registration.showNotification(title || 'Notificación', {
     body: body || '',
     icon: icon || '/icons/notification.png',
     data: payload.data || {}
-  };
-  self.registration.showNotification(title || 'Notificación', options);
+  });
 });
 
-// ── Instalación del Service Worker ─────────────────────────────────────────
-self.addEventListener('install', event => {
+// ── SW lifecycle ───────────────────────────────────────────────
+self.addEventListener('install', e => {
   console.log('[SW] Instalado');
   self.skipWaiting();
 });
 
-// ── Activación del Service Worker ─────────────────────────────────────────
-self.addEventListener('activate', event => {
+self.addEventListener('activate', e => {
   console.log('[SW] Activado');
-  event.waitUntil(self.clients.claim());
+  e.waitUntil(self.clients.claim());
 });
 
-// ── Listener para Periodic Background Sync ─────────────────────────────────
+// ── Periodic Background Sync ──────────────────────────────────
 self.addEventListener('periodicsync', event => {
   if (event.tag === 'sync-transactions') {
     console.log('[SW] periodicSync recibido');
@@ -44,7 +42,7 @@ self.addEventListener('periodicsync', event => {
   }
 });
 
-// ── Listener para mensajes desde el cliente ───────────────────────────────
+// ── Trigger manual desde el cliente ───────────────────────────
 self.addEventListener('message', event => {
   if (event.data?.type === 'TRIGGER_SYNC') {
     console.log('[SW] Mensaje recibido: TRIGGER_SYNC');
@@ -52,14 +50,12 @@ self.addEventListener('message', event => {
   }
 });
 
-// ── Flujo completo de sincronización, límites y notificaciones de excesos ──
+// ── doFullSync: Transacciones, Límites y Notificaciones ──────
 async function doFullSync() {
   console.log('[SW] doFullSync INICIADO');
 
   try {
     const uid = await getUIDFromIndexedDB();
-    console.log('[SW] UID obtenido desde IndexedDB:', uid);
-
     if (!uid) {
       console.warn('[SW] Sin UID en IndexedDB, abortando sync');
       return;
@@ -69,32 +65,24 @@ async function doFullSync() {
       ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
       : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 
-    // ── Paso 1: Transacciones ──────────────────────────────────────
-    console.log('[SW] Enviando petición a sync_transactions_and_store...');
     const txRes = await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: uid })
     });
 
-    console.log('[SW] Respuesta transacciones status:', txRes.status);
     if (!txRes.ok) {
       const errorText = await txRes.text();
       console.error('[SW] sync_transactions_and_store falló:', txRes.status, errorText);
       return;
     }
 
-    console.log('[SW] Transacciones sincronizadas con éxito');
-
-    // ── Paso 2: Límites ────────────────────────────────────────────
-    console.log('[SW] Enviando petición a sync_history_limits_and_store...');
     const limRes = await fetch(`${apiUrl}/plaid/sync_history_limits_and_store`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: uid })
     });
 
-    console.log('[SW] Respuesta límites status:', limRes.status);
     if (!limRes.ok) {
       const errorText = await limRes.text();
       console.error('[SW] sync_history_limits_and_store falló:', limRes.status, errorText);
@@ -102,52 +90,37 @@ async function doFullSync() {
     }
 
     const json = await limRes.clone().json();
-    console.log('[SW] JSON recibido de sync_history_limits_and_store:', json);
-
     const { period, groups } = json;
-    console.log(`[SW] historyLimits recibidos para ${period}:`, groups);
-
-    // ── Guardar localmente ─────────────────────────────────────────
     await storeInIndexedDB('historyLimits', { period, groups });
-    console.log('[SW] historyLimits guardados en IndexedDB');
 
-    // ── Paso 3: Notificaciones ─────────────────────────────────────
     for (const [groupName, data] of Object.entries(groups || {})) {
       const { limit, spent } = data;
       if (spent <= limit) continue;
 
-      const notificationTag = `excess-${period}-${groupName}`;
-      const prev = await self.registration.getNotifications({ tag: notificationTag });
-      if (prev.length > 0) {
-        console.log(`[SW] Notificación ya emitida para ${groupName}`);
-        continue;
-      }
+      const tag = `excess-${period}-${groupName}`;
+      const prev = await self.registration.getNotifications({ tag });
+      if (prev.length > 0) continue;
 
       const bodyText = `${groupName}: ${spent.toFixed(2)} € de ${limit.toFixed(2)} €`;
       self.registration.showNotification('Límite excedido', {
-        body:    bodyText,
-        icon:    '/icons/notification-alert.png',
-        tag:     notificationTag,
-        renotify:false,
+        body: bodyText,
+        icon: '/icons/notification-alert.png',
+        tag,
+        renotify: false,
         vibrate: [100, 50, 100]
       });
-
-      console.log(`[SW] Notificación enviada para ${groupName}`);
     }
   } catch (err) {
     console.error('[SW] Error inesperado en doFullSync:', err);
   }
 }
 
-// ── Guardar JSON en IndexedDB ─────────────────────────────────────────────
+// ── IndexedDB helpers ─────────────────────────────────────────
 function storeInIndexedDB(key, value) {
-  console.log('[SW] Intentando guardar en IndexedDB:', key, value);
-
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('fintrack-db', 1);
 
     request.onupgradeneeded = () => {
-      console.log('[SW] onupgradeneeded - creando objectStore si no existe');
       const db = request.result;
       if (!db.objectStoreNames.contains('metadata')) {
         db.createObjectStore('metadata');
@@ -155,115 +128,39 @@ function storeInIndexedDB(key, value) {
     };
 
     request.onsuccess = () => {
-      console.log('[SW] open success');
       const db = request.result;
-
       const tx = db.transaction('metadata', 'readwrite');
       const store = tx.objectStore('metadata');
-
       const putRequest = store.put(value, key);
 
-      putRequest.onsuccess = () => {
-        console.log('[SW] Guardado correctamente en IndexedDB:', key);
-      };
+      putRequest.onsuccess = () => resolve();
+      putRequest.onerror = () => reject(putRequest.error);
 
-      putRequest.onerror = (e) => {
-        console.error('[SW] Error al guardar en IndexedDB:', e.target.error);
-      };
-
-      tx.oncomplete = () => {
-        console.log('[SW] Transacción completada');
-        db.close();
-        resolve();
-      };
-
-      tx.onerror = (e) => {
-        console.error('[SW] Transacción fallida:', tx.error);
-        db.close();
-        reject(tx.error);
-      };
+      tx.oncomplete = () => db.close();
+      tx.onerror = () => reject(tx.error);
     };
 
-    request.onerror = (e) => {
-      console.error('[SW] Error abriendo IndexedDB:', e.target.error);
-      reject(request.error);
-    };
+    request.onerror = () => reject(request.error);
   });
 }
 
-// ── Escuchar push manualmente desde Push API ───────────────────────────────
-self.addEventListener('push', event => {
-  console.log('[SW] push recibido:', event);
-  let payload = {
-    title: 'Notificación',
-    body:  'Tienes una nueva notificación',
-    icon:  '/icons/notification.png',
-    data:  {}
-  };
-
-  try {
-    const json = event.data.json();
-    payload = {
-      title:      json.title  || payload.title,
-      body:       json.body   || payload.body,
-      icon:       json.icon   || payload.icon,
-      tag:        json.tag,
-      renotify:   json.renotify,
-      vibrate:    json.vibrate,
-      data:       json.data   || {}
-    };
-  } catch (e) {
-    console.warn('[SW] payload no era JSON, usando valores por defecto');
-  }
-
-  const options = {
-    body:     payload.body,
-    icon:     payload.icon,
-    tag:      payload.tag,
-    renotify: payload.renotify || false,
-    vibrate:  payload.vibrate || [100,50,100],
-    data:     payload.data
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(payload.title, options)
-  );
-});
-
-// ── Gestionar click en la notificación ────────────────────────────────────
-self.addEventListener('notificationclick', event => {
-  console.log('[SW] notificationclick:', event.notification.tag);
-  event.notification.close();
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then(windowClients => {
-        for (const client of windowClients) {
-          if (client.url.includes('/pages/home.html') && 'focus' in client) {
-            return client.focus();
-          }
-        }
-        if (clients.openWindow) {
-          return clients.openWindow('/pages/home.html');
-        }
-      })
-  );
-});
-
-// ── Obtener el UID desde IndexedDB ────────────────────────────────────────
 function getUIDFromIndexedDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('fintrack-db', 1);
+
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains('metadata')) {
         db.createObjectStore('metadata');
       }
     };
+
     request.onsuccess = () => {
       const db = request.result;
       const tx = db.transaction('metadata', 'readonly');
       const store = tx.objectStore('metadata');
       const getReq = store.get('userId');
+
       getReq.onsuccess = () => {
         resolve(getReq.result || null);
         db.close();
@@ -273,40 +170,54 @@ function getUIDFromIndexedDB() {
         db.close();
       };
     };
+
     request.onerror = () => reject(request.error);
   });
 }
 
-// ── Interceptar llamadas GET a API y cachearlas ───────────────────────────
-self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
+// ── Notificación Push Manual ─────────────────────────────────
+self.addEventListener('push', event => {
+  let payload = {
+    title: 'Notificación',
+    body:  'Tienes una nueva notificación',
+    icon:  '/icons/notification.png',
+    data:  {}
+  };
 
-  if (
-    event.request.method === 'GET' &&
-    url.origin.includes('fintrack') &&
-    url.pathname.includes('/api/')
-  ) {
-    event.respondWith(
-      caches.open('fintrack-api-cache').then(async cache => {
-        try {
-          const networkResponse = await fetch(event.request.clone());
-          if (networkResponse.ok) {
-            cache.put(event.request, networkResponse.clone());
-          }
-          return networkResponse;
-        } catch (error) {
-          return cache.match(event.request).then(cached => {
-            if (cached) {
-              console.log('[SW] Modo offline: usando caché para', url.pathname);
-              return cached;
-            }
-            return new Response(JSON.stringify({ error: 'Sin conexión y sin datos cacheados' }), {
-              status: 503,
-              headers: { 'Content-Type': 'application/json' }
-            });
-          });
-        }
-      })
-    );
+  try {
+    const json = event.data.json();
+    payload = { ...payload, ...json };
+  } catch (e) {
+    console.warn('[SW] payload no era JSON, usando valores por defecto');
   }
+
+  const options = {
+    body: payload.body,
+    icon: payload.icon,
+    tag: payload.tag,
+    renotify: payload.renotify || false,
+    vibrate: payload.vibrate || [100, 50, 100],
+    data: payload.data
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, options)
+  );
+});
+
+// ── Click en Notificación ─────────────────────────────────────
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientsArr => {
+      for (const client of clientsArr) {
+        if (client.url.includes('/pages/home.html') && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow('/pages/home.html');
+      }
+    })
+  );
 });
