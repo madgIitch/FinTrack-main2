@@ -176,42 +176,45 @@ async function loadBalances(userId) {
     return;
   }
 
-  const snap = await getDoc(doc(db, 'users', userId));
-  const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
+  try {
+    const snap = await getDoc(doc(db, 'users', userId));
+    const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
 
-  let rendered = false;
+    const fetchedAccounts = [];
 
-  for (const { accessToken } of accounts) {
-    try {
+    for (const { accessToken } of accounts) {
       const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken })
       });
+
       if (!res.ok) throw new Error('API balance failed');
       const { accounts: accs = [] } = await res.json();
       const acc = accs[0] || {};
-
       appendBalanceCard(slider, acc);
-      rendered = true;
+      fetchedAccounts.push(acc);
+    }
 
-    } catch (e) {
-      console.warn('[HOME] Balance fetch error (intentando fallback):', e);
-      try {
-        const balanceData = await readFromIndexedDB('currentBalance');
-        if (balanceData?.accounts) {
-          for (const acc of balanceData.accounts) {
-            appendBalanceCard(slider, acc);
-          }
-          rendered = true;
+    if (fetchedAccounts.length > 0) {
+      await writeToIndexedDB('currentBalance', { accounts: fetchedAccounts });
+      initSlider();
+    }
+
+  } catch (e) {
+    console.warn('[HOME] Balance fetch error (intentando fallback):', e);
+    try {
+      const balanceData = await readFromIndexedDB('currentBalance');
+      if (balanceData?.accounts) {
+        for (const acc of balanceData.accounts) {
+          appendBalanceCard(slider, acc);
         }
-      } catch (err) {
-        console.error('[HOME] Error leyendo balance de IndexedDB:', err);
+        initSlider();
       }
+    } catch (err) {
+      console.error('[HOME] Error leyendo balance de IndexedDB:', err);
     }
   }
-
-  if (rendered) initSlider();
 }
 
 function appendBalanceCard(slider, acc) {
@@ -285,6 +288,7 @@ async function loadDailyChart(userId) {
     if (!res.ok) throw new Error('Error en respuesta HTTP');
 
     const { dias, gastos, ingresos } = await res.json();
+    await writeToIndexedDB(`dailySummary-${currentMonth}`, { dias, gastos, ingresos });
     renderDailyChart(dias, gastos, ingresos);
 
   } catch (e) {
@@ -343,7 +347,6 @@ function renderDailyChart(dias, gastos, ingresos) {
 }
 
 async function readFromIndexedDB(key) {
-  console.log(`[HOME] readFromIndexedDB → leyendo clave: ${key}`);
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('fintrack-db', 1);
 
@@ -351,7 +354,6 @@ async function readFromIndexedDB(key) {
       const db = request.result;
       if (!db.objectStoreNames.contains('metadata')) {
         db.createObjectStore('metadata');
-        console.log('[HOME] readFromIndexedDB → metadata store creado');
       }
     };
 
@@ -362,20 +364,48 @@ async function readFromIndexedDB(key) {
       const getReq = store.get(key);
 
       getReq.onsuccess = () => {
-        const result = getReq.result || null;
-        console.log(`[HOME] readFromIndexedDB → OK: ${key}`, result);
-        resolve(result);
+        resolve(getReq.result || null);
         db.close();
       };
       getReq.onerror = () => {
-        console.error(`[HOME] readFromIndexedDB → ERROR get: ${getReq.error}`);
         reject(getReq.error);
         db.close();
       };
     };
 
     request.onerror = e => {
-      console.error(`[HOME] readFromIndexedDB → ERROR open: ${e}`);
+      reject(request.error);
+    };
+  });
+}
+
+async function writeToIndexedDB(key, value) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('fintrack-db', 1);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('metadata')) {
+        db.createObjectStore('metadata');
+      }
+    };
+
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction('metadata', 'readwrite');
+      const store = tx.objectStore('metadata');
+      store.put(value, key);
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        reject(tx.error);
+        db.close();
+      };
+    };
+
+    request.onerror = e => {
       reject(request.error);
     };
   });

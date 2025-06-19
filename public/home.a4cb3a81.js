@@ -797,37 +797,44 @@ async function loadBalances(userId) {
         } else console.warn('[HOME] No hay cuentas en IndexedDB');
         return;
     }
-    const snap = await (0, _firestore.getDoc)((0, _firestore.doc)(db, 'users', userId));
-    const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
-    let rendered = false;
-    for (const { accessToken } of accounts)try {
-        const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                accessToken
-            })
-        });
-        if (!res.ok) throw new Error('API balance failed');
-        const { accounts: accs = [] } = await res.json();
-        const acc = accs[0] || {};
-        appendBalanceCard(slider, acc);
-        rendered = true;
+    try {
+        const snap = await (0, _firestore.getDoc)((0, _firestore.doc)(db, 'users', userId));
+        const accounts = snap.exists() ? snap.data().plaid?.accounts || [] : [];
+        const fetchedAccounts = [];
+        for (const { accessToken } of accounts){
+            const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    accessToken
+                })
+            });
+            if (!res.ok) throw new Error('API balance failed');
+            const { accounts: accs = [] } = await res.json();
+            const acc = accs[0] || {};
+            appendBalanceCard(slider, acc);
+            fetchedAccounts.push(acc);
+        }
+        if (fetchedAccounts.length > 0) {
+            await writeToIndexedDB('currentBalance', {
+                accounts: fetchedAccounts
+            });
+            initSlider();
+        }
     } catch (e) {
         console.warn('[HOME] Balance fetch error (intentando fallback):', e);
         try {
             const balanceData = await readFromIndexedDB('currentBalance');
             if (balanceData?.accounts) {
                 for (const acc of balanceData.accounts)appendBalanceCard(slider, acc);
-                rendered = true;
+                initSlider();
             }
         } catch (err) {
             console.error('[HOME] Error leyendo balance de IndexedDB:', err);
         }
     }
-    if (rendered) initSlider();
 }
 function appendBalanceCard(slider, acc) {
     const card = document.createElement('div');
@@ -904,6 +911,11 @@ async function loadDailyChart(userId) {
         });
         if (!res.ok) throw new Error('Error en respuesta HTTP');
         const { dias, gastos, ingresos } = await res.json();
+        await writeToIndexedDB(`dailySummary-${currentMonth}`, {
+            dias,
+            gastos,
+            ingresos
+        });
         renderDailyChart(dias, gastos, ingresos);
     } catch (e) {
         console.warn('[HOME] Daily chart error (intentando fallback):', e);
@@ -1002,15 +1014,11 @@ function renderDailyChart(dias, gastos, ingresos) {
     monthlyChart.render();
 }
 async function readFromIndexedDB(key) {
-    console.log(`[HOME] readFromIndexedDB \u{2192} leyendo clave: ${key}`);
     return new Promise((resolve, reject)=>{
         const request = indexedDB.open('fintrack-db', 1);
         request.onupgradeneeded = ()=>{
             const db = request.result;
-            if (!db.objectStoreNames.contains('metadata')) {
-                db.createObjectStore('metadata');
-                console.log("[HOME] readFromIndexedDB \u2192 metadata store creado");
-            }
+            if (!db.objectStoreNames.contains('metadata')) db.createObjectStore('metadata');
         };
         request.onsuccess = ()=>{
             const db = request.result;
@@ -1018,19 +1026,41 @@ async function readFromIndexedDB(key) {
             const store = tx.objectStore('metadata');
             const getReq = store.get(key);
             getReq.onsuccess = ()=>{
-                const result = getReq.result || null;
-                console.log(`[HOME] readFromIndexedDB \u{2192} OK: ${key}`, result);
-                resolve(result);
+                resolve(getReq.result || null);
                 db.close();
             };
             getReq.onerror = ()=>{
-                console.error(`[HOME] readFromIndexedDB \u{2192} ERROR get: ${getReq.error}`);
                 reject(getReq.error);
                 db.close();
             };
         };
         request.onerror = (e)=>{
-            console.error(`[HOME] readFromIndexedDB \u{2192} ERROR open: ${e}`);
+            reject(request.error);
+        };
+    });
+}
+async function writeToIndexedDB(key, value) {
+    return new Promise((resolve, reject)=>{
+        const request = indexedDB.open('fintrack-db', 1);
+        request.onupgradeneeded = ()=>{
+            const db = request.result;
+            if (!db.objectStoreNames.contains('metadata')) db.createObjectStore('metadata');
+        };
+        request.onsuccess = ()=>{
+            const db = request.result;
+            const tx = db.transaction('metadata', 'readwrite');
+            const store = tx.objectStore('metadata');
+            store.put(value, key);
+            tx.oncomplete = ()=>{
+                db.close();
+                resolve();
+            };
+            tx.onerror = ()=>{
+                reject(tx.error);
+                db.close();
+            };
+        };
+        request.onerror = (e)=>{
             reject(request.error);
         };
     });
