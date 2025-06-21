@@ -1,7 +1,6 @@
-// transactions.js – Lógica completa con control offline reforzado y logs
-
-console.log('[DEBUG] transactions.js activo');
-
+// ─────────────────────────────────────────────────────────────────────────────
+// transactions.js – Lógica completa con soporte offline/online + logging
+// ─────────────────────────────────────────────────────────────────────────────
 
 import { auth, db } from './firebase.js';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -10,6 +9,10 @@ import { openDB } from 'idb';
 
 console.log('[Init] transactions.js loaded');
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Configuración
+// ─────────────────────────────────────────────────────────────────────────────
+
 const apiUrl = window.location.hostname === 'localhost'
   ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
   : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
@@ -17,10 +20,14 @@ const apiUrl = window.location.hostname === 'localhost'
 const DB_NAME = 'transactions-db';
 const DB_VERSION = 1;
 const STORE_TXS = 'txs';
-
 const PAGE_SIZE = 20;
+
 let currentPage = 1;
 let allTxsGlobal = [];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IndexedDB
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function openTxDB() {
   return openDB(DB_NAME, DB_VERSION, {
@@ -36,9 +43,7 @@ async function cacheTransactions(txs) {
   const db = await openTxDB();
   const tx = db.transaction(STORE_TXS, 'readwrite');
   for (const t of txs) {
-    if (t.transaction_id) {
-      tx.store.put(t);
-    }
+    if (t.transaction_id) tx.store.put(t);
   }
   await tx.done;
   console.log('[CACHE] Transacciones guardadas en IndexedDB:', txs.length);
@@ -50,6 +55,10 @@ async function getCachedTransactions() {
   console.log('[CACHE] Transacciones obtenidas de IndexedDB:', txs.length);
   return txs;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Renderizado
+// ─────────────────────────────────────────────────────────────────────────────
 
 function renderTxItem(tx) {
   const div = document.createElement('div');
@@ -112,6 +121,10 @@ function showPage() {
   updatePagination();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// UI y eventos
+// ─────────────────────────────────────────────────────────────────────────────
+
 function setupEventListeners() {
   console.log('[UI] Inicializando eventos UI');
   const mf = document.getElementById('month-filter');
@@ -127,6 +140,10 @@ function setupEventListeners() {
   };
   document.getElementById('toggle-view').onchange = () => { currentPage = 1; showPage(); };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Firestore y Plaid
+// ─────────────────────────────────────────────────────────────────────────────
 
 function subscribeHistoryItems(userId, callback) {
   console.log('[FIRESTORE] Subscribiéndose a history del usuario');
@@ -199,8 +216,13 @@ async function buildAccountMap(userId) {
   return map;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Carga principal
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function loadTransactions(userId) {
   console.log('[TX] → Iniciando loadTransactions con userId:', userId);
+
   if (!navigator.onLine) {
     console.warn('[TX] Modo offline detectado');
     allTxsGlobal = await getCachedTransactions();
@@ -213,7 +235,6 @@ async function loadTransactions(userId) {
   }
 
   try {
-    console.log('[FETCH] Iniciando sync con backend');
     await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -261,15 +282,13 @@ async function loadTransactions(userId) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Autenticación y eventos de red
+// ─────────────────────────────────────────────────────────────────────────────
+
 onAuthStateChanged(auth, user => {
   console.log('[AUTH] Cambio de estado detectado. User:', user);
   if (!user) return (window.location.href = '../index.html');
-  if (!navigator.onLine) {
-    console.warn('[AUTH] Estamos OFFLINE, se cancela la carga.');
-    loadTransactions(user.uid); // Permitir carga desde IndexedDB
-    return;
-  }
-  console.log('[AUTH] Estamos ONLINE. Continuando...');
   loadTransactions(user.uid);
 });
 
@@ -278,16 +297,19 @@ function showOfflineBanner() {
   if (banner) banner.style.display = 'block';
   console.log('[UI] Banner OFFLINE visible');
 }
+
 function hideOfflineBanner() {
   const banner = document.getElementById('offline-banner');
   if (banner) banner.style.display = 'none';
   console.log('[UI] Banner OFFLINE oculto');
 }
-window.addEventListener('online', hideOfflineBanner);
-window.addEventListener('offline', showOfflineBanner);
-if (!navigator.onLine) showOfflineBanner();
 
 window.addEventListener('online', () => {
-  console.log('[NET] Conexión recuperada, recargando datos');
-  if (auth.currentUser) loadTransactions(auth.currentUser.uid);
+  hideOfflineBanner();
+  if (auth.currentUser) {
+    console.log('[NET] Conexión recuperada, recargando datos');
+    loadTransactions(auth.currentUser.uid);
+  }
 });
+window.addEventListener('offline', showOfflineBanner);
+if (!navigator.onLine) showOfflineBanner();

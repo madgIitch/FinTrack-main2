@@ -662,13 +662,17 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"j59nl":[function(require,module,exports,__globalThis) {
-// transactions.js – Lógica completa con control offline reforzado y logs
+// ─────────────────────────────────────────────────────────────────────────────
+// transactions.js – Lógica completa con soporte offline/online + logging
+// ─────────────────────────────────────────────────────────────────────────────
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
 var _firestore = require("firebase/firestore");
 var _idb = require("idb");
-console.log('[DEBUG] transactions.js activo');
 console.log('[Init] transactions.js loaded');
+// ─────────────────────────────────────────────────────────────────────────────
+// Configuración
+// ─────────────────────────────────────────────────────────────────────────────
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 const DB_NAME = 'transactions-db';
 const DB_VERSION = 1;
@@ -676,6 +680,9 @@ const STORE_TXS = 'txs';
 const PAGE_SIZE = 20;
 let currentPage = 1;
 let allTxsGlobal = [];
+// ─────────────────────────────────────────────────────────────────────────────
+// IndexedDB
+// ─────────────────────────────────────────────────────────────────────────────
 async function openTxDB() {
     return (0, _idb.openDB)(DB_NAME, DB_VERSION, {
         upgrade (db) {
@@ -698,6 +705,9 @@ async function getCachedTransactions() {
     console.log('[CACHE] Transacciones obtenidas de IndexedDB:', txs.length);
     return txs;
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// Renderizado
+// ─────────────────────────────────────────────────────────────────────────────
 function renderTxItem(tx) {
     const div = document.createElement('div');
     div.className = 'transaction-item';
@@ -751,6 +761,9 @@ function showPage() {
     document.getElementById('toggle-view').checked ? renderGroupedPage(slice) : renderChronoPage(slice);
     updatePagination();
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// UI y eventos
+// ─────────────────────────────────────────────────────────────────────────────
 function setupEventListeners() {
     console.log('[UI] Inicializando eventos UI');
     const mf = document.getElementById('month-filter');
@@ -778,6 +791,9 @@ function setupEventListeners() {
         showPage();
     };
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// Firestore y Plaid
+// ─────────────────────────────────────────────────────────────────────────────
 function subscribeHistoryItems(userId, callback) {
     console.log("[FIRESTORE] Subscribi\xe9ndose a history del usuario");
     const historyRef = (0, _firestore.collection)((0, _firebaseJs.db), 'users', userId, 'history');
@@ -857,6 +873,9 @@ async function buildAccountMap(userId) {
     }
     return map;
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// Carga principal
+// ─────────────────────────────────────────────────────────────────────────────
 async function loadTransactions(userId) {
     console.log("[TX] \u2192 Iniciando loadTransactions con userId:", userId);
     if (!navigator.onLine) {
@@ -870,7 +889,6 @@ async function loadTransactions(userId) {
         return;
     }
     try {
-        console.log('[FETCH] Iniciando sync con backend');
         await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
             method: 'POST',
             headers: {
@@ -919,15 +937,12 @@ async function loadTransactions(userId) {
         console.warn("[FIRESTORE] Error en suscripci\xf3n a history", e);
     }
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// Autenticación y eventos de red
+// ─────────────────────────────────────────────────────────────────────────────
 (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), (user)=>{
     console.log('[AUTH] Cambio de estado detectado. User:', user);
     if (!user) return window.location.href = '../index.html';
-    if (!navigator.onLine) {
-        console.warn('[AUTH] Estamos OFFLINE, se cancela la carga.');
-        loadTransactions(user.uid); // Permitir carga desde IndexedDB
-        return;
-    }
-    console.log('[AUTH] Estamos ONLINE. Continuando...');
     loadTransactions(user.uid);
 });
 function showOfflineBanner() {
@@ -940,13 +955,15 @@ function hideOfflineBanner() {
     if (banner) banner.style.display = 'none';
     console.log('[UI] Banner OFFLINE oculto');
 }
-window.addEventListener('online', hideOfflineBanner);
+window.addEventListener('online', ()=>{
+    hideOfflineBanner();
+    if ((0, _firebaseJs.auth).currentUser) {
+        console.log("[NET] Conexi\xf3n recuperada, recargando datos");
+        loadTransactions((0, _firebaseJs.auth).currentUser.uid);
+    }
+});
 window.addEventListener('offline', showOfflineBanner);
 if (!navigator.onLine) showOfflineBanner();
-window.addEventListener('online', ()=>{
-    console.log("[NET] Conexi\xf3n recuperada, recargando datos");
-    if ((0, _firebaseJs.auth).currentUser) loadTransactions((0, _firebaseJs.auth).currentUser.uid);
-});
 
 },{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1","idb":"258QC"}],"258QC":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
