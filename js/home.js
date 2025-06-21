@@ -410,3 +410,24 @@ async function writeToIndexedDB(key, value) {
     };
   });
 }
+
+
+function showOfflineBanner() {
+  const banner = document.getElementById('offline-banner');
+  if (!banner) return;
+  banner.style.display = 'block';
+}
+
+function hideOfflineBanner() {
+  const banner = document.getElementById('offline-banner');
+  if (!banner) return;
+  banner.style.display = 'none';
+}
+
+window.addEventListener('online', hideOfflineBanner);
+window.addEventListener('offline', showOfflineBanner);
+
+// Mostrar al cargar si ya está offline
+if (!navigator.onLine) {
+  showOfflineBanner();
+}
