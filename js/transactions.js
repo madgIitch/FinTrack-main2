@@ -224,12 +224,16 @@ async function loadTransactions(userId) {
   console.log('[TX] → Iniciando loadTransactions con userId:', userId);
 
   if (!navigator.onLine) {
-    console.warn('[TX] Modo offline detectado');
-    allTxsGlobal = await getCachedTransactions();
+    console.warn('[TX] Modo offline detectado. Esperando cache segura...');
+    const cached = await getCachedTransactions();
+    allTxsGlobal = cached;
+
     if (!window.hasInitializedUI) {
       setupEventListeners();
       window.hasInitializedUI = true;
     }
+
+    // Asegura renderizado siempre
     showPage();
     return;
   }
@@ -288,9 +292,26 @@ async function loadTransactions(userId) {
 
 onAuthStateChanged(auth, user => {
   console.log('[AUTH] Cambio de estado detectado. User:', user);
-  if (!user) return (window.location.href = '../index.html');
-  loadTransactions(user.uid);
+  if (user) {
+    if (!navigator.onLine) {
+      console.warn('[AUTH] Estamos OFFLINE, esperando un instante para cache');
+      setTimeout(() => loadTransactions(user.uid), 300);
+    } else {
+      loadTransactions(user.uid);
+    }
+  } else {
+    // ←⚠️ Si Firebase aún no ha inicializado bien la sesión en offline
+    const offlineUser = auth.currentUser;
+    if (offlineUser) {
+      console.warn('[AUTH] auth.currentUser recuperado en modo offline:', offlineUser.uid);
+      setTimeout(() => loadTransactions(offlineUser.uid), 300);
+    } else {
+      console.error('[AUTH] No hay sesión disponible. Redirigiendo a login.');
+      window.location.href = '../index.html';
+    }
+  }
 });
+
 
 function showOfflineBanner() {
   const banner = document.getElementById('offline-banner');
