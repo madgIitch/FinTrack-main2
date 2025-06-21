@@ -662,104 +662,42 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"j59nl":[function(require,module,exports,__globalThis) {
+// transactions.js – Lógica completa con control offline reforzado y logs
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
 var _firestore = require("firebase/firestore");
 var _idb = require("idb");
+console.log('[DEBUG] transactions.js activo');
 console.log('[Init] transactions.js loaded');
-// API base URL
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
-// IndexedDB configuration
-const DB_NAME = 'fintrack-cache';
-const DB_VERSION = 8; // bump when data model changes
-const STORE_NAME = 'transactions';
-// Pagination settings
+const DB_NAME = 'transactions-db';
+const DB_VERSION = 1;
+const STORE_TXS = 'txs';
 const PAGE_SIZE = 20;
 let currentPage = 1;
 let allTxsGlobal = [];
-// Initialize or upgrade IndexedDB
-async function initDB() {
-    console.log('[DB] Initializing IndexedDB v' + DB_VERSION);
+async function openTxDB() {
     return (0, _idb.openDB)(DB_NAME, DB_VERSION, {
         upgrade (db) {
-            if (db.objectStoreNames.contains(STORE_NAME)) db.deleteObjectStore(STORE_NAME);
-            db.createObjectStore(STORE_NAME, {
+            if (!db.objectStoreNames.contains(STORE_TXS)) db.createObjectStore(STORE_TXS, {
                 keyPath: 'transaction_id'
             });
         }
     });
 }
-// Cache transactions to IndexedDB
-async function cacheTransactions(idb, txs) {
-    console.log('[Cache] Storing ' + txs.length + ' transactions');
-    for (const tx of txs){
-        const id = tx.transaction_id || tx.id;
-        if (!id) continue;
-        tx.transaction_id = id;
-        try {
-            await idb.put(STORE_NAME, tx);
-            console.log('[Cache] Stored tx', id);
-        } catch (e) {
-            console.error('[Cache] Error storing tx', id, e);
-        }
-    }
+async function cacheTransactions(txs) {
+    const db = await openTxDB();
+    const tx = db.transaction(STORE_TXS, 'readwrite');
+    for (const t of txs)if (t.transaction_id) tx.store.put(t);
+    await tx.done;
+    console.log('[CACHE] Transacciones guardadas en IndexedDB:', txs.length);
 }
-// Build account ID → name map
-async function buildAccountMap(userId) {
-    console.log('[Accounts] Building account map for user', userId);
-    const userSnap = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', userId));
-    const accounts = userSnap.exists() ? userSnap.data().plaid?.accounts || [] : [];
-    console.log('[Accounts] Found ' + accounts.length + ' accounts');
-    const map = {};
-    for (const { accessToken } of accounts)try {
-        const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                accessToken
-            })
-        });
-        if (!res.ok) {
-            console.warn('[Accounts] accountsGet responded not ok');
-            continue;
-        }
-        const data = await res.json();
-        data.accounts.forEach((a)=>{
-            map[a.account_id] = a.name || 'Cuenta';
-            console.log('[Accounts] Map', a.account_id, "\u2192", a.name);
-        });
-    } catch (e) {
-        console.error('[Accounts] fetch error', e);
-    }
-    console.log('[Accounts] Completed account map');
-    return map;
+async function getCachedTransactions() {
+    const db = await openTxDB();
+    const txs = await db.getAll(STORE_TXS);
+    console.log('[CACHE] Transacciones obtenidas de IndexedDB:', txs.length);
+    return txs;
 }
-// Fetch transactions from Plaid
-async function fetchTransactionsFromPlaid(userId) {
-    console.log('[Fetch] Plaid transactions for', userId);
-    const res = await fetch(`${apiUrl}/plaid/get_transactions`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            userId
-        })
-    });
-    if (!res.ok) {
-        console.error('[Fetch] Failed to fetch Plaid transactions:', res.status);
-        throw new Error('Failed fetching Plaid transactions');
-    }
-    const data = await res.json();
-    console.log('[Fetch] Retrieved ' + data.transactions.length + ' Plaid txs');
-    return data.transactions.map((tx)=>({
-            ...tx,
-            transaction_id: tx.transaction_id || tx.id
-        }));
-}
-// Rendering helpers
 function renderTxItem(tx) {
     const div = document.createElement('div');
     div.className = 'transaction-item';
@@ -794,9 +732,8 @@ function renderGroupedPage(txs) {
         list.appendChild(sec);
     });
 }
-// Filtering & pagination
 function getFilteredTxs() {
-    const val = document.getElementById('month-filter').value;
+    const val = document.getElementById('month-filter')?.value;
     return val ? allTxsGlobal.filter((tx)=>tx.date.startsWith(val)) : allTxsGlobal;
 }
 function updatePagination() {
@@ -807,17 +744,15 @@ function updatePagination() {
     document.getElementById('page-info').textContent = `P\xe1gina ${currentPage} de ${pages}`;
 }
 function showPage() {
-    console.log('[UI] showPage - page', currentPage);
+    console.log("[UI] Mostrando p\xe1gina actual:", currentPage);
     const arr = getFilteredTxs();
-    console.log('[UI] showPage - filtered tx count', arr.length);
     const start = (currentPage - 1) * PAGE_SIZE;
     const slice = arr.slice(start, start + PAGE_SIZE);
     document.getElementById('toggle-view').checked ? renderGroupedPage(slice) : renderChronoPage(slice);
     updatePagination();
 }
-// UI event listeners
 function setupEventListeners() {
-    console.log('[UI] Setting up event listeners');
+    console.log('[UI] Inicializando eventos UI');
     const mf = document.getElementById('month-filter');
     const mi = document.querySelector('.month-icon');
     if (mi) mi.onclick = ()=>mf.showPicker ? mf.showPicker() : mf.focus();
@@ -826,14 +761,12 @@ function setupEventListeners() {
         showPage();
     };
     document.getElementById('prev-page').onclick = ()=>{
-        console.log('[UI] Prev page click');
         if (currentPage > 1) {
             currentPage--;
             showPage();
         }
     };
     document.getElementById('next-page').onclick = ()=>{
-        console.log('[UI] Next page click');
         const pages = Math.ceil(getFilteredTxs().length / PAGE_SIZE);
         if (currentPage < pages) {
             currentPage++;
@@ -845,66 +778,100 @@ function setupEventListeners() {
         showPage();
     };
 }
-// Subscribe to Firestore history items in real-time (combining history and historySummary months)
 function subscribeHistoryItems(userId, callback) {
-    console.log('[Seed] Initializing subscription to history and summary months for', userId);
+    console.log("[FIRESTORE] Subscribi\xe9ndose a history del usuario");
     const historyRef = (0, _firestore.collection)((0, _firebaseJs.db), 'users', userId, 'history');
     const summaryRef = (0, _firestore.collection)((0, _firebaseJs.db), 'users', userId, 'historySummary');
     let itemUnsubs = [];
     const seedMap = new Map();
     let monthsSet = new Set();
-    // Helper to resubscribe to item subcollections based on current monthsSet
     function resubscribeItems() {
         itemUnsubs.forEach((unsub)=>unsub());
         itemUnsubs = [];
         seedMap.clear();
-        const months = Array.from(monthsSet).sort();
-        console.log('[Seed] Active months:', months);
+        const months = Array.from(monthsSet);
         months.forEach((monthId)=>{
             const itemsRef = (0, _firestore.collection)((0, _firebaseJs.db), 'users', userId, 'history', monthId, 'items');
-            console.log('[Seed] Subscribing to items of month', monthId);
-            const unsub = (0, _firestore.onSnapshot)(itemsRef, (itemsSnap)=>{
-                console.log('[Seed] Item changes for month', monthId, itemsSnap.docChanges().length, 'changes');
-                itemsSnap.docChanges().forEach((change)=>{
+            const unsub = (0, _firestore.onSnapshot)(itemsRef, (snap)=>{
+                snap.docChanges().forEach((change)=>{
                     const docSnap = change.doc;
                     const id = docSnap.data().transaction_id || docSnap.id;
-                    console.log('[Seed] change type', change.type, 'for tx', id);
                     if (change.type === 'removed') seedMap.delete(id);
                     else seedMap.set(id, {
                         ...docSnap.data(),
                         transaction_id: id
                     });
                 });
-                const seedTxs = Array.from(seedMap.values());
-                console.log('[Seed] Delivering', seedTxs.length, 'seed transactions');
-                callback(seedTxs);
-            }, (err)=>console.error('[Seed] items snapshot error', err));
+                callback(Array.from(seedMap.values()));
+            });
             itemUnsubs.push(unsub);
         });
     }
-    // Listen to history collection for monthDocs
-    (0, _firestore.onSnapshot)(historyRef, (histSnap)=>{
-        histSnap.docs.forEach((d)=>monthsSet.add(d.id));
-        console.log('[Seed] history months snapshot:', histSnap.docs.map((d)=>d.id));
+    (0, _firestore.onSnapshot)(historyRef, (snap)=>{
+        snap.docs.forEach((d)=>monthsSet.add(d.id));
         resubscribeItems();
-    }, (err)=>console.error('[Seed] history snapshot error', err));
-    // Listen to historySummary collection for monthDocs
-    (0, _firestore.onSnapshot)(summaryRef, (sumSnap)=>{
-        sumSnap.docs.forEach((d)=>monthsSet.add(d.id));
-        console.log('[Seed] summary months snapshot:', sumSnap.docs.map((d)=>d.id));
+    });
+    (0, _firestore.onSnapshot)(summaryRef, (snap)=>{
+        snap.docs.forEach((d)=>monthsSet.add(d.id));
         resubscribeItems();
-    }, (err)=>console.error('[Seed] summary snapshot error', err));
+    });
 }
-// Main load function
+async function fetchTransactionsFromPlaid(userId) {
+    console.log('[FETCH] Obteniendo transacciones desde Plaid');
+    const res = await fetch(`${apiUrl}/plaid/get_transactions`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            userId
+        })
+    });
+    if (!res.ok) throw new Error('Error obteniendo transacciones');
+    const data = await res.json();
+    return data.transactions.map((tx)=>({
+            ...tx,
+            transaction_id: tx.transaction_id || tx.id
+        }));
+}
+async function buildAccountMap(userId) {
+    console.log('[FIRESTORE] Construyendo mapa de cuentas');
+    const userSnap = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', userId));
+    const accounts = userSnap.exists() ? userSnap.data().plaid?.accounts || [] : [];
+    const map = {};
+    for (const { accessToken } of accounts){
+        const res = await fetch(`${apiUrl}/plaid/get_account_details`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                accessToken
+            })
+        });
+        if (!res.ok) continue;
+        const data = await res.json();
+        data.accounts.forEach((a)=>{
+            map[a.account_id] = a.name || 'Cuenta';
+        });
+    }
+    return map;
+}
 async function loadTransactions(userId) {
-    console.log('[Main] loadTransactions for', userId);
-    const idb = await initDB();
-    const accountMap = await buildAccountMap(userId);
-    console.log('[Main] Got account map, keys:', Object.keys(accountMap));
-    // Sync remote
-    if (navigator.onLine) {
-        console.log('[Main] Syncing remote...');
-        fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
+    console.log("[TX] \u2192 Iniciando loadTransactions con userId:", userId);
+    if (!navigator.onLine) {
+        console.warn('[TX] Modo offline detectado');
+        allTxsGlobal = await getCachedTransactions();
+        if (!window.hasInitializedUI) {
+            setupEventListeners();
+            window.hasInitializedUI = true;
+        }
+        showPage();
+        return;
+    }
+    try {
+        console.log('[FETCH] Iniciando sync con backend');
+        await fetch(`${apiUrl}/plaid/sync_transactions_and_store`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -912,50 +879,72 @@ async function loadTransactions(userId) {
             body: JSON.stringify({
                 userId
             })
-        }).catch((e)=>console.error('[Sync] Error', e));
+        });
+    } catch (e) {
+        console.warn('[SYNC] error en sync_transactions_and_store', e);
     }
-    // Fetch Plaid transactions once
     let plaidTxs = [];
     try {
         plaidTxs = await fetchTransactionsFromPlaid(userId);
     } catch (e) {
-        console.error('[Fetch] Plaid error', e);
+        console.warn('[FETCH] Error obteniendo transacciones Plaid', e);
     }
-    // Subscribe to Firestore seed transactions
-    subscribeHistoryItems(userId, async (seedTxs)=>{
-        console.log('[Main] Received seedTxs count', seedTxs.length);
-        const combined = Array.from(new Map([
-            ...plaidTxs,
-            ...seedTxs
-        ].map((tx)=>[
-                tx.transaction_id,
-                tx
-            ])).values()).sort((a, b)=>new Date(b.date) - new Date(a.date));
-        allTxsGlobal = combined.map((tx)=>({
-                ...tx,
-                accountName: accountMap[tx.account_id] || 'Desconocida'
-            }));
-        console.log('[Main] combined tx count', allTxsGlobal.length);
-        if (!window.hasInitializedUI) {
-            setupEventListeners();
-            window.hasInitializedUI = true;
-            console.log('[Main] UI initialized');
-        }
-        showPage();
-        // Cache latest for offline
-        const freshDb = await initDB();
-        await cacheTransactions(freshDb, allTxsGlobal);
-    });
+    let accountMap = {};
+    try {
+        accountMap = await buildAccountMap(userId);
+    } catch (e) {
+        console.warn('[MAP] Error construyendo mapa de cuentas', e);
+    }
+    try {
+        subscribeHistoryItems(userId, async (seedTxs)=>{
+            const combined = Array.from(new Map([
+                ...plaidTxs,
+                ...seedTxs
+            ].map((tx)=>[
+                    tx.transaction_id,
+                    tx
+                ])).values()).sort((a, b)=>new Date(b.date) - new Date(a.date));
+            allTxsGlobal = combined.map((tx)=>({
+                    ...tx,
+                    accountName: accountMap[tx.account_id] || 'Desconocida'
+                }));
+            await cacheTransactions(allTxsGlobal);
+            if (!window.hasInitializedUI) {
+                setupEventListeners();
+                window.hasInitializedUI = true;
+            }
+            showPage();
+        });
+    } catch (e) {
+        console.warn("[FIRESTORE] Error en suscripci\xf3n a history", e);
+    }
 }
-// Auth listener
 (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), (user)=>{
-    console.log('[Auth] onAuthStateChanged', user?.uid);
+    console.log('[AUTH] Cambio de estado detectado. User:', user);
     if (!user) return window.location.href = '../index.html';
+    if (!navigator.onLine) {
+        console.warn('[AUTH] Estamos OFFLINE, se cancela la carga.');
+        loadTransactions(user.uid); // Permitir carga desde IndexedDB
+        return;
+    }
+    console.log('[AUTH] Estamos ONLINE. Continuando...');
     loadTransactions(user.uid);
 });
-// Re-sync when coming online
+function showOfflineBanner() {
+    const banner = document.getElementById('offline-banner');
+    if (banner) banner.style.display = 'block';
+    console.log('[UI] Banner OFFLINE visible');
+}
+function hideOfflineBanner() {
+    const banner = document.getElementById('offline-banner');
+    if (banner) banner.style.display = 'none';
+    console.log('[UI] Banner OFFLINE oculto');
+}
+window.addEventListener('online', hideOfflineBanner);
+window.addEventListener('offline', showOfflineBanner);
+if (!navigator.onLine) showOfflineBanner();
 window.addEventListener('online', ()=>{
-    console.log('[Network] online event');
+    console.log("[NET] Conexi\xf3n recuperada, recargando datos");
     if ((0, _firebaseJs.auth).currentUser) loadTransactions((0, _firebaseJs.auth).currentUser.uid);
 });
 
