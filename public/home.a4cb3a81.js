@@ -666,6 +666,17 @@ var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
 var _auth = require("firebase/auth");
 console.log('[HOME] loaded');
+function openFintrackDB() {
+    return new Promise((resolve, reject)=>{
+        const request = indexedDB.open('fintrack-db', 1);
+        request.onupgradeneeded = ()=>{
+            const db = request.result;
+            if (!db.objectStoreNames.contains('metadata')) db.createObjectStore('metadata');
+        };
+        request.onsuccess = ()=>resolve(request.result);
+        request.onerror = ()=>reject(request.error);
+    });
+}
 const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 let monthlyChart = null;
@@ -886,15 +897,15 @@ function initSlider() {
     update();
 }
 async function saveUID(uid) {
-    if (!('indexedDB' in window)) return;
-    const req = indexedDB.open('fintrack-db', 1);
-    req.onupgradeneeded = ()=>req.result.createObjectStore('metadata');
-    req.onsuccess = ()=>{
-        const db = req.result;
+    try {
+        const db = await openFintrackDB();
         const tx = db.transaction('metadata', 'readwrite');
         tx.objectStore('metadata').put(uid, 'userId');
-        tx.oncomplete = ()=>db.close();
-    };
+        await tx.complete;
+        db.close();
+    } catch (err) {
+        console.error('[HOME] Error guardando UID en IndexedDB:', err);
+    }
 }
 async function loadDailyChart(userId) {
     const currentMonth = new Date().toISOString().slice(0, 7);
@@ -1022,54 +1033,34 @@ function renderDailyChart(dias, gastos, ingresos) {
     monthlyChart.render();
 }
 async function readFromIndexedDB(key) {
+    const db = await openFintrackDB();
     return new Promise((resolve, reject)=>{
-        const request = indexedDB.open('fintrack-db', 1);
-        request.onupgradeneeded = ()=>{
-            const db = request.result;
-            if (!db.objectStoreNames.contains('metadata')) db.createObjectStore('metadata');
+        const tx = db.transaction('metadata', 'readonly');
+        const store = tx.objectStore('metadata');
+        const getReq = store.get(key);
+        getReq.onsuccess = ()=>{
+            resolve(getReq.result || null);
+            db.close();
         };
-        request.onsuccess = ()=>{
-            const db = request.result;
-            const tx = db.transaction('metadata', 'readonly');
-            const store = tx.objectStore('metadata');
-            const getReq = store.get(key);
-            getReq.onsuccess = ()=>{
-                resolve(getReq.result || null);
-                db.close();
-            };
-            getReq.onerror = ()=>{
-                reject(getReq.error);
-                db.close();
-            };
-        };
-        request.onerror = (e)=>{
-            reject(request.error);
+        getReq.onerror = ()=>{
+            reject(getReq.error);
+            db.close();
         };
     });
 }
 async function writeToIndexedDB(key, value) {
+    const db = await openFintrackDB();
     return new Promise((resolve, reject)=>{
-        const request = indexedDB.open('fintrack-db', 1);
-        request.onupgradeneeded = ()=>{
-            const db = request.result;
-            if (!db.objectStoreNames.contains('metadata')) db.createObjectStore('metadata');
+        const tx = db.transaction('metadata', 'readwrite');
+        const store = tx.objectStore('metadata');
+        store.put(value, key);
+        tx.oncomplete = ()=>{
+            db.close();
+            resolve();
         };
-        request.onsuccess = ()=>{
-            const db = request.result;
-            const tx = db.transaction('metadata', 'readwrite');
-            const store = tx.objectStore('metadata');
-            store.put(value, key);
-            tx.oncomplete = ()=>{
-                db.close();
-                resolve();
-            };
-            tx.onerror = ()=>{
-                reject(tx.error);
-                db.close();
-            };
-        };
-        request.onerror = (e)=>{
-            reject(request.error);
+        tx.onerror = ()=>{
+            reject(tx.error);
+            db.close();
         };
     });
 }

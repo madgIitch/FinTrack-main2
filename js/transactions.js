@@ -299,17 +299,27 @@ onAuthStateChanged(auth, user => {
     } else {
       loadTransactions(user.uid);
     }
-  } else {
-    // ←⚠️ Si Firebase aún no ha inicializado bien la sesión en offline
-    const offlineUser = auth.currentUser;
-    if (offlineUser) {
-      console.warn('[AUTH] auth.currentUser recuperado en modo offline:', offlineUser.uid);
-      setTimeout(() => loadTransactions(offlineUser.uid), 300);
-    } else {
-      console.error('[AUTH] No hay sesión disponible. Redirigiendo a login.');
-      window.location.href = '../index.html';
+  }  else {
+      const offlineUser = auth.currentUser;
+
+      if (offlineUser) {
+        console.warn('[AUTH] auth.currentUser recuperado en modo offline:', offlineUser.uid);
+        setTimeout(() => loadTransactions(offlineUser.uid), 300);
+        return;
+      }
+
+      // Fallback: leer userId desde IndexedDB
+      readUserIdFromIndexedDB().then(cachedUid => {
+        if (cachedUid) {
+          console.warn('[AUTH] userId recuperado desde IndexedDB:', cachedUid);
+          setTimeout(() => loadTransactions(cachedUid), 300);
+        } else {
+          console.error('[AUTH] No hay sesión ni userId en IndexedDB. Redirigiendo a login.');
+          window.location.href = '../index.html';
+        }
+      });
     }
-  }
+
 });
 
 
@@ -334,3 +344,32 @@ window.addEventListener('online', () => {
 });
 window.addEventListener('offline', showOfflineBanner);
 if (!navigator.onLine) showOfflineBanner();
+
+
+function readUserIdFromIndexedDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('fintrack-db', 1);
+
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction('metadata', 'readonly');
+      const store = tx.objectStore('metadata');
+      const getReq = store.get('userId');
+
+      getReq.onsuccess = () => {
+        resolve(getReq.result || null);
+        db.close();
+      };
+      getReq.onerror = () => {
+        console.error('[IDB] Error leyendo userId:', getReq.error);
+        resolve(null);
+        db.close();
+      };
+    };
+
+    request.onerror = () => {
+      console.error('[IDB] Error abriendo base de datos:', request.error);
+      resolve(null);
+    };
+  });
+}
