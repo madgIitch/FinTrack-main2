@@ -744,15 +744,23 @@ async function setupBackgroundSync() {
         return;
     }
     try {
-        const snap = await (0, _firestore.getDoc)((0, _firestore.doc)(db, 'users', user.uid));
-        const data = snap.exists() ? snap.data() : {};
-        const name = [
-            data.firstName,
-            data.lastName
-        ].filter(Boolean).join(' ') || 'Usuario';
+        let name = 'Usuario';
+        if (!navigator.onLine) {
+            console.warn('[HOME] Modo offline: cargando nombre desde IndexedDB');
+            const offlineName = await readFromIndexedDB(`userName-${user.uid}`);
+            if (offlineName) name = offlineName;
+        } else {
+            const snap = await (0, _firestore.getDoc)((0, _firestore.doc)(db, 'users', user.uid));
+            const data = snap.exists() ? snap.data() : {};
+            name = [
+                data.firstName,
+                data.lastName
+            ].filter(Boolean).join(' ') || 'Usuario';
+            await writeToIndexedDB(`userName-${user.uid}`, name); // guardar para offline
+        }
         document.getElementById('user-name').textContent = name;
     } catch (e) {
-        console.error('[HOME] load profile failed:', e);
+        console.error('[HOME] Error cargando nombre de usuario:', e);
     }
     await manualSync(user.uid);
     await loadBalances(user.uid);
