@@ -921,6 +921,19 @@ document.addEventListener('DOMContentLoaded', ()=>{
         }
     });
 });
+let lastScrollTop = 0;
+const nav = document.getElementById('bottom-nav');
+window.addEventListener('scroll', ()=>{
+    const currentScroll = window.scrollY;
+    if (!nav) return;
+    if (currentScroll > lastScrollTop && currentScroll > 60) // Scroll hacia abajo
+    nav.classList.add('hide');
+    else // Scroll hacia arriba
+    nav.classList.remove('hide');
+    lastScrollTop = currentScroll <= 0 ? 0 : currentScroll;
+}, {
+    passive: true
+});
 
 },{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","firebase/messaging":"h14Q4"}]},["4hwTx","6SdsI"], "6SdsI", "parcelRequire94c2")
 

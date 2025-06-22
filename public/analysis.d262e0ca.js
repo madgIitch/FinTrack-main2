@@ -937,6 +937,19 @@ function initCharts() {
     });
     pieChart.render();
 }
+let lastScrollTop = 0;
+const nav = document.getElementById('bottom-nav');
+window.addEventListener('scroll', ()=>{
+    const currentScroll = window.scrollY;
+    if (!nav) return;
+    if (currentScroll > lastScrollTop && currentScroll > 60) // Scroll hacia abajo
+    nav.classList.add('hide');
+    else // Scroll hacia arriba
+    nav.classList.remove('hide');
+    lastScrollTop = currentScroll <= 0 ? 0 : currentScroll;
+}, {
+    passive: true
+});
 
 },{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
 

@@ -226,17 +226,22 @@ button {
 }
 
 .bottom-nav {
-  z-index: 3;
+  z-index: 100;
   background-color: #f4f4f4;
   border-top: 1px solid #e0e0e0;
   justify-content: space-around;
   align-items: center;
   width: 100%;
   padding: 10px 0;
+  transition: transform .3s ease-in-out;
   display: flex;
   position: fixed;
   bottom: 0;
   left: 0;
+}
+
+.bottom-nav.hide {
+  transform: translateY(100%);
 }
 
 .bottom-nav a {

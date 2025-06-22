@@ -1078,6 +1078,19 @@ window.addEventListener('online', hideOfflineBanner);
 window.addEventListener('offline', showOfflineBanner);
 // Mostrar al cargar si ya está offline
 if (!navigator.onLine) showOfflineBanner();
+let lastScrollTop = 0;
+const nav = document.getElementById('bottom-nav');
+window.addEventListener('scroll', ()=>{
+    const currentScroll = window.scrollY;
+    if (!nav) return;
+    if (currentScroll > lastScrollTop && currentScroll > 60) // Scroll hacia abajo
+    nav.classList.add('hide');
+    else // Scroll hacia arriba
+    nav.classList.remove('hide');
+    lastScrollTop = currentScroll <= 0 ? 0 : currentScroll;
+}, {
+    passive: true
+});
 
 },{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","fec80ec6b0af4d58":"9Shij","f49e69e7fb1d94f5":"170CW"}],"9Shij":[function(require,module,exports,__globalThis) {
 module.exports = module.bundle.resolve("sw-static-cache.js");

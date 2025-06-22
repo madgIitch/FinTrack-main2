@@ -1011,6 +1011,19 @@ function readUserIdFromIndexedDB() {
         };
     });
 }
+let lastScrollTop = 0;
+const nav = document.getElementById('bottom-nav');
+window.addEventListener('scroll', ()=>{
+    const currentScroll = window.scrollY;
+    if (!nav) return;
+    if (currentScroll > lastScrollTop && currentScroll > 60) // Scroll hacia abajo
+    nav.classList.add('hide');
+    else // Scroll hacia arriba
+    nav.classList.remove('hide');
+    lastScrollTop = currentScroll <= 0 ? 0 : currentScroll;
+}, {
+    passive: true
+});
 
 },{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1","idb":"258QC"}],"258QC":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");

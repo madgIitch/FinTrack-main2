@@ -95,6 +95,18 @@
   }
 }
 
+@media (max-width: 767px) {
+  .analysis-fullscreen {
+    padding-bottom: 86px; /* espacio para que respire el último gráfico sobre la barra */
+  }
+
+  #pieChart {
+    margin-bottom: 16px; /* margen específico para separar gráfico de su leyenda */
+  }
+}
+
+
+
 .chart-card {
   background: var(--surface);
   padding: 8px;
@@ -103,21 +115,21 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 140px;
+  min-height: 220px;
   height: 100%;
 }
+
 
 /* Estilo base para gráficos Apex */
 .chart-card > div {
   width: 100% !important;
   height: 100% !important;
-  max-height: 100px;
 }
 
 /* Estilo específico para el gráfico de tarta */
 #pieChart {
-  min-height: 220px;
-  max-height: 260px;
+  height: 100%;
+  width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;

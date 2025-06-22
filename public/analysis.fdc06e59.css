@@ -98,6 +98,16 @@
   }
 }
 
+@media (width <= 767px) {
+  .analysis-fullscreen {
+    padding-bottom: 86px;
+  }
+
+  #pieChart {
+    margin-bottom: 16px;
+  }
+}
+
 .chart-card {
   background: var(--surface);
   box-shadow: var(--shadow-sm);
@@ -105,13 +115,12 @@
   justify-content: center;
   align-items: center;
   height: 100%;
-  min-height: 140px;
+  min-height: 220px;
   padding: 8px;
   display: flex;
 }
 
 .chart-card > div {
-  max-height: 100px;
   width: 100% !important;
   height: 100% !important;
 }
@@ -119,8 +128,8 @@
 #pieChart {
   justify-content: center;
   align-items: center;
-  min-height: 220px;
-  max-height: 260px;
+  width: 100%;
+  height: 100%;
   display: flex;
 }
 
