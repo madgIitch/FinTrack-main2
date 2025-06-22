@@ -292,6 +292,7 @@ async function saveUID(uid) {
 }
 
 
+
 async function loadDailyChart(userId) {
   const currentMonth = new Date().toISOString().slice(0, 7);
 
