@@ -15,6 +15,7 @@
 
   <!-- JS de configuración -->
   <script type="module" src="../js/settings.js" defer></script>
+  <script type="module" src="../js/notifications-home.js"></script>
 </head>
 <body>
   <div class="container">
@@ -27,7 +28,6 @@
         <h1 class="welcome-message">Ajustes</h1>
       </div>
       <div class="header-right">
-        <!-- Botón Guardar Ajustes -->
         <button id="save-settings-btn" class="btn-custom header-save-btn">
           Guardar Ajustes
         </button>
@@ -48,6 +48,13 @@
             <input type="checkbox" id="notif-email">
             Notificaciones por correo
           </label>
+        </div>
+
+        <!-- Botón para activar notificaciones push -->
+        <div class="centered-button">
+          <button id="enable-push-btn" class="btn-custom btn-small">
+            Activar notificaciones en este navegador
+          </button>
         </div>
       </section>
 
@@ -71,10 +78,7 @@
       <!-- Sección de presupuestos -->
       <section class="section budgets-section">
         <h2>Presupuestos por Categoría</h2>
-        <!-- Aquí inyectaremos filas vía JavaScript -->
         <div id="budgets-container"></div>
-
-        <!-- Botón para agregar una nueva fila -->
         <button id="add-category-btn" class="btn-add-category">
           <span class="material-icons">add</span> Añadir Categoría
         </button>
@@ -94,5 +98,14 @@
       </a>
     </nav>
   </div>
+
+  <!-- Activar notificaciones desde botón manual -->
+  <script type="module">
+    import { requestNotificationPermission } from '../js/notifications-home.js';
+    document.getElementById('enable-push-btn')?.addEventListener('click', e => {
+      e.preventDefault();
+      requestNotificationPermission();
+    });
+  </script>
 </body>
 </html>
