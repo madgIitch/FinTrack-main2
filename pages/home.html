@@ -43,10 +43,11 @@
         <img src="../img/logoFintonic.svg" alt="Logo FinTrack" class="logo-icon-img" />
       </div>
 
-      <!-- Botón de notificaciones con badge -->
-      <button id="btn-notifications" class="notification-button" aria-label="Notificaciones">
+      <!-- Botón de notificaciones con redirección -->
+      <a href="notifications.html" class="notification-button" aria-label="Notificaciones">
         <i class="material-icons">notifications</i>
-      </button>
+      </a>
+
 
       <!-- Dropdown de notificaciones -->
       <div id="notif-dropdown" class="notif-dropdown hidden">
@@ -98,15 +99,5 @@
       </a>
     </nav>
   </div>
-
-  <!-- Activar notificaciones desde la campana -->
-  <script type="module">
-  import { requestNotificationPermission } from '../js/notifications-home.js';
-  document.getElementById('btn-notifications')?.addEventListener('click', e => {
-    e.preventDefault();
-    requestNotificationPermission();
-  });
-</script>
-
 </body>
 </html>

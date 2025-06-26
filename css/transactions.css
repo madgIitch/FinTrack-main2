@@ -234,3 +234,15 @@ main.content {
     justify-self: start;
   }
 }
+
+
+.offline-banner {
+  background-color: #ffcc00;
+  color: #000;
+  padding: 12px;
+  text-align: center;
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 999;
+}

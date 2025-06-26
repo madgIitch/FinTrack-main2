@@ -791,6 +791,31 @@ function setupEventListeners() {
         showPage();
     };
 }
+async function renderUserName(user) {
+    const nameEl = document.getElementById('user-name');
+    if (!nameEl) return;
+    let name = 'Usuario';
+    try {
+        if (!navigator.onLine) {
+            console.warn('[USERNAME] Offline: recuperando nombre desde IndexedDB');
+            const cachedName = await readFromIndexedDB(`userName-${user.uid}`);
+            if (cachedName) name = cachedName;
+        } else {
+            const snap = await (0, _firestore.getDoc)((0, _firestore.doc)((0, _firebaseJs.db), 'users', user.uid));
+            const data = snap.exists() ? snap.data() : {};
+            name = [
+                data.firstName,
+                data.lastName
+            ].filter(Boolean).join(' ') || 'Usuario';
+            await writeToIndexedDB(`userName-${user.uid}`, name);
+        }
+        nameEl.textContent = name;
+        console.log('[USERNAME] Mostrando saludo para:', name);
+    } catch (e) {
+        console.error('[USERNAME] Error cargando nombre de usuario:', e);
+        nameEl.textContent = name;
+    }
+}
 // ─────────────────────────────────────────────────────────────────────────────
 // Firestore y Plaid
 // ─────────────────────────────────────────────────────────────────────────────
@@ -949,6 +974,7 @@ async function loadTransactions(userId) {
             console.warn('[AUTH] Estamos OFFLINE, esperando un instante para cache');
             setTimeout(()=>loadTransactions(user.uid), 300);
         } else loadTransactions(user.uid);
+        renderUserName(user.uid);
     } else {
         const offlineUser = (0, _firebaseJs.auth).currentUser;
         if (offlineUser) {
