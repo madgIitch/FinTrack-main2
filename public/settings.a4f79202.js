@@ -666,63 +666,9 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
 var _auth = require("firebase/auth");
-var _messaging = require("firebase/messaging");
 const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
-const messaging = (0, _messaging.getMessaging)((0, _firebaseJs.app));
-// Tu clave pública VAPID (Firebase Console → Cloud Messaging → Web push certificates)
-const VAPID_PUBLIC_KEY = 'BHf0cuTWZG91RETsBmmlc1xw3fzn-OWyonshT819ISjKsnOnttYbX8gm6dln7mAiGf5SyxjP52IcUMTAp0J4Vao';
-// ── Suscripción Push con FCM ────────────────────────────────────────────────
-async function subscribeUserToPush() {
-    console.group("[settings.js] \u25BA subscribeUserToPush START");
-    try {
-        const user = (0, _firebaseJs.auth).currentUser;
-        if (!user) throw new Error('No user logged in');
-        const userId = user.uid;
-        // Solicitar token FCM
-        const currentToken = await (0, _messaging.getToken)(messaging, {
-            vapidKey: VAPID_PUBLIC_KEY
-        });
-        console.log('[settings.js] FCM token obtenido:', currentToken);
-        if (currentToken) {
-            // Guardar token en Firestore
-            await db.collection('users').doc(userId).collection('fcmTokens').doc(currentToken).set({
-                createdAt: (0, _firestore.serverTimestamp)(),
-                userAgent: navigator.userAgent
-            });
-            console.log('[settings.js] Token FCM guardado en Firestore');
-        } else console.warn('[settings.js] No se pudo obtener token de registro FCM.');
-    } catch (err) {
-        console.error('[settings.js] subscribeUserToPush ERROR:', err);
-        throw err;
-    } finally{
-        console.groupEnd();
-    }
-}
-async function unsubscribeUserFromPush() {
-    console.group("[settings.js] \u25BA unsubscribeUserFromPush START");
-    try {
-        const user = (0, _firebaseJs.auth).currentUser;
-        if (!user) throw new Error('No user logged in');
-        const userId = user.uid;
-        // Obtener el token actual
-        const currentToken = await (0, _messaging.getToken)(messaging, {
-            vapidKey: VAPID_PUBLIC_KEY
-        });
-        if (currentToken) {
-            // Eliminar token en el cliente
-            const deleted = await (0, _messaging.deleteToken)(messaging);
-            console.log('[settings.js] Token FCM eliminado en cliente:', deleted);
-            // Eliminar token de Firestore
-            await db.collection('users').doc(userId).collection('fcmTokens').doc(currentToken).delete();
-            console.log('[settings.js] Token FCM eliminado de Firestore');
-        } else console.warn('[settings.js] No hay token FCM para eliminar.');
-    } catch (err) {
-        console.error('[settings.js] unsubscribeUserFromPush ERROR:', err);
-        throw err;
-    } finally{
-        console.groupEnd();
-    }
-}
+// Determina la URL de tu API según el entorno
+const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 // ── Crea una fila de presupuesto dinámicamente ──────────────────────────────
 function createBudgetRow(selectedCategory = '', amount = '') {
     const rowDiv = document.createElement('div');
@@ -775,31 +721,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
     addCategoryBtn.addEventListener('click', ()=>{
         budgetsContainer.appendChild(createBudgetRow());
     });
-    // Cambiar suscripción Push al togglear checkbox
-    chkNotifPush.addEventListener('change', async ()=>{
-        console.log('[settings.js] notif-push changed:', chkNotifPush.checked);
-        if (chkNotifPush.checked) {
-            if (Notification.permission === 'default') {
-                const perm = await Notification.requestPermission();
-                console.log('[settings.js] Notification.permission after request:', perm);
-                if (perm !== 'granted') {
-                    alert('Debes permitir notificaciones para activar Push.');
-                    chkNotifPush.checked = false;
-                    return;
-                }
-            }
-            try {
-                await subscribeUserToPush();
-            } catch (err) {
-                console.error('[settings.js] subscribeUserToPush error:', err);
-                chkNotifPush.checked = false;
-            }
-        } else try {
-            await unsubscribeUserFromPush();
-        } catch (err) {
-            console.error('[settings.js] unsubscribeUserFromPush error:', err);
-            chkNotifPush.checked = true;
-        }
+    // Guardar solo la preferencia (sin suscribir a nada)
+    chkNotifPush.addEventListener('change', ()=>{
+        console.log('[settings.js] notif-push changed (preferencia local):', chkNotifPush.checked);
     });
     // Cuando cambia el estado de auth
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
@@ -935,6 +859,6 @@ window.addEventListener('scroll', ()=>{
     passive: true
 });
 
-},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","firebase/messaging":"h14Q4"}]},["4hwTx","6SdsI"], "6SdsI", "parcelRequire94c2")
+},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi"}]},["4hwTx","6SdsI"], "6SdsI", "parcelRequire94c2")
 
 //# sourceMappingURL=settings.a4f79202.js.map
