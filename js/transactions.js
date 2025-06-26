@@ -56,6 +56,18 @@ async function getCachedTransactions() {
   return txs;
 }
 
+async function writeToIndexedDB(key, value) {
+  const db = await openDB('fintrack-db', 1);
+  const tx = db.transaction('metadata', 'readwrite');
+  tx.objectStore('metadata').put(value, key);
+  await tx.done;
+}
+
+async function readFromIndexedDB(key) {
+  const db = await openDB('fintrack-db', 1);
+  return db.transaction('metadata').objectStore('metadata').get(key);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Renderizado
 // ─────────────────────────────────────────────────────────────────────────────
@@ -148,6 +160,8 @@ async function renderUserName(user) {
   let name = 'Usuario';
 
   try {
+    if (!user || !user.uid) throw new Error('Usuario no válido o no autenticado');
+
     if (!navigator.onLine) {
       console.warn('[USERNAME] Offline: recuperando nombre desde IndexedDB');
       const cachedName = await readFromIndexedDB(`userName-${user.uid}`);
@@ -166,8 +180,6 @@ async function renderUserName(user) {
     nameEl.textContent = name;
   }
 }
-
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Firestore y Plaid
@@ -327,30 +339,25 @@ onAuthStateChanged(auth, user => {
     } else {
       loadTransactions(user.uid);
     }
-    renderUserName(user.uid);
-  }  else {
-      const offlineUser = auth.currentUser;
-
-      if (offlineUser) {
-        console.warn('[AUTH] auth.currentUser recuperado en modo offline:', offlineUser.uid);
-        setTimeout(() => loadTransactions(offlineUser.uid), 300);
-        return;
-      }
-
-      // Fallback: leer userId desde IndexedDB
-      readUserIdFromIndexedDB().then(cachedUid => {
-        if (cachedUid) {
-          console.warn('[AUTH] userId recuperado desde IndexedDB:', cachedUid);
-          setTimeout(() => loadTransactions(cachedUid), 300);
-        } else {
-          console.error('[AUTH] No hay sesión ni userId en IndexedDB. Redirigiendo a login.');
-          window.location.href = '../index.html';
-        }
-      });
+    renderUserName(user);
+  } else {
+    const offlineUser = auth.currentUser;
+    if (offlineUser) {
+      console.warn('[AUTH] auth.currentUser recuperado en modo offline:', offlineUser.uid);
+      setTimeout(() => loadTransactions(offlineUser.uid), 300);
+      return;
     }
-
+    readUserIdFromIndexedDB().then(cachedUid => {
+      if (cachedUid) {
+        console.warn('[AUTH] userId recuperado desde IndexedDB:', cachedUid);
+        setTimeout(() => loadTransactions(cachedUid), 300);
+      } else {
+        console.error('[AUTH] No hay sesión ni userId en IndexedDB. Redirigiendo a login.');
+        window.location.href = '../index.html';
+      }
+    });
+  }
 });
-
 
 function showOfflineBanner() {
   const banner = document.getElementById('offline-banner');
@@ -374,17 +381,14 @@ window.addEventListener('online', () => {
 window.addEventListener('offline', showOfflineBanner);
 if (!navigator.onLine) showOfflineBanner();
 
-
 function readUserIdFromIndexedDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('fintrack-db', 1);
-
     request.onsuccess = () => {
       const db = request.result;
       const tx = db.transaction('metadata', 'readonly');
       const store = tx.objectStore('metadata');
       const getReq = store.get('userId');
-
       getReq.onsuccess = () => {
         resolve(getReq.result || null);
         db.close();
@@ -395,7 +399,6 @@ function readUserIdFromIndexedDB() {
         db.close();
       };
     };
-
     request.onerror = () => {
       console.error('[IDB] Error abriendo base de datos:', request.error);
       resolve(null);
@@ -403,22 +406,16 @@ function readUserIdFromIndexedDB() {
   });
 }
 
-
 let lastScrollTop = 0;
 const nav = document.getElementById('bottom-nav');
 
 window.addEventListener('scroll', () => {
   const currentScroll = window.scrollY;
-
   if (!nav) return;
-
   if (currentScroll > lastScrollTop && currentScroll > 60) {
-    // Scroll hacia abajo
     nav.classList.add('hide');
   } else {
-    // Scroll hacia arriba
     nav.classList.remove('hide');
   }
-
   lastScrollTop = currentScroll <= 0 ? 0 : currentScroll;
 }, { passive: true });

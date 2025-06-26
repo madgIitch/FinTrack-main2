@@ -705,6 +705,16 @@ async function getCachedTransactions() {
     console.log('[CACHE] Transacciones obtenidas de IndexedDB:', txs.length);
     return txs;
 }
+async function writeToIndexedDB(key, value) {
+    const db = await (0, _idb.openDB)('fintrack-db', 1);
+    const tx = db.transaction('metadata', 'readwrite');
+    tx.objectStore('metadata').put(value, key);
+    await tx.done;
+}
+async function readFromIndexedDB(key) {
+    const db = await (0, _idb.openDB)('fintrack-db', 1);
+    return db.transaction('metadata').objectStore('metadata').get(key);
+}
 // ─────────────────────────────────────────────────────────────────────────────
 // Renderizado
 // ─────────────────────────────────────────────────────────────────────────────
@@ -796,6 +806,7 @@ async function renderUserName(user) {
     if (!nameEl) return;
     let name = 'Usuario';
     try {
+        if (!user || !user.uid) throw new Error("Usuario no v\xe1lido o no autenticado");
         if (!navigator.onLine) {
             console.warn('[USERNAME] Offline: recuperando nombre desde IndexedDB');
             const cachedName = await readFromIndexedDB(`userName-${user.uid}`);
@@ -974,7 +985,7 @@ async function loadTransactions(userId) {
             console.warn('[AUTH] Estamos OFFLINE, esperando un instante para cache');
             setTimeout(()=>loadTransactions(user.uid), 300);
         } else loadTransactions(user.uid);
-        renderUserName(user.uid);
+        renderUserName(user);
     } else {
         const offlineUser = (0, _firebaseJs.auth).currentUser;
         if (offlineUser) {
@@ -982,7 +993,6 @@ async function loadTransactions(userId) {
             setTimeout(()=>loadTransactions(offlineUser.uid), 300);
             return;
         }
-        // Fallback: leer userId desde IndexedDB
         readUserIdFromIndexedDB().then((cachedUid)=>{
             if (cachedUid) {
                 console.warn('[AUTH] userId recuperado desde IndexedDB:', cachedUid);
@@ -1042,10 +1052,8 @@ const nav = document.getElementById('bottom-nav');
 window.addEventListener('scroll', ()=>{
     const currentScroll = window.scrollY;
     if (!nav) return;
-    if (currentScroll > lastScrollTop && currentScroll > 60) // Scroll hacia abajo
-    nav.classList.add('hide');
-    else // Scroll hacia arriba
-    nav.classList.remove('hide');
+    if (currentScroll > lastScrollTop && currentScroll > 60) nav.classList.add('hide');
+    else nav.classList.remove('hide');
     lastScrollTop = currentScroll <= 0 ? 0 : currentScroll;
 }, {
     passive: true
