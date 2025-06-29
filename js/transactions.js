@@ -263,6 +263,11 @@ async function buildAccountMap(userId) {
 async function loadTransactions(userId) {
   console.log('[TX] → Iniciando loadTransactions con userId:', userId);
 
+  const hideLoading = () => {
+    const loadingEl = document.getElementById('transactions-loading');
+    if (loadingEl) loadingEl.style.display = 'none';
+  };
+
   if (!navigator.onLine) {
     console.warn('[TX] Modo offline detectado. Esperando cache segura...');
     const cached = await getCachedTransactions();
@@ -275,6 +280,7 @@ async function loadTransactions(userId) {
 
     // Asegura renderizado siempre
     showPage();
+    hideLoading(); // ⬅️ Oculta el mensaje de carga
     return;
   }
 
@@ -319,12 +325,16 @@ async function loadTransactions(userId) {
         setupEventListeners();
         window.hasInitializedUI = true;
       }
+
       showPage();
+      hideLoading(); // ⬅️ Oculta el mensaje de carga tras mostrar resultados
     });
   } catch (e) {
     console.warn('[FIRESTORE] Error en suscripción a history', e);
+    hideLoading(); // ⬅️ Ocúltalo incluso si hay fallo
   }
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Autenticación y eventos de red
