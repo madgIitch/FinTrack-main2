@@ -15,7 +15,7 @@
 <body>
 
   <!-- Banner OFFLINE -->
-  <div id="offline-banner" style="display: none" class="offline-banner">
+  <div id="offline-banner" class="offline-banner" style="display: none">
     <p>Estás en modo offline. Algunos datos pueden no estar actualizados.</p>
   </div>
 
@@ -31,8 +31,8 @@
       </h1>
       <div class="header-right">
         <a href="/pages/notifications.html" class="notification-button" aria-label="Notificaciones">
-        <i class="material-icons">notifications</i>
-      </a>
+          <i class="material-icons">notifications</i>
+        </a>
       </div>
     </header>
 
@@ -48,12 +48,30 @@
 
         <!-- FILTROS -->
         <div class="transactions-filters">
-          <div class="month-picker-wrapper">
-            <i class="material-icons">calendar_today</i>
-            <input type="month" id="month-filter">
+          <div class="month-year-picker">
+            <div class="filter-buttons">
+              <button id="apply-filter-btn" class="filter-btn">Filtrar</button>
+              <button id="clear-filter-btn" class="filter-btn clear">Borrar</button>
+            </div>
+
+            <select id="month-select">
+              <option value="">Mes</option>
+              <option value="01">Enero</option>
+              <option value="02">Febrero</option>
+              <option value="03">Marzo</option>
+              <option value="04">Abril</option>
+              <option value="05">Mayo</option>
+              <option value="06">Junio</option>
+              <option value="07">Julio</option>
+              <option value="08">Agosto</option>
+              <option value="09">Septiembre</option>
+              <option value="10">Octubre</option>
+              <option value="11">Noviembre</option>
+              <option value="12">Diciembre</option>
+            </select>
+            <select id="year-select">
+            </select>
           </div>
-
-
 
           <label class="switch">
             <input type="checkbox" id="toggle-view">
@@ -61,8 +79,6 @@
           </label>
           <span class="toggle-label">Por categoría</span>
         </div>
-
-
 
         <!-- OFFLINE INDICATOR -->
         <div id="offline-indicator" class="offline-indicator" hidden="">
@@ -106,13 +122,15 @@
       <h2>Menú</h2>
       <ul>
         <li><a href="/pages/profile.html" class="sidebar-btn">Perfil</a></li>
-        <li><a href="/pages/notifications.html" class="sidebar-btn">Notificaciones</a></li> <!-- NUEVO ITEM -->
+        <li><a href="/pages/notifications.html" class="sidebar-btn">Notificaciones</a></li>
         <li><button id="logout-link" class="sidebar-btn">Cerrar Sesión</button></li>
       </ul>
     </aside>
 
+  </div>
+
   <!-- SCRIPTS -->
   <script type="module" src="/home.659d772f.js"></script>
   <script type="module" src="/transactions.0e22dfc7.js"></script>
-</div></body>
+</body>
 </html>

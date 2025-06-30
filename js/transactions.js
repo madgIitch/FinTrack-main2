@@ -110,15 +110,19 @@ function renderGroupedPage(txs) {
 }
 
 function getFilteredTxs() {
-  const val = document.getElementById('month-filter')?.value;
-  return val
-    ? allTxsGlobal.filter(tx => {
-        const d = new Date(tx.date);
-        const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        return yearMonth === val;
-      })
-    : allTxsGlobal;
+  const month = document.getElementById('month-select').value;
+  const year = document.getElementById('year-select').value;
+
+  if (!month || !year) return allTxsGlobal;
+
+  return allTxsGlobal.filter(tx => {
+    const txDate = new Date(tx.date);
+    const txMonth = String(txDate.getMonth() + 1).padStart(2, '0');
+    const txYear = String(txDate.getFullYear());
+    return txMonth === month && txYear === year;
+  });
 }
+
 
 
 function updatePagination() {
@@ -147,39 +151,56 @@ function showPage() {
 function setupEventListeners() {
   console.log('[UI] Inicializando eventos UI');
 
-  const monthInput = document.getElementById('month-filter');
-  const calendarIcon = document.querySelector('.month-picker-wrapper i');
+  // ─── Selectores de MES y AÑO ────────────────────────
+  const monthSelect = document.getElementById('month-select');
+  const yearSelect = document.getElementById('year-select');
+  const applyBtn = document.getElementById('apply-filter-btn');
+  const clearBtn = document.getElementById('clear-filter-btn');
 
-  // Establecer mes actual si está vacío
-  if (monthInput && !monthInput.value) {
-    const now = new Date();
-    monthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const now = new Date();
+  const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+  const currentYear = now.getFullYear();
+
+  // Rellenar selector de años con opción por defecto
+  if (yearSelect.options.length === 0) {
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Año';
+    yearSelect.appendChild(defaultOption);
+
+    for (let y = currentYear; y >= 2020; y--) {
+      const opt = document.createElement('option');
+      opt.value = y;
+      opt.textContent = y;
+      yearSelect.appendChild(opt);
+    }
   }
 
-  // Evento de icono: simula click en el input[type=month]
-  if (calendarIcon && monthInput) {
-    calendarIcon.addEventListener('click', e => {
-      e.preventDefault();
-      console.log('[EVENT] Se pulsa el icono del calendario');
+  // Establecer mes y año como vacíos al cargar
+  monthSelect.value = '';
+  yearSelect.value = '';
 
-      if (monthInput.showPicker) {
-        monthInput.showPicker(); // Soporte para Chrome
-      } else {
-        monthInput.focus();      // Soporte para Firefox y fallback
-        monthInput.click();      
-      }
-    });
-  }
-
-  // Cambio del input
-  if (monthInput) {
-    monthInput.addEventListener('change', () => {
-      console.log('[EVENT] Cambio en el selector de mes:', monthInput.value);
+  // ─── Aplicar filtro manualmente ─────────────────────
+  if (applyBtn) {
+    applyBtn.addEventListener('click', () => {
+      console.log('[FILTER] Aplicando filtro →', yearSelect.value, monthSelect.value);
       currentPage = 1;
       showPage();
     });
   }
 
+  // ─── Borrar filtro y mostrar todas las transacciones ─
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      monthSelect.value = '';
+      yearSelect.value = '';
+      console.log('[FILTER] Filtro borrado. Mostrando todas las transacciones');
+      currentPage = 1;
+      showPage();
+    });
+  }
+
+  // ─── Paginación anterior ────────────────────────────
   const prevBtn = document.getElementById('prev-page');
   if (prevBtn) {
     prevBtn.addEventListener('click', () => {
@@ -190,6 +211,7 @@ function setupEventListeners() {
     });
   }
 
+  // ─── Paginación siguiente ───────────────────────────
   const nextBtn = document.getElementById('next-page');
   if (nextBtn) {
     nextBtn.addEventListener('click', () => {
@@ -201,6 +223,7 @@ function setupEventListeners() {
     });
   }
 
+  // ─── Cambiar vista por categoría ────────────────────
   const toggleView = document.getElementById('toggle-view');
   if (toggleView) {
     toggleView.addEventListener('change', () => {
@@ -209,6 +232,7 @@ function setupEventListeners() {
     });
   }
 }
+
 
 
 

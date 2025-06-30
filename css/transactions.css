@@ -42,37 +42,34 @@ main.content {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 20px;
 }
 
-/* Icono de calendario, con input solo dentro */
-.month-picker-wrapper {
-  position: relative;
-  width: 32px;
-  height: 32px;
+.month-year-picker {
+  display: flex;
+  gap: 8px;
+}
+
+.month-year-picker select {
+  padding: 6px 10px;
+  font-size: 0.95rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
   cursor: pointer;
-  display: inline-block;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-
-.month-picker-wrapper i {
-  font-size: 28px;
-  color: #666;
-  transition: color 0.2s;
+.month-year-picker select:hover {
+  border-color: #8e44ad;
 }
-.month-picker-wrapper:hover i {
-  color: #8e44ad;
+.month-year-picker select:focus {
+  outline: none;
+  border-color: #8e44ad;
+  box-shadow: 0 0 0 2px rgba(142, 68, 173, 0.2);
 }
-
-.month-picker-wrapper input[type="month"] {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-  z-index: 2; /* Añade esto si no responde al click */
-
-}
-
 
 /* SWITCH */
 .switch {
@@ -224,8 +221,15 @@ main.content {
 @media (max-width: 500px) {
   .transactions-filters {
     flex-direction: column;
-    gap: 8px;
+    align-items: stretch;
+    gap: 10px;
   }
+
+  .month-year-picker {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
   .transaction-item {
     display: block;
   }
@@ -235,7 +239,7 @@ main.content {
   }
 }
 
-
+/* OFFLINE BANNER */
 .offline-banner {
   background-color: #ffcc00;
   color: #000;
@@ -245,4 +249,31 @@ main.content {
   position: sticky;
   top: 0;
   z-index: 999;
+}
+
+
+.filter-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background-color: #8e44ad;
+  color: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.filter-btn:hover {
+  background-color: #9b59b6;
+}
+.filter-btn.clear {
+  background-color: #bbb;
+  color: #333;
+}
+.filter-btn.clear:hover {
+  background-color: #999;
 }

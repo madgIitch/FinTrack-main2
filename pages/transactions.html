@@ -1,21 +1,21 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FinTrack – Transacciones</title>
-  <link rel="icon" href="/favicon.ico" type="image/x-icon">
-  <link rel="manifest" href="../manifest.json">
-  <link rel="stylesheet" href="../css/styles.css">
-  <link rel="stylesheet" href="../css/transactions.css">
+  <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+  <link rel="manifest" href="../manifest.json" />
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/transactions.css" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
-  <link rel="stylesheet" href="../css/sidebar.css">
-  <link rel="stylesheet" href="../css/responsive.css">
+  <link rel="stylesheet" href="../css/sidebar.css" />
+  <link rel="stylesheet" href="../css/responsive.css" />
 </head>
 <body>
 
   <!-- Banner OFFLINE -->
-  <div id="offline-banner" style="display:none;" class="offline-banner">
+  <div id="offline-banner" class="offline-banner" style="display: none;">
     <p>Estás en modo offline. Algunos datos pueden no estar actualizados.</p>
   </div>
 
@@ -24,15 +24,15 @@
     <!-- HEADER -->
     <header class="header">
       <div class="header-left">
-        <img src="../img/logoFintonic.svg" class="logo-icon" alt="Logo">
+        <img src="../img/logoFintonic.svg" class="logo-icon" alt="Logo" />
       </div>
       <h1 class="welcome-message">
         Bienvenido, <span id="user-name"></span>
       </h1>
       <div class="header-right">
         <a href="notifications.html" class="notification-button" aria-label="Notificaciones">
-        <i class="material-icons">notifications</i>
-      </a>
+          <i class="material-icons">notifications</i>
+        </a>
       </div>
     </header>
 
@@ -43,17 +43,35 @@
         <!-- TÍTULO -->
         <div class="transactions-title">
           <h2>Mis Transacciones</h2>
-          <hr>
+          <hr />
         </div>
 
         <!-- FILTROS -->
         <div class="transactions-filters">
-          <div class="month-picker-wrapper">
-            <i class="material-icons">calendar_today</i>
-            <input type="month" id="month-filter" />
+          <div class="month-year-picker">
+            <div class="filter-buttons">
+              <button id="apply-filter-btn" class="filter-btn">Filtrar</button>
+              <button id="clear-filter-btn" class="filter-btn clear">Borrar</button>
+            </div>
+
+            <select id="month-select">
+              <option value="">Mes</option>
+              <option value="01">Enero</option>
+              <option value="02">Febrero</option>
+              <option value="03">Marzo</option>
+              <option value="04">Abril</option>
+              <option value="05">Mayo</option>
+              <option value="06">Junio</option>
+              <option value="07">Julio</option>
+              <option value="08">Agosto</option>
+              <option value="09">Septiembre</option>
+              <option value="10">Octubre</option>
+              <option value="11">Noviembre</option>
+              <option value="12">Diciembre</option>
+            </select>
+            <select id="year-select">
+            </select>
           </div>
-
-
 
           <label class="switch">
             <input type="checkbox" id="toggle-view" />
@@ -61,8 +79,6 @@
           </label>
           <span class="toggle-label">Por categoría</span>
         </div>
-
-
 
         <!-- OFFLINE INDICATOR -->
         <div id="offline-indicator" class="offline-indicator" hidden>
@@ -106,10 +122,12 @@
       <h2>Menú</h2>
       <ul>
         <li><a href="profile.html" class="sidebar-btn">Perfil</a></li>
-        <li><a href="notifications.html" class="sidebar-btn">Notificaciones</a></li> <!-- NUEVO ITEM -->
+        <li><a href="notifications.html" class="sidebar-btn">Notificaciones</a></li>
         <li><button id="logout-link" class="sidebar-btn">Cerrar Sesión</button></li>
       </ul>
     </aside>
+
+  </div>
 
   <!-- SCRIPTS -->
   <script type="module" src="../js/sidebar.js"></script>

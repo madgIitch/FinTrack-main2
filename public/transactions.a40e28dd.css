@@ -40,6 +40,7 @@ html, body {
 }
 
 .transactions-filters {
+  flex-wrap: wrap;
   justify-content: center;
   align-items: center;
   gap: 12px;
@@ -47,30 +48,30 @@ html, body {
   display: flex;
 }
 
-.month-picker-wrapper {
+.month-year-picker {
+  gap: 8px;
+  display: flex;
+}
+
+.month-year-picker select {
+  color: #333;
   cursor: pointer;
-  width: 32px;
-  height: 32px;
-  display: inline-block;
-  position: relative;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: .95rem;
+  transition: border-color .2s, box-shadow .2s;
 }
 
-.month-picker-wrapper i {
-  color: #666;
-  font-size: 28px;
-  transition: color .2s;
+.month-year-picker select:hover {
+  border-color: #8e44ad;
 }
 
-.month-picker-wrapper:hover i {
-  color: #8e44ad;
-}
-
-.month-picker-wrapper input[type="month"] {
-  opacity: 0;
-  cursor: pointer;
-  z-index: 2;
-  position: absolute;
-  inset: 0;
+.month-year-picker select:focus {
+  border-color: #8e44ad;
+  outline: none;
+  box-shadow: 0 0 0 2px #8e44ad33;
 }
 
 .switch {
@@ -235,7 +236,13 @@ html, body {
 @media (width <= 500px) {
   .transactions-filters {
     flex-direction: column;
-    gap: 8px;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .month-year-picker {
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
   .transaction-item {
@@ -257,5 +264,34 @@ html, body {
   font-weight: bold;
   position: sticky;
   top: 0;
+}
+
+.filter-buttons {
+  gap: 8px;
+  display: flex;
+}
+
+.filter-btn {
+  color: #fff;
+  cursor: pointer;
+  background-color: #8e44ad;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: .9rem;
+  transition: background-color .2s;
+}
+
+.filter-btn:hover {
+  background-color: #9b59b6;
+}
+
+.filter-btn.clear {
+  color: #333;
+  background-color: #bbb;
+}
+
+.filter-btn.clear:hover {
+  background-color: #999;
 }
 /*# sourceMappingURL=transactions.a40e28dd.css.map */
