@@ -754,7 +754,11 @@ function renderGroupedPage(txs) {
 }
 function getFilteredTxs() {
     const val = document.getElementById('month-filter')?.value;
-    return val ? allTxsGlobal.filter((tx)=>tx.date.startsWith(val)) : allTxsGlobal;
+    return val ? allTxsGlobal.filter((tx)=>{
+        const d = new Date(tx.date);
+        const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        return yearMonth === val;
+    }) : allTxsGlobal;
 }
 function updatePagination() {
     const total = getFilteredTxs().length;
@@ -776,30 +780,49 @@ function showPage() {
 // ─────────────────────────────────────────────────────────────────────────────
 function setupEventListeners() {
     console.log('[UI] Inicializando eventos UI');
-    const mf = document.getElementById('month-filter');
-    const mi = document.querySelector('.month-icon');
-    if (mi) mi.onclick = ()=>mf.showPicker ? mf.showPicker() : mf.focus();
-    mf.onchange = ()=>{
+    const monthInput = document.getElementById('month-filter');
+    const calendarIcon = document.querySelector('.month-picker-wrapper i');
+    // Establecer mes actual si está vacío
+    if (monthInput && !monthInput.value) {
+        const now = new Date();
+        monthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+    // Evento de icono: simula click en el input[type=month]
+    if (calendarIcon && monthInput) calendarIcon.addEventListener('click', (e)=>{
+        e.preventDefault();
+        console.log('[EVENT] Se pulsa el icono del calendario');
+        if (monthInput.showPicker) monthInput.showPicker(); // Soporte para Chrome
+        else {
+            monthInput.focus(); // Soporte para Firefox y fallback
+            monthInput.click();
+        }
+    });
+    // Cambio del input
+    if (monthInput) monthInput.addEventListener('change', ()=>{
+        console.log('[EVENT] Cambio en el selector de mes:', monthInput.value);
         currentPage = 1;
         showPage();
-    };
-    document.getElementById('prev-page').onclick = ()=>{
+    });
+    const prevBtn = document.getElementById('prev-page');
+    if (prevBtn) prevBtn.addEventListener('click', ()=>{
         if (currentPage > 1) {
             currentPage--;
             showPage();
         }
-    };
-    document.getElementById('next-page').onclick = ()=>{
+    });
+    const nextBtn = document.getElementById('next-page');
+    if (nextBtn) nextBtn.addEventListener('click', ()=>{
         const pages = Math.ceil(getFilteredTxs().length / PAGE_SIZE);
         if (currentPage < pages) {
             currentPage++;
             showPage();
         }
-    };
-    document.getElementById('toggle-view').onchange = ()=>{
+    });
+    const toggleView = document.getElementById('toggle-view');
+    if (toggleView) toggleView.addEventListener('change', ()=>{
         currentPage = 1;
         showPage();
-    };
+    });
 }
 async function renderUserName(user) {
     const nameEl = document.getElementById('user-name');
