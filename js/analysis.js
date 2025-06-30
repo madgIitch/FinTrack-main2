@@ -66,16 +66,15 @@ function reactiveAnalysis(userId) {
   const db = getFirestore(app);
   const histRef = collection(db, 'users', userId, 'history');
   const sumRef = collection(db, 'users', userId, 'historySummary');
-  const catRef = collection(db, 'users', userId, 'historyCategorias');
 
-  const monthsSet = new Set();
   const txsByMonth = new Map();
   const catByMonth = new Map();
+  let unsubscribeFns = [];
 
   initCharts();
 
   function renderAnalysis() {
-    const months = Array.from(monthsSet).sort();
+    const months = Array.from(txsByMonth.keys()).sort();
     console.log('[RENDER] Months:', months);
 
     const revenue = months.map(mon => {
@@ -149,54 +148,66 @@ function reactiveAnalysis(userId) {
     pieChart.render();
   }
 
-  function subscribeItems() {
-    const months = Array.from(monthsSet).sort();
-    console.log('[ANALYSIS] subscribeItems for months', months);
+  function clearPreviousSubscriptions() {
+    unsubscribeFns.forEach(unsub => unsub());
+    unsubscribeFns = [];
+  }
 
-    let loaded = 0;
-    const total = months.length * 2;
-
-    const maybeRender = () => {
-      loaded++;
-      if (loaded >= total) {
-        console.log('[ANALYSIS] Todos los datos obtenidos. Llamando a renderAnalysis()');
-        renderAnalysis();
-      }
-    };
-
-    months.forEach(mon => {
-      const itemsRef = collection(db, 'users', userId, 'history', mon, 'items');
-      onSnapshot(itemsRef, snap => {
-        console.log('[ANALYSIS] items change in', mon, snap.docs.length);
-        txsByMonth.set(mon, snap.docs.map(d => d.data()));
-        maybeRender();
-      });
-
-      const catDocRef = doc(db, 'users', userId, 'historyCategorias', mon);
-      onSnapshot(catDocRef, snap => {
-        if (snap.exists()) {
-          const data = snap.data();
-          delete data.updatedAt;
-          catByMonth.set(mon, data);
-          console.log(`[ANALYSIS] historyCategorias actualizadas para ${mon}:`, data);
-        } else {
-          console.log(`[ANALYSIS] No hay historyCategorias para ${mon}`);
-        }
-        maybeRender();
-      });
+  function subscribeToMonth(mon) {
+    const itemsRef = collection(db, 'users', userId, 'history', mon, 'items');
+    const unsubItems = onSnapshot(itemsRef, snap => {
+      console.log('[ANALYSIS] items change in', mon, snap.docs.length);
+      txsByMonth.set(mon, snap.docs.map(d => d.data()));
+      renderAnalysis();
     });
+    unsubscribeFns.push(unsubItems);
+
+    const catDocRef = doc(db, 'users', userId, 'historyCategorias', mon);
+    const unsubCat = onSnapshot(catDocRef, snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        delete data.updatedAt;
+        catByMonth.set(mon, data);
+        console.log(`[ANALYSIS] historyCategorias actualizadas para ${mon}:`, data);
+      } else {
+        console.log(`[ANALYSIS] No hay historyCategorias para ${mon}`);
+      }
+      renderAnalysis();
+    });
+    unsubscribeFns.push(unsubCat);
+  }
+
+  function refreshSubscriptions(months) {
+    clearPreviousSubscriptions();
+    months.forEach(mon => subscribeToMonth(mon));
+  }
+
+  const monthsSet = new Set();
+
+  function updateSubscriptions() {
+    const allMonths = Array.from(monthsSet).sort();
+    console.log('[ANALYSIS] Subscribing to months:', allMonths);
+    refreshSubscriptions(allMonths);
+  }
+
+  function collectMonthsFromSnapshot(snap) {
+    const newMonths = new Set();
+    snap.docs.forEach(d => newMonths.add(d.id));
+    return newMonths;
   }
 
   onSnapshot(histRef, snap => {
-    snap.docs.forEach(d => monthsSet.add(d.id));
+    const newMonths = collectMonthsFromSnapshot(snap);
+    newMonths.forEach(m => monthsSet.add(m));
     console.log('[ANALYSIS] history months updated:', Array.from(monthsSet));
-    subscribeItems();
+    updateSubscriptions();
   });
 
   onSnapshot(sumRef, snap => {
-    snap.docs.forEach(d => monthsSet.add(d.id));
+    const newMonths = collectMonthsFromSnapshot(snap);
+    newMonths.forEach(m => monthsSet.add(m));
     console.log('[ANALYSIS] summary months updated:', Array.from(monthsSet));
-    subscribeItems();
+    updateSubscriptions();
   });
 }
 
@@ -241,7 +252,6 @@ function initCharts() {
   pieChart.render();
 }
 
-
 let lastScrollTop = 0;
 const nav = document.getElementById('bottom-nav');
 
@@ -251,10 +261,8 @@ window.addEventListener('scroll', () => {
   if (!nav) return;
 
   if (currentScroll > lastScrollTop && currentScroll > 60) {
-    // Scroll hacia abajo
     nav.classList.add('hide');
   } else {
-    // Scroll hacia arriba
     nav.classList.remove('hide');
   }
 
