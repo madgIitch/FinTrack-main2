@@ -344,9 +344,16 @@ function renderDailyChart(dias, gastos, ingresos) {
       { name: 'Gastos', data: gastos },
       { name: 'Ingresos', data: ingresos }
     ],
+    yaxis: {
+      labels: {
+        formatter: val => Math.round(val)
+      }
+    },
     plotOptions: { bar: { borderRadius: 4, columnWidth: '40%' } },
+        colors: ['#F87171', '#4ADE80'], // verde para ingresos, rojo para gastos
+
     dataLabels: {
-      enabled: true,
+      enabled: false,
       offsetY: -6,
       style: {
         fontSize: '12px',

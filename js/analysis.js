@@ -74,79 +74,83 @@ function reactiveAnalysis(userId) {
   initCharts();
 
   function renderAnalysis() {
-    const months = Array.from(txsByMonth.keys()).sort();
-    console.log('[RENDER] Months:', months);
+  const months = Array.from(txsByMonth.keys()).sort();
+  console.log('[RENDER] Months:', months);
 
-    const revenue = months.map(mon => {
-      const txs = txsByMonth.get(mon) || [];
-      return txs.reduce((sum, tx) => sum + (tx.amount > 0 ? tx.amount : 0), 0);
-    });
+  const revenue = months.map(mon => {
+    const txs = txsByMonth.get(mon) || [];
+    return txs.reduce((sum, tx) => sum + (tx.amount > 0 ? tx.amount : 0), 0);
+  });
 
-    const spend = months.map(mon => {
-      const txs = txsByMonth.get(mon) || [];
-      return txs.reduce((sum, tx) => sum + (tx.amount < 0 ? Math.abs(tx.amount) : 0), 0);
-    });
+  const spend = months.map(mon => {
+    const txs = txsByMonth.get(mon) || [];
+    return txs.reduce((sum, tx) => sum + (tx.amount < 0 ? Math.abs(tx.amount) : 0), 0);
+  });
 
-    const txCounts = months.map(mon => (txsByMonth.get(mon) || []).length);
+  const netIncome = months.map((_, i) => revenue[i] - spend[i]);
 
-    const catMap = {};
-    months.forEach(mon => {
-      const catObj = catByMonth.get(mon) || {};
-      console.log(`[RENDER] Categorías para ${mon}:`, catObj);
-      for (const [cat, amount] of Object.entries(catObj)) {
-        catMap[cat] = (catMap[cat] || 0) + amount;
-      }
-    });
+  const catMap = {};
+  months.forEach(mon => {
+    const catObj = catByMonth.get(mon) || {};
+    console.log(`[RENDER] Categorías para ${mon}:`, catObj);
+    for (const [cat, amount] of Object.entries(catObj)) {
+      catMap[cat] = (catMap[cat] || 0) + amount;
+    }
+  });
 
-    const catLabels = Object.keys(catMap);
-    const catData = catLabels.map(c => +catMap[c].toFixed(2));
-    const catColors = catLabels.map(label => groupColors[label] || '#999');
+  const catLabels = Object.keys(catMap);
+  const catData = catLabels.map(c => +catMap[c].toFixed(2));
+  const catColors = catLabels.map(label => groupColors[label] || '#999');
 
-    console.log('[RENDER] Pie labels:', catLabels);
-    console.log('[RENDER] Pie data:', catData);
+  const totalRev = revenue.reduce((a, b) => a + b, 0);
+  const totalSp = spend.reduce((a, b) => a + b, 0);
 
-    const totalRev = revenue.reduce((a, b) => a + b, 0);
-    const totalSp = spend.reduce((a, b) => a + b, 0);
+  document.getElementById('kpi-revenue').textContent = `€${totalRev.toFixed(2)}`;
+  document.getElementById('kpi-spend').textContent = `€${totalSp.toFixed(2)}`;
 
-    document.getElementById('kpi-revenue').textContent = `€${totalRev.toFixed(2)}`;
-    document.getElementById('kpi-spend').textContent = `€${totalSp.toFixed(2)}`;
-    document.getElementById('kpi-revenue-change').textContent = totalRev && revenue.length > 1
-      ? `+${((revenue.at(-1) / (totalRev - revenue.at(-1)) - 1) * 100).toFixed(1)}% vs last`
-      : '+0% vs last';
-    document.getElementById('kpi-spend-change').textContent = totalSp && spend.length > 1
-      ? `+${((spend.at(-1) / (totalSp - spend.at(-1)) - 1) * 100).toFixed(1)}% vs last`
-      : '+0% vs last';
+  const revChange = revenue.length > 1
+    ? ((revenue.at(-1) - revenue.at(-2)) / Math.max(revenue.at(-2), 1)) * 100
+    : 0;
+  const spendChange = spend.length > 1
+    ? ((spend.at(-1) - spend.at(-2)) / Math.max(spend.at(-2), 1)) * 100
+    : 0;
 
-    trendChart.updateOptions({
-      series: [
-        { name: 'Ingresos', data: revenue },
-        { name: 'Gastos', data: spend }
-      ],
-      xaxis: { categories: months }
-    });
+  document.getElementById('kpi-revenue-change').textContent =
+    `${revChange >= 0 ? '+' : ''}${revChange.toFixed(1)}% vs anterior mes`;
+  document.getElementById('kpi-spend-change').textContent =
+    `${spendChange >= 0 ? '+' : ''}${spendChange.toFixed(1)}% vs anterior mes`;
 
-    barChart.updateOptions({
-      series: [{ name: 'Transactions', data: txCounts }],
-      xaxis: { categories: months }
-    });
+  trendChart.updateOptions({
+    series: [
+      { name: 'Ingresos', data: revenue },
+      { name: 'Gastos', data: spend }
+    ],
+    xaxis: { categories: months }
+  });
 
-    const pContainer = document.querySelector('#pieChart');
-    pContainer.innerHTML = '';
-    pieChart = new ApexCharts(pContainer, {
-      chart: { type: 'pie', height: 220, animations: { enabled: false } },
-      series: catData,
-      labels: catLabels,
-      colors: catColors,
-      legend: { position: 'bottom' },
-      noData: {
-        text: 'Sin datos de categorías',
-        align: 'center',
-        verticalAlign: 'middle',
-        style: { color: '#999', fontSize: '14px' }
-      }
-    });
-    pieChart.render();
-  }
+  barChart.updateOptions({
+    series: [{ name: 'Saldo Neto', data: netIncome }],
+    xaxis: { categories: months }
+  });
+
+  const pContainer = document.querySelector('#pieChart');
+  pContainer.innerHTML = '';
+  pieChart = new ApexCharts(pContainer, {
+    chart: { type: 'pie', height: 220, animations: { enabled: false } },
+    series: catData,
+    labels: catLabels,
+    colors: catColors,
+    legend: { position: 'bottom' },
+    noData: {
+      text: 'Sin datos de categorías',
+      align: 'center',
+      verticalAlign: 'middle',
+      style: { color: '#999', fontSize: '14px' }
+    }
+  });
+  pieChart.render();
+}
+
 
   function clearPreviousSubscriptions() {
     unsubscribeFns.forEach(unsub => unsub());
@@ -219,6 +223,12 @@ function initCharts() {
     chart: { type: 'line', height: 240, toolbar: { show: false } },
     series: [],
     xaxis: { categories: [] },
+    yaxis: {
+      labels: {
+        formatter: val => Math.round(val)
+      }
+    },
+    colors: ['#4ADE80', '#F87171'], // verde para ingresos, rojo para gastos
     stroke: { curve: 'smooth', width: 2 },
     grid: { borderColor: '#eee' }
   });
@@ -229,8 +239,28 @@ function initCharts() {
     chart: { type: 'bar', height: 200, toolbar: { show: false } },
     series: [],
     xaxis: { categories: [] },
-    plotOptions: { bar: { borderRadius: 4 } },
-    dataLabels: { enabled: true, style: { colors: ['#fff'] }, formatter: v => v },
+    yaxis: {
+      labels: {
+        formatter: val => Math.round(val)
+      }
+    },
+    plotOptions: {
+      bar: {
+        borderRadius: 4,
+        colors: {
+          ranges: [
+            { from: -Infinity, to: 0, color: '#F87171' }, // rojo
+            { from: 0.01, to: Infinity, color: '#4ADE80' } // verde
+          ]
+        }
+      }
+    },
+    dataLabels: { enabled: false },
+    tooltip: {
+      y: {
+        formatter: val => `€${val.toFixed(2)}`
+      }
+    },
     grid: { borderColor: '#eee' }
   });
   barChart.render();
@@ -251,6 +281,7 @@ function initCharts() {
   });
   pieChart.render();
 }
+
 
 let lastScrollTop = 0;
 const nav = document.getElementById('bottom-nav');

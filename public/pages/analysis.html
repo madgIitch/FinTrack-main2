@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FinTrack - Analysis</title>
   <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/favicon.21a21a05.ico" type="image/x-icon">
   <link rel="stylesheet" href="/FinTrack-main.558d9a0b.css">
   <link rel="stylesheet" href="/home.8129f27b.css">
   <link rel="stylesheet" href="/analysis.fdc06e59.css">
@@ -40,15 +41,15 @@
       <!-- Filtros encima -->
       <div class="filter-card">
         <div class="filters">
-          <button class="filter-btn active" data-filter="overview">Overview</button>
-          <button class="filter-btn" data-filter="growth">Growth</button>
-          <button class="filter-btn" data-filter="compare">Compare</button>
+          <button class="filter-btn active" data-filter="overview">General</button>
+          <button class="filter-btn" data-filter="growth">Crecimiento</button>
+          <button class="filter-btn" data-filter="compare">Comparación</button>
         </div>
         <div class="period-select-wrapper">
           <select id="period-select" class="period-select">
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-            <option value="year">This Year</option>
+            <option value="week">Esta Semana</option>
+            <option value="month">Este Mes</option>
+            <option value="year">Este Año</option>
           </select>
         </div>
       </div>
@@ -56,14 +57,14 @@
       <!-- KPIs justo debajo -->
       <section class="kpi-row">
         <div class="card kpi-card">
-          <h2>Revenue</h2>
+          <h2>Ingresos</h2>
           <p id="kpi-revenue" class="kpi-value">€0</p>
-          <p id="kpi-revenue-change" class="kpi-change">+0% vs last</p>
+          <p id="kpi-revenue-change" class="kpi-change">+0% vs anterior mes</p>
         </div>
         <div class="card kpi-card">
-          <h2>Spend</h2>
+          <h2>Gastos</h2>
           <p id="kpi-spend" class="kpi-value">€0</p>
-          <p id="kpi-spend-change" class="kpi-change">+0% vs last</p>
+          <p id="kpi-spend-change" class="kpi-change">+0% vs anterior mes</p>
         </div>
       </section>
 

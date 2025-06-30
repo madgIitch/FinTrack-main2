@@ -736,7 +736,7 @@ function reactiveAnalysis(userId) {
             const txs = txsByMonth.get(mon) || [];
             return txs.reduce((sum, tx)=>sum + (tx.amount < 0 ? Math.abs(tx.amount) : 0), 0);
         });
-        const txCounts = months.map((mon)=>(txsByMonth.get(mon) || []).length);
+        const netIncome = months.map((_, i)=>revenue[i] - spend[i]);
         const catMap = {};
         months.forEach((mon)=>{
             const catObj = catByMonth.get(mon) || {};
@@ -746,14 +746,14 @@ function reactiveAnalysis(userId) {
         const catLabels = Object.keys(catMap);
         const catData = catLabels.map((c)=>+catMap[c].toFixed(2));
         const catColors = catLabels.map((label)=>groupColors[label] || '#999');
-        console.log('[RENDER] Pie labels:', catLabels);
-        console.log('[RENDER] Pie data:', catData);
         const totalRev = revenue.reduce((a, b)=>a + b, 0);
         const totalSp = spend.reduce((a, b)=>a + b, 0);
         document.getElementById('kpi-revenue').textContent = `\u{20AC}${totalRev.toFixed(2)}`;
         document.getElementById('kpi-spend').textContent = `\u{20AC}${totalSp.toFixed(2)}`;
-        document.getElementById('kpi-revenue-change').textContent = totalRev && revenue.length > 1 ? `+${((revenue.at(-1) / (totalRev - revenue.at(-1)) - 1) * 100).toFixed(1)}% vs last` : '+0% vs last';
-        document.getElementById('kpi-spend-change').textContent = totalSp && spend.length > 1 ? `+${((spend.at(-1) / (totalSp - spend.at(-1)) - 1) * 100).toFixed(1)}% vs last` : '+0% vs last';
+        const revChange = revenue.length > 1 ? (revenue.at(-1) - revenue.at(-2)) / Math.max(revenue.at(-2), 1) * 100 : 0;
+        const spendChange = spend.length > 1 ? (spend.at(-1) - spend.at(-2)) / Math.max(spend.at(-2), 1) * 100 : 0;
+        document.getElementById('kpi-revenue-change').textContent = `${revChange >= 0 ? '+' : ''}${revChange.toFixed(1)}% vs anterior mes`;
+        document.getElementById('kpi-spend-change').textContent = `${spendChange >= 0 ? '+' : ''}${spendChange.toFixed(1)}% vs anterior mes`;
         trendChart.updateOptions({
             series: [
                 {
@@ -772,8 +772,8 @@ function reactiveAnalysis(userId) {
         barChart.updateOptions({
             series: [
                 {
-                    name: 'Transactions',
-                    data: txCounts
+                    name: 'Saldo Neto',
+                    data: netIncome
                 }
             ],
             xaxis: {
@@ -876,6 +876,15 @@ function initCharts() {
         xaxis: {
             categories: []
         },
+        yaxis: {
+            labels: {
+                formatter: (val)=>Math.round(val)
+            }
+        },
+        colors: [
+            '#4ADE80',
+            '#F87171'
+        ],
         stroke: {
             curve: 'smooth',
             width: 2
@@ -899,19 +908,37 @@ function initCharts() {
         xaxis: {
             categories: []
         },
+        yaxis: {
+            labels: {
+                formatter: (val)=>Math.round(val)
+            }
+        },
         plotOptions: {
             bar: {
-                borderRadius: 4
+                borderRadius: 4,
+                colors: {
+                    ranges: [
+                        {
+                            from: -Infinity,
+                            to: 0,
+                            color: '#F87171'
+                        },
+                        {
+                            from: 0.01,
+                            to: Infinity,
+                            color: '#4ADE80'
+                        } // verde
+                    ]
+                }
             }
         },
         dataLabels: {
-            enabled: true,
-            style: {
-                colors: [
-                    '#fff'
-                ]
-            },
-            formatter: (v)=>v
+            enabled: false
+        },
+        tooltip: {
+            y: {
+                formatter: (val)=>`\u{20AC}${val.toFixed(2)}`
+            }
         },
         grid: {
             borderColor: '#eee'
