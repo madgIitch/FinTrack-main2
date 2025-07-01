@@ -120,18 +120,21 @@ async function doFullSync() {
             });
             console.log(`[SW] Notificaci\xf3n enviada para ${groupName}`);
         }
-        // ── Paso 4: Guardar balance actual ────────────────────────────────
-        console.log("[SW] Enviando petici\xf3n a get_balance...");
-        const balanceRes = await fetch(`${apiUrl}/get_balance?userId=${uid}`);
-        if (balanceRes.ok) {
-            const balanceData = await balanceRes.clone().json();
-            await storeInIndexedDB('currentBalance', balanceData);
-            console.log('[SW] Balance guardado en IndexedDB');
-        } else console.warn('[SW] No se pudo guardar el balance');
+        // ── Paso 4: Saltado → Balance no sincronizado desde SW ────────────
+        console.log("[SW] Sincronizaci\xf3n de balance omitida (la gestiona home.js)");
         // ── Paso 5: Guardar resumen diario del mes ────────────────────────
         const month = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
-        console.log("[SW] Enviando petici\xf3n a get_daily_totals...");
-        const totalsRes = await fetch(`${apiUrl}/get_daily_totals?userId=${uid}&month=${month}`);
+        console.log("[SW] Enviando petici\xf3n a get_daily_summary...");
+        const totalsRes = await fetch(`${apiUrl}/plaid/get_daily_summary`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId: uid,
+                month
+            })
+        });
         if (totalsRes.ok) {
             const totalsData = await totalsRes.clone().json();
             await storeInIndexedDB(`dailySummary-${month}`, totalsData);
