@@ -250,7 +250,6 @@ router.post('/get_daily_summary', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // sync_transactions_and_store con soporte para semanas y meses
 // ─────────────────────────────────────────────────────────────────────────────
-
 router.post('/sync_transactions_and_store', async (req, res) => {
   console.log('[PLAIDROUTES] → sync_transactions_and_store START');
   const { userId } = req.body;
@@ -300,25 +299,32 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       });
     }
 
-    // ── Paso 3: Agrupar por mes y semana ────────────────────────────────────
-    const txsByPeriod = {}; // key = YYYY-MM ó YYYY-MM-S1
+    // ── Paso 3: Agrupar por mes, semana y día ────────────────────────────────
+    const txsByPeriod = {}; // YYYY-MM, YYYY-MM-SX
+    const txsByDayInWeek = {}; // YYYY-MM-SX -> YYYY-MM-DD[]
 
     for (const tx of idToTx.values()) {
       const dateObj = new Date(tx.date);
       const year = dateObj.getFullYear();
       const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const dateKey = `${year}-${month}-${day}`;
       const monthKey = `${year}-${month}`;
-      const day = dateObj.getDate();
-      const weekNum = Math.floor((day - 1) / 7) + 1;
+      const weekNum = Math.floor((parseInt(day) - 1) / 7) + 1;
       const weekKey = `${monthKey}-S${weekNum}`;
 
-      // Guardar en mes
+      // Mes
       txsByPeriod[monthKey] = txsByPeriod[monthKey] || [];
       txsByPeriod[monthKey].push(tx);
 
-      // Guardar en semana
+      // Semana
       txsByPeriod[weekKey] = txsByPeriod[weekKey] || [];
       txsByPeriod[weekKey].push(tx);
+
+      // Día dentro de semana
+      txsByDayInWeek[weekKey] = txsByDayInWeek[weekKey] || {};
+      txsByDayInWeek[weekKey][dateKey] = txsByDayInWeek[weekKey][dateKey] || [];
+      txsByDayInWeek[weekKey][dateKey].push(tx);
     }
 
     // ── Paso 4: Cargar categorías ───────────────────────────────────────────
@@ -342,6 +348,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
 
       const totalExpenses = txs.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
       const totalIncomes = txs.filter(t => t.amount >= 0).reduce((s, t) => s + t.amount, 0);
+
       batch.set(sumRef, { totalExpenses, totalIncomes, updatedAt: admin.firestore.Timestamp.now() });
 
       const spentByGroup = {};
@@ -362,6 +369,17 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       });
     }
 
+    // ── Paso 6: Crear subcolecciones por día en semanas ─────────────────────
+    for (const [weekKey, daysObj] of Object.entries(txsByDayInWeek)) {
+      const weekRef = userRef.collection('historySummary').doc(weekKey);
+      for (const [dateKey, txs] of Object.entries(daysObj)) {
+        const totalExpenses = txs.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+        const totalIncomes = txs.filter(t => t.amount >= 0).reduce((s, t) => s + t.amount, 0);
+        const dayRef = weekRef.collection('days').doc(dateKey);
+        batch.set(dayRef, { totalExpenses, totalIncomes });
+      }
+    }
+
     await batch.commit();
     console.log('[PLAIDROUTES] ← sync_transactions_and_store END');
     res.json({ success: true });
@@ -370,6 +388,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 // ─────────────────────────────────────────────────────────────────────────────
