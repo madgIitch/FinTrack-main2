@@ -247,10 +247,12 @@ router.post('/get_daily_summary', async (req, res) => {
 
 
 
-// ── Sync transactions, historyCategorias, historyLimits & historySummary ─────
+// ─────────────────────────────────────────────────────────────────────────────
+// sync_transactions_and_store con soporte para semanas y meses
+// ─────────────────────────────────────────────────────────────────────────────
+
 router.post('/sync_transactions_and_store', async (req, res) => {
   console.log('[PLAIDROUTES] → sync_transactions_and_store START');
-  console.log('[PLAIDROUTES] body:', req.body);
   const { userId } = req.body;
   if (!userId) {
     console.error('[PLAIDROUTES] Missing userId');
@@ -260,32 +262,30 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
     if (!userSnap.exists) throw new Error('Usuario no encontrado');
-    console.log('[PLAIDROUTES] User found for sync');
 
-    // 1) Leer budgets
     const budgetsMap = userSnap.data().settings?.budgets || {};
-    console.log('[PLAIDROUTES] budgetsMap:', budgetsMap);
-
-    // 2) Fetch Plaid transactions
     const accounts = userSnap.data().plaid?.accounts || [];
+
+    // ── Paso 1: Obtener transacciones desde Plaid ───────────────────────────
     let allPlaidTxs = [];
     for (const { accessToken } of accounts) {
       const resp = await plaidClient.transactionsGet({
         access_token: accessToken,
-        start_date: new Date(Date.now()-30*24*60*60*1000).toISOString().slice(0,10),
-        end_date: new Date().toISOString().slice(0,10),
+        start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        end_date: new Date().toISOString().slice(0, 10),
         options: { count: 500, offset: 0, include_personal_finance_category: true }
       });
       allPlaidTxs.push(...resp.data.transactions);
     }
     console.log('[PLAIDROUTES] Total Plaid transactions:', allPlaidTxs.length);
 
-    // 3) Include Firestore transactions
+    // ── Paso 2: Incluir transacciones de Firestore ──────────────────────────
     const monthRefs = await userRef.collection('history').listDocuments();
-    const idToTx = new Map(allPlaidTxs.map(tx=>[tx.transaction_id,tx]));
+    const idToTx = new Map(allPlaidTxs.map(tx => [tx.transaction_id, tx]));
+
     for (const mRef of monthRefs) {
       const itemsSnap = await mRef.collection('items').get();
-      itemsSnap.forEach(docSnap=>{
+      itemsSnap.forEach(docSnap => {
         const d = docSnap.data();
         const tx = {
           transaction_id: docSnap.id,
@@ -296,80 +296,87 @@ router.post('/sync_transactions_and_store', async (req, res) => {
           category_id: d.category_id,
           description: d.description ?? null
         };
-        console.log('[PLAIDROUTES] tx from Firestore:', tx);
         idToTx.set(tx.transaction_id, tx);
       });
     }
 
-    // 4) Group by month
-    const txsByMonth = {};
-    for (const tx of idToTx.values()) {
-      const mon = tx.date.slice(0,7);
-      (txsByMonth[mon]=txsByMonth[mon]||[]).push(tx);
-    }
-    console.log('[PLAIDROUTES] Months to process:',Object.keys(txsByMonth));
+    // ── Paso 3: Agrupar por mes y semana ────────────────────────────────────
+    const txsByPeriod = {}; // key = YYYY-MM ó YYYY-MM-S1
 
-    // 5) Build category map
+    for (const tx of idToTx.values()) {
+      const dateObj = new Date(tx.date);
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const monthKey = `${year}-${month}`;
+      const day = dateObj.getDate();
+      const weekNum = Math.floor((day - 1) / 7) + 1;
+      const weekKey = `${monthKey}-S${weekNum}`;
+
+      // Guardar en mes
+      txsByPeriod[monthKey] = txsByPeriod[monthKey] || [];
+      txsByPeriod[monthKey].push(tx);
+
+      // Guardar en semana
+      txsByPeriod[weekKey] = txsByPeriod[weekKey] || [];
+      txsByPeriod[weekKey].push(tx);
+    }
+
+    // ── Paso 4: Cargar categorías ───────────────────────────────────────────
     const catGroupsSnap = await db.collection('categoryGroups').get();
     const catToGroup = {};
-    catGroupsSnap.forEach(doc=>{
+    catGroupsSnap.forEach(doc => {
       const rawId = doc.id;
-      const disp = doc.data().group||doc.data().grupo||rawId;
+      const disp = doc.data().group || doc.data().grupo || rawId;
       catToGroup[normalizeKey(rawId)] = disp;
-      (doc.data().subcategories||[]).forEach(sub=>catToGroup[normalizeKey(sub)] = disp);
-    });
-    console.log('[PLAIDROUTES] Category groups loaded:',Object.keys(catToGroup));
-
-    // 6) Batch write summary, historyCategorias & historyLimits
-    const batch = db.batch();
-    for (const [mon,txs] of Object.entries(txsByMonth)) {
-      console.log('[PLAIDROUTES] Writing month:',mon);
-
-      // historySummary
-      const sumRef = userRef.collection('historySummary').doc(mon);
-      const totalExpenses = txs.filter(t=>t.amount<0).reduce((s,t)=>s+Math.abs(t.amount),0);
-      const totalIncomes  = txs.filter(t=>t.amount>=0).reduce((s,t)=>s+t.amount,0);
-      batch.set(sumRef,{ totalExpenses, totalIncomes, updatedAt: admin.firestore.Timestamp.now() });
-
-      // historyCategorias
-      const catRef = userRef.collection('historyCategorias').doc(mon);
-      const spentByGroup = {};
-      txs.forEach(tx=>{
-        const key = normalizeKey(tx.personal_finance_category?.primary||tx.category||'Otros');
-        const grp = catToGroup[key]||'Otros';
-        const amt = tx.amount<0?Math.abs(tx.amount):0;
-        spentByGroup[grp] = (spentByGroup[grp]||0)+amt;
-        const detRef = catRef.collection(grp).doc(tx.transaction_id);
-        batch.set(detRef,{ amount:tx.amount, date:tx.date, description:tx.description || null },{ merge:true });
+      (doc.data().subcategories || []).forEach(sub => {
+        catToGroup[normalizeKey(sub)] = disp;
       });
-      console.log(`[PLAIDROUTES] historyCategorias for ${mon}:`, spentByGroup);
-      batch.set(catRef, spentByGroup, { merge:true });
+    });
 
-      // historyLimits
-      const limGroupsRef = userRef.collection('historyLimits').doc(mon).collection('groups');
-      console.log(`[PLAIDROUTES] historyLimits for ${mon}, budgetsMap:`, budgetsMap);
-      Object.entries(budgetsMap).forEach(([grp,limit])=>{
+    // ── Paso 5: Escribir en batch los datos agrupados ──────────────────────
+    const batch = db.batch();
+    for (const [period, txs] of Object.entries(txsByPeriod)) {
+      const sumRef = userRef.collection('historySummary').doc(period);
+      const catRef = userRef.collection('historyCategorias').doc(period);
+      const limGroupsRef = userRef.collection('historyLimits').doc(period).collection('groups');
+
+      const totalExpenses = txs.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+      const totalIncomes = txs.filter(t => t.amount >= 0).reduce((s, t) => s + t.amount, 0);
+      batch.set(sumRef, { totalExpenses, totalIncomes, updatedAt: admin.firestore.Timestamp.now() });
+
+      const spentByGroup = {};
+      txs.forEach(tx => {
+        const key = normalizeKey(tx.personal_finance_category?.primary || tx.category || 'Otros');
+        const grp = catToGroup[key] || 'Otros';
+        const amt = tx.amount < 0 ? Math.abs(tx.amount) : 0;
+        spentByGroup[grp] = (spentByGroup[grp] || 0) + amt;
+        const detRef = catRef.collection(grp).doc(tx.transaction_id);
+        batch.set(detRef, { amount: tx.amount, date: tx.date, description: tx.description || null }, { merge: true });
+      });
+      batch.set(catRef, spentByGroup, { merge: true });
+
+      Object.entries(budgetsMap).forEach(([grp, limit]) => {
         const spent = spentByGroup[grp] || 0;
-        console.log(`[PLAIDROUTES] limit for ${grp}:`, limit, 'spent:', spent);
         const grpDocRef = limGroupsRef.doc(grp);
-        batch.set(grpDocRef, { limit, spent }, { merge:true });
+        batch.set(grpDocRef, { limit, spent }, { merge: true });
       });
     }
 
-    console.log('[PLAIDROUTES] About to commit batch for months:', Object.keys(txsByMonth));
-    await batch.commit()
-      .then(()=>console.log('[PLAIDROUTES] Batch committed successfully!'))
-      .catch(e=>console.error('[PLAIDROUTES] Batch commit failed:',e));
-
+    await batch.commit();
     console.log('[PLAIDROUTES] ← sync_transactions_and_store END');
     res.json({ success: true });
-  } catch(err) {
+  } catch (err) {
     console.error('[PLAIDROUTES] sync_transactions_and_store error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── Sync historyLimits and return data ────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// sync_history_limits_and_store con soporte para semanas y meses
+// Devuelve el último mes disponible con sus datos de límites y gastos
+// ─────────────────────────────────────────────────────────────────────────────
+
 router.post('/sync_history_limits_and_store', async (req, res) => {
   console.log('[PLAIDROUTES] → sync_history_limits_and_store START', req.body);
   const { userId } = req.body;
@@ -403,7 +410,6 @@ router.post('/sync_history_limits_and_store', async (req, res) => {
     const groupsSnap = await groupsCol.get();
     if (groupsSnap.empty) {
       console.warn(`[PLAIDROUTES] No hay datos en historyLimits/${period}/groups`);
-      // Podrías decidir devolver un objeto vacío o 404. Aquí devolvemos vacío:
       return res.json({ period, groups: {} });
     }
 
@@ -427,6 +433,7 @@ router.post('/sync_history_limits_and_store', async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
 
 // ── Guardar Push Subscription ──────────────────────────────────────────────────
 router.post('/save_push_subscription', async (req, res) => {
