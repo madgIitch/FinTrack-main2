@@ -1,5 +1,5 @@
 // analysis.js - Versión con soporte completo para "Este mes" (semanas) y "Esta semana" (días)
-
+import { getDocs } from 'firebase/firestore';
 import { auth, app } from './firebase.js';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, doc } from 'firebase/firestore';
@@ -16,6 +16,11 @@ let unsubscribeFns = [];
 const txsByMonth = new Map();
 const catByMonth = new Map();
 const daysOfCurrentWeek = new Map();
+const subscribedWeeks = new Set();
+let lastRevenue = [];
+let lastSpend = [];
+let lastCatMap = '';
+let lastCatMapStr = '';
 
 // ───── MAPA DE COLORES POR CATEGORÍA ─────
 const groupColors = {
@@ -76,14 +81,19 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('period-select').value = savedPeriod;
       selectedPeriod = savedPeriod;
 
-      reactiveAnalysis(userUid); // 👈 NECESARIO para que initCharts() se llame
-      applyPeriodFilter(userUid, selectedPeriod);
+      reactiveAnalysis(userUid); // NECESARIO para que initCharts() se llame
 
+      // 🔧 AÑADE esto justo debajo:
+      setTimeout(() => {
+        console.log('[DEBUG] ⏱ Forzando primer render con applyPeriodFilter');
+        applyPeriodFilter(userUid, selectedPeriod);
+      }, 200); // tiempo breve para dar margen a que reactiveAnalysis arranque
     } else {
       console.warn('[AUTH] Usuario no autenticado');
       window.location.href = '../index.html';
     }
   });
+
 
 
 
@@ -137,28 +147,68 @@ function reactiveAnalysis(userId) {
 
 function renderAnalysis() {
   console.log('[DEBUG] renderAnalysis ejecutada');
+
+  // ───── Validaciones previas por periodo ─────
+  if (selectedPeriod === 'month') {
+    const semanasValidas = [...txsByMonth.keys()].filter(k => k.includes('-S'));
+    console.log('[DEBUG] semanasValidas:', semanasValidas);
+    if (semanasValidas.length === 0) {
+      console.warn('[DEBUG] ⛔ No hay semanas válidas en txsByMonth → cancelando render');
+      return;
+    }
+  }
+
+
+  if (selectedPeriod === 'week' && daysOfCurrentWeek.size === 0) {
+    console.warn('[DEBUG] ⛔ No hay datos diarios en daysOfCurrentWeek → cancelando render');
+    return;
+  }
+
   console.log('[DEBUG] selectedPeriod:', selectedPeriod);
   console.log('[DEBUG] txsByMonth keys:', [...txsByMonth.keys()]);
   console.log('[DEBUG] daysOfCurrentWeek keys:', [...daysOfCurrentWeek.keys()]);
   console.log('[DEBUG] catByMonth keys:', [...catByMonth.keys()]);
 
-  let xLabels = [], revenue = [], spend = [], netIncome = [];
+  // ───── Inicialización de datos ─────
+  let xLabels = [];
+  let revenue = [];
+  let spend = [];
+  let netIncome = [];
 
+  // ───── Periodo: AÑO ─────
   if (selectedPeriod === 'year') {
-    const months = Array.from(txsByMonth.keys()).filter(k => /^\d{4}-\d{2}$/.test(k)).sort();
+    const months = [...txsByMonth.keys()]
+      .filter(k => /^\d{4}-\d{2}$/.test(k))
+      .sort();
     console.log('[DEBUG] Meses encontrados (year):', months);
+
     xLabels = months;
-    revenue = months.map(m => (txsByMonth.get(m) || []).reduce((s, t) => s + (t.amount > 0 ? t.amount : 0), 0));
-    spend = months.map(m => (txsByMonth.get(m) || []).reduce((s, t) => s + (t.amount < 0 ? Math.abs(t.amount) : 0), 0));
+    revenue = months.map(m =>
+      (txsByMonth.get(m) || []).reduce((sum, t) => sum + (t.amount > 0 ? t.amount : 0), 0)
+    );
+    spend = months.map(m =>
+      (txsByMonth.get(m) || []).reduce((sum, t) => sum + (t.amount < 0 ? Math.abs(t.amount) : 0), 0)
+    );
+  }
 
-  } else if (selectedPeriod === 'month') {
-    const weeks = Array.from(txsByMonth.keys()).filter(k => /\-S\d$/.test(k)).sort();
+  // ───── Periodo: MES ─────
+  else if (selectedPeriod === 'month') {
+    const weeks = [...txsByMonth.keys()]
+      .filter(k => /^\d{4}-\d{2}-S\d+$/.test(k))
+      .sort();
     console.log('[DEBUG] Semanas encontradas (month):', weeks);
-    xLabels = weeks.map(k => k.split('-').at(-1));
-    revenue = weeks.map(w => (txsByMonth.get(w) || []).reduce((s, t) => s + (t.amount > 0 ? t.amount : 0), 0));
-    spend = weeks.map(w => (txsByMonth.get(w) || []).reduce((s, t) => s + (t.amount < 0 ? Math.abs(t.amount) : 0), 0));
 
-  } else if (selectedPeriod === 'week') {
+    xLabels = weeks.map(k => k.split('-').at(-1));
+    revenue = weeks.map(w =>
+      (txsByMonth.get(w) || []).reduce((sum, t) => sum + (t.amount > 0 ? t.amount : 0), 0)
+    );
+    spend = weeks.map(w =>
+      (txsByMonth.get(w) || []).reduce((sum, t) => sum + (t.amount < 0 ? Math.abs(t.amount) : 0), 0)
+    );
+  }
+
+  // ───── Periodo: SEMANA ─────
+  else if (selectedPeriod === 'week') {
     const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
     xLabels = dias;
     revenue = new Array(7).fill(0);
@@ -166,20 +216,30 @@ function renderAnalysis() {
 
     for (const [key, entry] of daysOfCurrentWeek.entries()) {
       const date = new Date(key);
-      const dayIdx = date.getDay();
-      const i = (dayIdx + 6) % 7;
-      console.log(`[DEBUG] Día ${key} → ${dias[i]} (índice ${i}) → Ingresos: ${entry?.totalIncomes}, Gastos: ${entry?.totalExpenses}`);
-      revenue[i] = entry?.totalIncomes || 0;
-      spend[i] = entry?.totalExpenses || 0;
+      const idx = (date.getDay() + 6) % 7;
+      revenue[idx] = entry?.totalIncomes || 0;
+      spend[idx] = entry?.totalExpenses || 0;
+      console.log(`[DEBUG] Día ${key} → ${dias[idx]} → Ingresos: ${entry?.totalIncomes}, Gastos: ${entry?.totalExpenses}`);
     }
   }
 
-  netIncome = revenue.map((r, i) => r - spend[i]);
+  // ───── Evita renders redundantes ─────
+  if (
+    selectedPeriod !== 'week' &&
+    arraysEqual(revenue, lastRevenue) &&
+    arraysEqual(spend, lastSpend)
+  ) {
+    console.log('[DEBUG] 🔁 Datos idénticos a los últimos. Render cancelado.');
+    return;
+  }
 
+  // ───── Cálculo de KPIs ─────
+  netIncome = revenue.map((r, i) => r - spend[i]);
   const totalRev = revenue.reduce((a, b) => a + b, 0);
   const totalSpd = spend.reduce((a, b) => a + b, 0);
 
   console.log('[DEBUG] totalRev:', totalRev, 'totalSpd:', totalSpd);
+
   document.getElementById('kpi-revenue').textContent = `€${totalRev.toFixed(2)}`;
   document.getElementById('kpi-spend').textContent = `€${totalSpd.toFixed(2)}`;
 
@@ -195,6 +255,7 @@ function renderAnalysis() {
   document.getElementById('kpi-spend-change').textContent =
     `${spdChange >= 0 ? '+' : ''}${spdChange.toFixed(1)}% vs periodo anterior`;
 
+  // ───── Gráfica de línea (Ingresos/Gastos) ─────
   trendChart.updateOptions({
     series: [
       { name: 'Ingresos', data: revenue },
@@ -203,11 +264,13 @@ function renderAnalysis() {
     xaxis: { categories: xLabels }
   });
 
+  // ───── Gráfica de barras (Neto) ─────
   barChart.updateOptions({
     series: [{ name: 'Saldo Neto', data: netIncome }],
     xaxis: { categories: xLabels }
   });
 
+  // ───── Gráfico de pastel (categorías) ─────
   const catMap = {};
   catByMonth.forEach(cats => {
     for (const [k, v] of Object.entries(cats)) {
@@ -215,32 +278,52 @@ function renderAnalysis() {
     }
   });
 
-  const catLabels = Object.keys(catMap);
-  const catData = catLabels.map(c => +catMap[c].toFixed(2));
-  const catColors = catLabels.map(l => groupColors[l] || '#999');
+  const currentCatMapStr = JSON.stringify(catMap);
+  if (currentCatMapStr === lastCatMapStr) {
+    console.log('[DEBUG] 🔁 Categorías sin cambios. Pie chart no actualizado.');
+  } else {
+    lastCatMapStr = currentCatMapStr;
 
-  console.log('[DEBUG] catMap:', catMap);
+    const catLabels = Object.keys(catMap);
+    const catData = catLabels.map(c => +catMap[c].toFixed(2));
+    const catColors = catLabels.map(l => groupColors[l] || '#999');
 
-  const pieContainer = document.querySelector('#pieChart');
-  pieContainer.innerHTML = '';
+    console.log('[DEBUG] catMap:', catMap);
 
-  pieChart = new ApexCharts(pieContainer, {
-    chart: { type: 'pie', height: 220, animations: { enabled: false } },
-    series: catData,
-    labels: catLabels,
-    colors: catColors,
-    legend: { position: 'bottom' },
-    noData: {
-      text: 'Sin datos de categorías',
-      align: 'center',
-      verticalAlign: 'middle',
-      style: { color: '#999', fontSize: '14px' }
-    }
-  });
+    const pieContainer = document.querySelector('#pieChart');
+    pieContainer.innerHTML = '';
 
-  pieChart.render();
+    pieChart = new ApexCharts(pieContainer, {
+      chart: { type: 'pie', height: 220, animations: { enabled: false } },
+      series: catData,
+      labels: catLabels,
+      colors: catColors,
+      legend: { position: 'bottom' },
+      noData: {
+        text: 'Sin datos de categorías',
+        align: 'center',
+        verticalAlign: 'middle',
+        style: { color: '#999', fontSize: '14px' }
+      }
+    });
+
+    pieChart.render();
+  }
+
+  // ───── Guardar último estado ─────
+  lastRevenue = [...revenue];
+  lastSpend = [...spend];
 }
 
+
+
+function arraysEqual(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (Math.abs(a[i] - b[i]) > 0.0001) return false;
+  }
+  return true;
+}
 
 
 function applyPeriodFilter(userId, period) {
@@ -302,22 +385,13 @@ function refreshSubscriptions(months, userId) {
 function clearPreviousSubscriptions() {
   unsubscribeFns.forEach(unsub => unsub());
   unsubscribeFns = [];
+  subscribedWeeks.clear(); // ← ⚠️ IMPORTANTE: reiniciar semanas ya suscritas
 }
 
+
 function subscribeToMonth(mon, userId) {
-  const itemsRef = collection(db, 'users', userId, 'history', mon, 'items');
+  // Siempre subscribirse a las categorías del mes
   const catDocRef = doc(db, 'users', userId, 'historyCategorias', mon);
-
-  console.log('[DEBUG] Suscribiéndose a items de:', mon);
-
-  const unsubItems = onSnapshot(itemsRef, snap => {
-    const txs = snap.docs.map(d => d.data());
-    txsByMonth.set(mon, txs);
-    console.log(`[DEBUG] Transacciones recibidas (${mon}):`, txs.length, 'transacciones');
-    if (selectedPeriod !== 'week') {
-      renderAnalysis();
-    }
-  });
 
   const unsubCat = onSnapshot(catDocRef, snap => {
     if (snap.exists()) {
@@ -334,8 +408,52 @@ function subscribeToMonth(mon, userId) {
     }
   });
 
-  unsubscribeFns.push(unsubItems, unsubCat);
+  unsubscribeFns.push(unsubCat);
+
+  // ── NUEVO BLOQUE ──
+  if (selectedPeriod === 'month') {
+  // Limpia el sufijo -Sx si existiera en "mon"
+  const monthBase = mon.replace(/\-S\d$/, '');
+
+  for (let i = 1; i <= 5; i++) {
+    const weekKey = `${monthBase}-S${i}`;
+    const weekItemsRef = collection(db, 'users', userId, 'history', weekKey, 'items');
+
+    getDocs(weekItemsRef).then(snap => {
+      if (!snap.empty && !subscribedWeeks.has(weekKey)) {
+        subscribedWeeks.add(weekKey);
+        console.log(`[DEBUG] ✅ Subscribiéndose a items de semana: ${weekKey}`);
+
+        const unsubWeekItems = onSnapshot(weekItemsRef, snap => {
+          const txs = snap.docs.map(d => d.data());
+          txsByMonth.set(weekKey, txs);
+          console.log(`[DEBUG] Transacciones recibidas (${weekKey}):`, txs.length, 'transacciones');
+          renderAnalysis();
+        });
+
+        unsubscribeFns.push(unsubWeekItems);
+      } else {
+        console.log(`[DEBUG] 🚫 Semana vacía o ya suscrita: ${weekKey}`);
+      }
+    });
+  }
 }
+ else {
+    // Si es año o cualquier otro, suscribirse a mes completo
+    const itemsRef = collection(db, 'users', userId, 'history', mon, 'items');
+    console.log('[DEBUG] Suscribiéndose a items de mes completo:', mon);
+
+    const unsubItems = onSnapshot(itemsRef, snap => {
+      const txs = snap.docs.map(d => d.data());
+      txsByMonth.set(mon, txs);
+      console.log(`[DEBUG] Transacciones recibidas (${mon}):`, txs.length, 'transacciones');
+      renderAnalysis();
+    });
+
+    unsubscribeFns.push(unsubItems);
+  }
+}
+
 
 
 
