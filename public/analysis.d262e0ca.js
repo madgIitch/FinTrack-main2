@@ -662,12 +662,10 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"l1WLd":[function(require,module,exports,__globalThis) {
-// analysis.js - Versión con soporte completo para "Este mes" (semanas) y "Esta semana" (días)
 var _firestore = require("firebase/firestore");
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
-console.log('[ANALYSIS] loaded');
-// ───── VARIABLES GLOBALES ─────
+console.log('[ANALYSIS] Archivo analysis.js cargado');
 const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
 let trendChart, barChart, pieChart;
 let userUid = null;
@@ -680,9 +678,7 @@ const daysOfCurrentWeek = new Map();
 const subscribedWeeks = new Set();
 let lastRevenue = [];
 let lastSpend = [];
-let lastCatMap = '';
 let lastCatMapStr = '';
-// ───── MAPA DE COLORES POR CATEGORÍA ─────
 const groupColors = {
     'Agricultura y Medio Ambiente': '#A8D5BA',
     "Alimentos y Restauraci\xf3n": '#FFB6B9',
@@ -708,13 +704,14 @@ const groupColors = {
     "Viajes y Hosteler\xeda": '#FFC9DE',
     'Loan Payments': '#B0BEC5'
 };
-// ───── EVENTOS DOM ─────
 document.addEventListener('DOMContentLoaded', ()=>{
+    console.log('[ANALYSIS] DOM cargado');
     const sidebar = document.getElementById('sidebar');
     document.getElementById('open-sidebar').addEventListener('click', ()=>sidebar.classList.add('open'));
     document.getElementById('close-sidebar').addEventListener('click', ()=>sidebar.classList.remove('open'));
     document.getElementById('logout-link').addEventListener('click', async (e)=>{
         e.preventDefault();
+        console.log("[ANALYSIS] Cierre de sesi\xf3n solicitado");
         await (0, _auth.signOut)((0, _firebaseJs.auth));
         window.location.href = '../index.html';
     });
@@ -726,23 +723,22 @@ document.addEventListener('DOMContentLoaded', ()=>{
     });
     document.getElementById('period-select').addEventListener('change', (e)=>{
         selectedPeriod = e.target.value;
+        localStorage.setItem('selectedPeriod', selectedPeriod);
+        console.log('[ANALYSIS] Periodo seleccionado cambiado a:', selectedPeriod);
         if (userUid) applyPeriodFilter(userUid, selectedPeriod);
     });
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
         if (user) {
             userUid = user.uid;
-            console.log('[AUTH] Usuario autenticado:', userUid);
+            console.log('[ANALYSIS] Usuario autenticado:', userUid);
             const savedPeriod = localStorage.getItem('selectedPeriod') || 'month';
             document.getElementById('period-select').value = savedPeriod;
             selectedPeriod = savedPeriod;
-            reactiveAnalysis(userUid); // NECESARIO para que initCharts() se llame
-            // 🔧 AÑADE esto justo debajo:
-            setTimeout(()=>{
-                console.log("[DEBUG] \u23F1 Forzando primer render con applyPeriodFilter");
-                applyPeriodFilter(userUid, selectedPeriod);
-            }, 200); // tiempo breve para dar margen a que reactiveAnalysis arranque
+            console.log('[ANALYSIS] Periodo restaurado desde localStorage:', selectedPeriod);
+            reactiveAnalysis(userUid);
+            setTimeout(()=>applyPeriodFilter(userUid, selectedPeriod), 200);
         } else {
-            console.warn('[AUTH] Usuario no autenticado');
+            console.log('[ANALYSIS] Usuario no autenticado. Redirigiendo...');
             window.location.href = '../index.html';
         }
     });
@@ -752,11 +748,12 @@ function getWeekKeyFromDate(date = new Date()) {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     const weekNum = Math.floor((parseInt(day) - 1) / 7) + 1;
-    const weekKey = `${year}-${month}-S${weekNum}`;
-    console.log('[DEBUG] getWeekKeyFromDate:', weekKey);
-    return weekKey;
+    const key = `${year}-${month}-S${weekNum}`;
+    console.log('[ANALYSIS] Clave de semana generada:', key);
+    return key;
 }
 function reactiveAnalysis(userId) {
+    console.log('[ANALYSIS] Suscripciones reactivas iniciadas para usuario:', userId);
     const histRef = (0, _firestore.collection)(db, 'users', userId, 'history');
     const sumRef = (0, _firestore.collection)(db, 'users', userId, 'historySummary');
     initCharts();
@@ -766,17 +763,12 @@ function reactiveAnalysis(userId) {
     };
     const checkIfReadyToRender = ()=>{
         if (sourcesReady.history && sourcesReady.summary) {
-            console.log("[DEBUG] \uD83D\uDD04 Datos b\xe1sicos listos, aplicando filtro");
+            console.log('[ANALYSIS] Datos cargados. Aplicando filtro de periodo...');
             applyPeriodFilter(userId, selectedPeriod);
-            // ⚠️ Para "week", renderAnalysis se hace solo si daysOfCurrentWeek se llena
-            // Pero si ya hay datos locales, puede no saltar onSnapshot → Forzar render una vez
-            if (selectedPeriod === 'week' && daysOfCurrentWeek.size > 0) {
-                console.log("[DEBUG] Forzando render inicial para week (ya hay d\xedas cargados)");
-                renderAnalysis();
-            }
         }
     };
     const updateSubscriptionsFromSnapshot = (type, snap)=>{
+        console.log(`[ANALYSIS] Snapshot recibido para ${type}:`, snap.docs.length);
         const newMonths = new Set();
         snap.docs.forEach((d)=>newMonths.add(d.id));
         newMonths.forEach((m)=>monthsSet.add(m));
@@ -786,55 +778,84 @@ function reactiveAnalysis(userId) {
     (0, _firestore.onSnapshot)(histRef, (snap)=>updateSubscriptionsFromSnapshot('history', snap));
     (0, _firestore.onSnapshot)(sumRef, (snap)=>updateSubscriptionsFromSnapshot('summary', snap));
 }
-function renderAnalysis() {
-    console.log('[DEBUG] renderAnalysis ejecutada');
-    // ───── Validaciones previas por periodo ─────
-    if (selectedPeriod === 'month') {
-        const semanasValidas = [
-            ...txsByMonth.keys()
-        ].filter((k)=>k.includes('-S'));
-        console.log('[DEBUG] semanasValidas:', semanasValidas);
-        if (semanasValidas.length === 0) {
-            console.warn("[DEBUG] \u26D4 No hay semanas v\xe1lidas en txsByMonth \u2192 cancelando render");
-            return;
+function applyPeriodFilter(userId, period) {
+    console.log('[ANALYSIS] Aplicando filtro para periodo:', period);
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const prefix = `${year}-${month}`;
+    let monthsToSubscribe = [];
+    if (period === 'week' || period === 'month') monthsToSubscribe = Array.from(monthsSet).filter((m)=>m.startsWith(prefix));
+    else if (period === 'year') monthsToSubscribe = Array.from(monthsSet).filter((m)=>m.startsWith(`${year}-`));
+    console.log('[ANALYSIS] Meses a suscribirse:', monthsToSubscribe);
+    refreshSubscriptions(monthsToSubscribe, userId);
+}
+function refreshSubscriptions(months, userId) {
+    console.log('[ANALYSIS] Refrescando suscripciones...');
+    clearPreviousSubscriptions();
+    months.forEach((mon)=>{
+        subscribeToMonth(mon, userId);
+        if (selectedPeriod === 'month' || selectedPeriod === 'week') for(let i = 1; i <= 5; i++){
+            const weekId = `S${i}`;
+            const daysRef = (0, _firestore.collection)(db, 'users', userId, 'historySummary', mon, 'weeks', weekId, 'days');
+            const unsubDays = (0, _firestore.onSnapshot)(daysRef, (snap)=>{
+                console.log(`[ANALYSIS] Snapshot d\xedas para ${mon}/weeks/${weekId}:`, snap.docs.length);
+                for (const doc of snap.docs){
+                    const fullKey = `${mon}/weeks/${weekId}/${doc.id}`; // clave única por día
+                    daysOfCurrentWeek.set(fullKey, doc.data());
+                }
+                renderAnalysis();
+            });
+            unsubscribeFns.push(unsubDays);
         }
-    }
-    if (selectedPeriod === 'week' && daysOfCurrentWeek.size === 0) {
-        console.warn("[DEBUG] \u26D4 No hay datos diarios en daysOfCurrentWeek \u2192 cancelando render");
+    });
+}
+function clearPreviousSubscriptions() {
+    console.log('[ANALYSIS] Limpiando suscripciones anteriores');
+    unsubscribeFns.forEach((unsub)=>unsub());
+    unsubscribeFns = [];
+    subscribedWeeks.clear();
+}
+function subscribeToMonth(mon, userId) {
+    console.log("[ANALYSIS] Subscribiendo a mes (solo categor\xedas):", mon);
+    // Categorías (sí se mantiene)
+    const catDocRef = (0, _firestore.doc)(db, 'users', userId, 'historyCategorias', mon);
+    const unsubCat = (0, _firestore.onSnapshot)(catDocRef, (snap)=>{
+        console.log("[ANALYSIS] Snapshot categor\xedas:", mon, snap.exists());
+        if (snap.exists()) {
+            const data = snap.data();
+            delete data.updatedAt;
+            catByMonth.set(mon, data);
+        }
+        renderAnalysis(); // se renderiza siempre
+    });
+    unsubscribeFns.push(unsubCat);
+}
+function renderAnalysis() {
+    console.log("[ANALYSIS] Renderizando an\xe1lisis...");
+    if ((selectedPeriod === 'month' || selectedPeriod === 'week') && daysOfCurrentWeek.size === 0) {
+        console.log('[ANALYSIS] No hay datos diarios disponibles');
         return;
     }
-    console.log('[DEBUG] selectedPeriod:', selectedPeriod);
-    console.log('[DEBUG] txsByMonth keys:', [
-        ...txsByMonth.keys()
-    ]);
-    console.log('[DEBUG] daysOfCurrentWeek keys:', [
-        ...daysOfCurrentWeek.keys()
-    ]);
-    console.log('[DEBUG] catByMonth keys:', [
-        ...catByMonth.keys()
-    ]);
-    // ───── Inicialización de datos ─────
-    let xLabels = [];
-    let revenue = [];
-    let spend = [];
-    let netIncome = [];
-    // ───── Periodo: AÑO ─────
-    if (selectedPeriod === 'year') {
-        const months = [
-            ...txsByMonth.keys()
-        ].filter((k)=>/^\d{4}-\d{2}$/.test(k)).sort();
-        console.log('[DEBUG] Meses encontrados (year):', months);
-        xLabels = months;
-        revenue = months.map((m)=>(txsByMonth.get(m) || []).reduce((sum, t)=>sum + (t.amount > 0 ? t.amount : 0), 0));
-        spend = months.map((m)=>(txsByMonth.get(m) || []).reduce((sum, t)=>sum + (t.amount < 0 ? Math.abs(t.amount) : 0), 0));
-    } else if (selectedPeriod === 'month') {
-        const weeks = [
-            ...txsByMonth.keys()
-        ].filter((k)=>/^\d{4}-\d{2}-S\d+$/.test(k)).sort();
-        console.log('[DEBUG] Semanas encontradas (month):', weeks);
-        xLabels = weeks.map((k)=>k.split('-').at(-1));
-        revenue = weeks.map((w)=>(txsByMonth.get(w) || []).reduce((sum, t)=>sum + (t.amount > 0 ? t.amount : 0), 0));
-        spend = weeks.map((w)=>(txsByMonth.get(w) || []).reduce((sum, t)=>sum + (t.amount < 0 ? Math.abs(t.amount) : 0), 0));
+    let xLabels = [], revenue = [], spend = [], netIncome = [];
+    if (selectedPeriod === 'month') {
+        const semanas = [
+            'S1',
+            'S2',
+            'S3',
+            'S4',
+            'S5'
+        ];
+        xLabels = semanas;
+        revenue = new Array(5).fill(0);
+        spend = new Array(5).fill(0);
+        for (const [key, entry] of daysOfCurrentWeek.entries()){
+            const parts = key.split('/');
+            const weekIdx = semanas.indexOf(parts[2]);
+            if (weekIdx === -1) continue;
+            revenue[weekIdx] += entry?.totalIncomes || 0;
+            spend[weekIdx] += entry?.totalExpenses || 0;
+        }
     } else if (selectedPeriod === 'week') {
         const dias = [
             'Lun',
@@ -849,30 +870,33 @@ function renderAnalysis() {
         revenue = new Array(7).fill(0);
         spend = new Array(7).fill(0);
         for (const [key, entry] of daysOfCurrentWeek.entries()){
-            const date = new Date(key);
+            const dateStr = key.split('/').at(-1);
+            const date = new Date(dateStr);
             const idx = (date.getDay() + 6) % 7;
-            revenue[idx] = entry?.totalIncomes || 0;
-            spend[idx] = entry?.totalExpenses || 0;
-            console.log(`[DEBUG] D\xeda ${key} \u{2192} ${dias[idx]} \u{2192} Ingresos: ${entry?.totalIncomes}, Gastos: ${entry?.totalExpenses}`);
+            revenue[idx] += entry?.totalIncomes || 0;
+            spend[idx] += entry?.totalExpenses || 0;
         }
+    } else if (selectedPeriod === 'year') {
+        const months = [
+            ...catByMonth.keys()
+        ].sort(); // usamos las claves de categorías como fallback
+        xLabels = months;
+        revenue = months.map((m)=>0);
+        spend = months.map((m)=>0);
     }
-    // ───── Evita renders redundantes ─────
-    if (selectedPeriod !== 'week' && arraysEqual(revenue, lastRevenue) && arraysEqual(spend, lastSpend)) {
-        console.log("[DEBUG] \uD83D\uDD01 Datos id\xe9nticos a los \xfaltimos. Render cancelado.");
+    if (selectedPeriod !== 'year' && arraysEqual(revenue, lastRevenue) && arraysEqual(spend, lastSpend)) {
+        console.log('[ANALYSIS] No hay cambios detectados. Render omitido.');
         return;
     }
-    // ───── Cálculo de KPIs ─────
     netIncome = revenue.map((r, i)=>r - spend[i]);
     const totalRev = revenue.reduce((a, b)=>a + b, 0);
     const totalSpd = spend.reduce((a, b)=>a + b, 0);
-    console.log('[DEBUG] totalRev:', totalRev, 'totalSpd:', totalSpd);
     document.getElementById('kpi-revenue').textContent = `\u{20AC}${totalRev.toFixed(2)}`;
     document.getElementById('kpi-spend').textContent = `\u{20AC}${totalSpd.toFixed(2)}`;
     const revChange = revenue.length > 1 ? (revenue.at(-1) - revenue.at(-2)) / Math.max(revenue.at(-2), 1) * 100 : 0;
     const spdChange = spend.length > 1 ? (spend.at(-1) - spend.at(-2)) / Math.max(spend.at(-2), 1) * 100 : 0;
     document.getElementById('kpi-revenue-change').textContent = `${revChange >= 0 ? '+' : ''}${revChange.toFixed(1)}% vs periodo anterior`;
     document.getElementById('kpi-spend-change').textContent = `${spdChange >= 0 ? '+' : ''}${spdChange.toFixed(1)}% vs periodo anterior`;
-    // ───── Gráfica de línea (Ingresos/Gastos) ─────
     trendChart.updateOptions({
         series: [
             {
@@ -888,7 +912,6 @@ function renderAnalysis() {
             categories: xLabels
         }
     });
-    // ───── Gráfica de barras (Neto) ─────
     barChart.updateOptions({
         series: [
             {
@@ -900,19 +923,16 @@ function renderAnalysis() {
             categories: xLabels
         }
     });
-    // ───── Gráfico de pastel (categorías) ─────
     const catMap = {};
     catByMonth.forEach((cats)=>{
         for (const [k, v] of Object.entries(cats))catMap[k] = (catMap[k] || 0) + v;
     });
     const currentCatMapStr = JSON.stringify(catMap);
-    if (currentCatMapStr === lastCatMapStr) console.log("[DEBUG] \uD83D\uDD01 Categor\xedas sin cambios. Pie chart no actualizado.");
-    else {
+    if (currentCatMapStr !== lastCatMapStr) {
         lastCatMapStr = currentCatMapStr;
         const catLabels = Object.keys(catMap);
         const catData = catLabels.map((c)=>+catMap[c].toFixed(2));
         const catColors = catLabels.map((l)=>groupColors[l] || '#999');
-        console.log('[DEBUG] catMap:', catMap);
         const pieContainer = document.querySelector('#pieChart');
         pieContainer.innerHTML = '';
         pieChart = new ApexCharts(pieContainer, {
@@ -941,7 +961,6 @@ function renderAnalysis() {
         });
         pieChart.render();
     }
-    // ───── Guardar último estado ─────
     lastRevenue = [
         ...revenue
     ];
@@ -951,100 +970,11 @@ function renderAnalysis() {
 }
 function arraysEqual(a, b) {
     if (a.length !== b.length) return false;
-    for(let i = 0; i < a.length; i++){
-        if (Math.abs(a[i] - b[i]) > 0.0001) return false;
-    }
+    for(let i = 0; i < a.length; i++)if (Math.abs(a[i] - b[i]) > 0.0001) return false;
     return true;
 }
-function applyPeriodFilter(userId, period) {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const prefix = `${year}-${month}`;
-    let monthsToSubscribe = [];
-    if (period === 'week' || period === 'month') monthsToSubscribe = Array.from(monthsSet).filter((m)=>m.startsWith(prefix));
-    else if (period === 'year') monthsToSubscribe = Array.from(monthsSet).filter((m)=>m.startsWith(`${year}-`));
-    console.log('[DEBUG] Periodo seleccionado:', period);
-    console.log('[DEBUG] monthsSet:', Array.from(monthsSet));
-    console.log('[DEBUG] monthsToSubscribe:', monthsToSubscribe);
-    refreshSubscriptions(monthsToSubscribe, userId); // 👈 ← necesario también en "week"
-}
-function refreshSubscriptions(months, userId) {
-    clearPreviousSubscriptions();
-    console.log("[DEBUG] \u2192 Refrescando suscripciones a meses:", months);
-    months.forEach((mon)=>subscribeToMonth(mon, userId));
-    if (selectedPeriod === 'week') {
-        const weekKey = getWeekKeyFromDate();
-        const weekDaysRef = (0, _firestore.collection)(db, 'users', userId, 'historySummary', weekKey, 'days');
-        console.log('[DEBUG] Subscribing to daily summary of:', weekKey);
-        const unsubDays = (0, _firestore.onSnapshot)(weekDaysRef, (snap)=>{
-            console.log('[DEBUG] Snapshot diario recibido (week)', snap.size, 'documentos');
-            daysOfCurrentWeek.clear();
-            snap.docs.forEach((doc)=>{
-                console.log(`[DEBUG] D\xeda ${doc.id}:`, doc.data());
-                daysOfCurrentWeek.set(doc.id, doc.data());
-            });
-            if (snap.size > 0) {
-                console.log('[DEBUG] Forzando renderAnalysis tras snapshot de days');
-                renderAnalysis();
-            } else console.warn("[DEBUG] Snapshot de days est\xe1 vac\xedo");
-        });
-        unsubscribeFns.push(unsubDays);
-    }
-}
-function clearPreviousSubscriptions() {
-    unsubscribeFns.forEach((unsub)=>unsub());
-    unsubscribeFns = [];
-    subscribedWeeks.clear(); // ← ⚠️ IMPORTANTE: reiniciar semanas ya suscritas
-}
-function subscribeToMonth(mon, userId) {
-    // Siempre subscribirse a las categorías del mes
-    const catDocRef = (0, _firestore.doc)(db, 'users', userId, 'historyCategorias', mon);
-    const unsubCat = (0, _firestore.onSnapshot)(catDocRef, (snap)=>{
-        if (snap.exists()) {
-            const data = snap.data();
-            delete data.updatedAt;
-            catByMonth.set(mon, data);
-            console.log(`[DEBUG] Categor\xedas recibidas (${mon}):`, data);
-        } else console.warn(`[DEBUG] Documento de categor\xedas no existe para ${mon}`);
-        if (selectedPeriod !== 'week') renderAnalysis();
-    });
-    unsubscribeFns.push(unsubCat);
-    // ── NUEVO BLOQUE ──
-    if (selectedPeriod === 'month') {
-        // Limpia el sufijo -Sx si existiera en "mon"
-        const monthBase = mon.replace(/\-S\d$/, '');
-        for(let i = 1; i <= 5; i++){
-            const weekKey = `${monthBase}-S${i}`;
-            const weekItemsRef = (0, _firestore.collection)(db, 'users', userId, 'history', weekKey, 'items');
-            (0, _firestore.getDocs)(weekItemsRef).then((snap)=>{
-                if (!snap.empty && !subscribedWeeks.has(weekKey)) {
-                    subscribedWeeks.add(weekKey);
-                    console.log(`[DEBUG] \u{2705} Subscribi\xe9ndose a items de semana: ${weekKey}`);
-                    const unsubWeekItems = (0, _firestore.onSnapshot)(weekItemsRef, (snap)=>{
-                        const txs = snap.docs.map((d)=>d.data());
-                        txsByMonth.set(weekKey, txs);
-                        console.log(`[DEBUG] Transacciones recibidas (${weekKey}):`, txs.length, 'transacciones');
-                        renderAnalysis();
-                    });
-                    unsubscribeFns.push(unsubWeekItems);
-                } else console.log(`[DEBUG] \u{1F6AB} Semana vac\xeda o ya suscrita: ${weekKey}`);
-            });
-        }
-    } else {
-        // Si es año o cualquier otro, suscribirse a mes completo
-        const itemsRef = (0, _firestore.collection)(db, 'users', userId, 'history', mon, 'items');
-        console.log("[DEBUG] Suscribi\xe9ndose a items de mes completo:", mon);
-        const unsubItems = (0, _firestore.onSnapshot)(itemsRef, (snap)=>{
-            const txs = snap.docs.map((d)=>d.data());
-            txsByMonth.set(mon, txs);
-            console.log(`[DEBUG] Transacciones recibidas (${mon}):`, txs.length, 'transacciones');
-            renderAnalysis();
-        });
-        unsubscribeFns.push(unsubItems);
-    }
-}
 function initCharts() {
+    console.log("[ANALYSIS] Inicializando gr\xe1ficos");
     trendChart = new ApexCharts(document.querySelector('#trendChart'), {
         chart: {
             type: 'line',
