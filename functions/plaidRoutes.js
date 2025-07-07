@@ -300,8 +300,9 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     }
 
     // ── Paso 3: Agrupar por mes, semana y día ────────────────────────────────
-    const txsByPeriod = {}; // YYYY-MM, YYYY-MM-SX
-    const txsByDayInWeek = {}; // YYYY-MM-SX -> YYYY-MM-DD[]
+    const txsByMonth = {};        // YYYY-MM -> [tx]
+    const txsByWeekInMonth = {};  // YYYY-MM -> { S1: [tx], S2: [tx], ... }
+    const txsByDayInWeek = {};    // YYYY-MM -> { S1: { YYYY-MM-DD: [tx] }, ... }
 
     for (const tx of idToTx.values()) {
       const dateObj = new Date(tx.date);
@@ -311,20 +312,22 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       const dateKey = `${year}-${month}-${day}`;
       const monthKey = `${year}-${month}`;
       const weekNum = Math.floor((parseInt(day) - 1) / 7) + 1;
-      const weekKey = `${monthKey}-S${weekNum}`;
+      const weekKey = `S${weekNum}`;
 
       // Mes
-      txsByPeriod[monthKey] = txsByPeriod[monthKey] || [];
-      txsByPeriod[monthKey].push(tx);
+      txsByMonth[monthKey] = txsByMonth[monthKey] || [];
+      txsByMonth[monthKey].push(tx);
 
-      // Semana
-      txsByPeriod[weekKey] = txsByPeriod[weekKey] || [];
-      txsByPeriod[weekKey].push(tx);
+      // Semana dentro del mes
+      txsByWeekInMonth[monthKey] = txsByWeekInMonth[monthKey] || {};
+      txsByWeekInMonth[monthKey][weekKey] = txsByWeekInMonth[monthKey][weekKey] || [];
+      txsByWeekInMonth[monthKey][weekKey].push(tx);
 
       // Día dentro de semana
-      txsByDayInWeek[weekKey] = txsByDayInWeek[weekKey] || {};
-      txsByDayInWeek[weekKey][dateKey] = txsByDayInWeek[weekKey][dateKey] || [];
-      txsByDayInWeek[weekKey][dateKey].push(tx);
+      txsByDayInWeek[monthKey] = txsByDayInWeek[monthKey] || {};
+      txsByDayInWeek[monthKey][weekKey] = txsByDayInWeek[monthKey][weekKey] || {};
+      txsByDayInWeek[monthKey][weekKey][dateKey] = txsByDayInWeek[monthKey][weekKey][dateKey] || [];
+      txsByDayInWeek[monthKey][weekKey][dateKey].push(tx);
     }
 
     // ── Paso 4: Cargar categorías ───────────────────────────────────────────
@@ -341,10 +344,10 @@ router.post('/sync_transactions_and_store', async (req, res) => {
 
     // ── Paso 5: Escribir en batch los datos agrupados ──────────────────────
     const batch = db.batch();
-    for (const [period, txs] of Object.entries(txsByPeriod)) {
-      const sumRef = userRef.collection('historySummary').doc(period);
-      const catRef = userRef.collection('historyCategorias').doc(period);
-      const limGroupsRef = userRef.collection('historyLimits').doc(period).collection('groups');
+    for (const [monthKey, txs] of Object.entries(txsByMonth)) {
+      const sumRef = userRef.collection('historySummary').doc(monthKey);
+      const catRef = userRef.collection('historyCategorias').doc(monthKey);
+      const limGroupsRef = userRef.collection('historyLimits').doc(monthKey).collection('groups');
 
       const totalExpenses = txs.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
       const totalIncomes = txs.filter(t => t.amount >= 0).reduce((s, t) => s + t.amount, 0);
@@ -367,16 +370,17 @@ router.post('/sync_transactions_and_store', async (req, res) => {
         const grpDocRef = limGroupsRef.doc(grp);
         batch.set(grpDocRef, { limit, spent }, { merge: true });
       });
-    }
 
-    // ── Paso 6: Crear subcolecciones por día en semanas ─────────────────────
-    for (const [weekKey, daysObj] of Object.entries(txsByDayInWeek)) {
-      const weekRef = userRef.collection('historySummary').doc(weekKey);
-      for (const [dateKey, txs] of Object.entries(daysObj)) {
-        const totalExpenses = txs.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
-        const totalIncomes = txs.filter(t => t.amount >= 0).reduce((s, t) => s + t.amount, 0);
-        const dayRef = weekRef.collection('days').doc(dateKey);
-        batch.set(dayRef, { totalExpenses, totalIncomes });
+      // ── Paso 6: Crear subcolecciones por semana/día ──────────────────────
+      const weeksObj = txsByDayInWeek[monthKey] || {};
+      for (const [weekKey, daysObj] of Object.entries(weeksObj)) {
+        const weekRef = sumRef.collection('weeks').doc(weekKey);
+        for (const [dateKey, txs] of Object.entries(daysObj)) {
+          const totalExpenses = txs.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+          const totalIncomes = txs.filter(t => t.amount >= 0).reduce((s, t) => s + t.amount, 0);
+          const dayRef = weekRef.collection('days').doc(dateKey);
+          batch.set(dayRef, { totalExpenses, totalIncomes });
+        }
       }
     }
 
@@ -388,6 +392,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 
