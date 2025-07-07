@@ -662,9 +662,9 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"l1WLd":[function(require,module,exports,__globalThis) {
-var _firestore = require("firebase/firestore");
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
+var _firestore = require("firebase/firestore");
 console.log('[ANALYSIS] Archivo analysis.js cargado');
 const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
 let trendChart, barChart, pieChart;
@@ -672,7 +672,6 @@ let userUid = null;
 let selectedPeriod = 'month';
 const monthsSet = new Set();
 let unsubscribeFns = [];
-const txsByMonth = new Map();
 const catByMonth = new Map();
 const daysOfCurrentWeek = new Map();
 const subscribedWeeks = new Set();
@@ -744,15 +743,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
         }
     });
 });
-function getWeekKeyFromDate(date = new Date()) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const weekNum = Math.floor((parseInt(day) - 1) / 7) + 1;
-    const key = `${year}-${month}-S${weekNum}`;
-    console.log('[ANALYSIS] Clave de semana generada:', key);
-    return key;
-}
 function reactiveAnalysis(userId) {
     console.log('[ANALYSIS] Iniciando suscripciones reactivas para usuario:', userId);
     const histRef = (0, _firestore.collection)(db, 'users', userId, 'history');
@@ -847,7 +837,7 @@ function renderAnalysis() {
         console.log('[ANALYSIS] No hay datos diarios disponibles');
         return;
     }
-    let xLabels = [], revenue = [], spend = [], netIncome = [];
+    let xLabels = [], revenue = [], spend = [], netIncome = [], catMap = {};
     if (selectedPeriod === 'month') {
         const semanas = [
             'S1',
@@ -861,11 +851,15 @@ function renderAnalysis() {
         spend = new Array(5).fill(0);
         for (const [key, entry] of daysOfCurrentWeek.entries()){
             const parts = key.split('/');
-            const weekIdx = semanas.indexOf(parts[2]); // 'S1' → 0, etc.
+            const weekIdx = semanas.indexOf(parts[2]);
             if (weekIdx === -1) continue;
             revenue[weekIdx] += entry?.totalIncomes || 0;
             spend[weekIdx] += entry?.totalExpenses || 0;
         }
+        // Categorías del mes actual
+        catByMonth.forEach((cats, mon)=>{
+            if (mon === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`) for (const [k, v] of Object.entries(cats))catMap[k] = (catMap[k] || 0) + v;
+        });
     } else if (selectedPeriod === 'week') {
         const dias = [
             'Lun',
@@ -880,24 +874,32 @@ function renderAnalysis() {
         revenue = new Array(7).fill(0);
         spend = new Array(7).fill(0);
         for (const [key, entry] of daysOfCurrentWeek.entries()){
-            const dateStr = key.split('/').at(-1); // YYYY-MM-DD
+            const dateStr = key.split('/').at(-1);
             const date = new Date(dateStr);
-            const idx = (date.getDay() + 6) % 7; // Lunes = 0
+            const idx = (date.getDay() + 6) % 7;
             revenue[idx] += entry?.totalIncomes || 0;
             spend[idx] += entry?.totalExpenses || 0;
         }
+        // Categorías del mes actual
+        catByMonth.forEach((cats, mon)=>{
+            if (mon === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`) for (const [k, v] of Object.entries(cats))catMap[k] = (catMap[k] || 0) + v;
+        });
     } else if (selectedPeriod === 'year') {
         const year = new Date().getFullYear().toString();
         const months = [
             ...summaryByMonth.keys()
-        ].filter((k)=>k.startsWith(year)).sort(); // ej: ['2025-01', '2025-02', ...]
+        ].filter((k)=>k.startsWith(year)).sort();
         if (months.length === 0) {
             console.log("[ANALYSIS] No hay datos mensuales para el a\xf1o actual");
             return;
         }
-        xLabels = months.map((m)=>m.split('-')[1]); // ['01', '02', ...]
+        xLabels = months.map((m)=>m.split('-')[1]);
         revenue = months.map((m)=>summaryByMonth.get(m)?.totalIncomes || 0);
         spend = months.map((m)=>summaryByMonth.get(m)?.totalExpenses || 0);
+        // Categorías acumuladas del año actual
+        catByMonth.forEach((cats, mon)=>{
+            if (mon.startsWith(year + '-')) for (const [k, v] of Object.entries(cats))catMap[k] = (catMap[k] || 0) + v;
+        });
     }
     if (selectedPeriod !== 'week' && arraysEqual(revenue, lastRevenue) && arraysEqual(spend, lastSpend)) {
         console.log('[ANALYSIS] No hay cambios en ingresos/gastos. Render omitido.');
@@ -939,16 +941,16 @@ function renderAnalysis() {
             categories: xLabels
         }
     });
-    const catMap = {};
-    catByMonth.forEach((cats)=>{
-        for (const [k, v] of Object.entries(cats))catMap[k] = (catMap[k] || 0) + v;
-    });
     const currentCatMapStr = JSON.stringify(catMap);
     if (currentCatMapStr !== lastCatMapStr) {
         lastCatMapStr = currentCatMapStr;
-        console.log("[ANALYSIS] Categor\xedas actualizadas. Redibujando gr\xe1fico de pastel...");
         const catLabels = Object.keys(catMap);
         const catData = catLabels.map((c)=>+catMap[c].toFixed(2));
+        if (catLabels.length === 0) {
+            console.log("[ANALYSIS] No hay categor\xedas. Saltando render de pie chart.");
+            return;
+        }
+        console.log("[ANALYSIS] Categor\xedas actualizadas. Redibujando gr\xe1fico de pastel...");
         const catColors = catLabels.map((l)=>groupColors[l] || '#999');
         const pieContainer = document.querySelector('#pieChart');
         pieContainer.innerHTML = '';
@@ -1109,6 +1111,6 @@ window.addEventListener('scroll', ()=>{
     passive: true
 });
 
-},{"firebase/firestore":"3RBs1","./firebase.js":"24zHi","firebase/auth":"4ZBbi"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
+},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
 
 //# sourceMappingURL=analysis.d262e0ca.js.map
