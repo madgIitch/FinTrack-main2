@@ -18,6 +18,7 @@ let lastSpend = [];
 let lastCatMapStr = '';
 let summaryByMonth = new Map(); 
 
+
 const groupColors = {
   'Agricultura y Medio Ambiente': '#A8D5BA',
   'Alimentos y Restauración': '#FFB6B9',
@@ -207,7 +208,7 @@ function renderAnalysis() {
     return;
   }
 
-  let xLabels = [], revenue = [], spend = [], netIncome = [], catMap = {};
+  let xLabels = [], revenue = [], spend = [], netIncome = [];
 
   if (selectedPeriod === 'month') {
     const semanas = ['S1', 'S2', 'S3', 'S4', 'S5'];
@@ -223,15 +224,6 @@ function renderAnalysis() {
       spend[weekIdx] += entry?.totalExpenses || 0;
     }
 
-    // Categorías del mes actual
-    catByMonth.forEach((cats, mon) => {
-      if (mon === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`) {
-        for (const [k, v] of Object.entries(cats)) {
-          catMap[k] = (catMap[k] || 0) + v;
-        }
-      }
-    });
-
   } else if (selectedPeriod === 'week') {
     const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
     xLabels = dias;
@@ -246,15 +238,6 @@ function renderAnalysis() {
       spend[idx] += entry?.totalExpenses || 0;
     }
 
-    // Categorías del mes actual
-    catByMonth.forEach((cats, mon) => {
-      if (mon === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`) {
-        for (const [k, v] of Object.entries(cats)) {
-          catMap[k] = (catMap[k] || 0) + v;
-        }
-      }
-    });
-
   } else if (selectedPeriod === 'year') {
     const year = new Date().getFullYear().toString();
     const months = [...summaryByMonth.keys()].filter(k => k.startsWith(year)).sort();
@@ -267,15 +250,6 @@ function renderAnalysis() {
     xLabels = months.map(m => m.split('-')[1]);
     revenue = months.map(m => summaryByMonth.get(m)?.totalIncomes || 0);
     spend = months.map(m => summaryByMonth.get(m)?.totalExpenses || 0);
-
-    // Categorías acumuladas del año actual
-    catByMonth.forEach((cats, mon) => {
-      if (mon.startsWith(year + '-')) {
-        for (const [k, v] of Object.entries(cats)) {
-          catMap[k] = (catMap[k] || 0) + v;
-        }
-      }
-    });
   }
 
   if (selectedPeriod !== 'week' && arraysEqual(revenue, lastRevenue) && arraysEqual(spend, lastSpend)) {
@@ -297,6 +271,7 @@ function renderAnalysis() {
   document.getElementById('kpi-spend-change').textContent = `${spdChange >= 0 ? '+' : ''}${spdChange.toFixed(1)}% vs periodo anterior`;
 
   console.log('[ANALYSIS] KPI actualizados. Redibujando gráficas...');
+
   trendChart.updateOptions({
     series: [
       { name: 'Ingresos', data: revenue },
@@ -310,41 +285,12 @@ function renderAnalysis() {
     xaxis: { categories: xLabels }
   });
 
-  const currentCatMapStr = JSON.stringify(catMap);
-  if (currentCatMapStr !== lastCatMapStr) {
-    lastCatMapStr = currentCatMapStr;
-
-    const catLabels = Object.keys(catMap);
-    const catData = catLabels.map(c => +catMap[c].toFixed(2));
-
-    if (catLabels.length === 0) {
-      console.log('[ANALYSIS] No hay categorías. Saltando render de pie chart.');
-      return;
-    }
-
-    console.log('[ANALYSIS] Categorías actualizadas. Redibujando gráfico de pastel...');
-    const catColors = catLabels.map(l => groupColors[l] || '#999');
-    const pieContainer = document.querySelector('#pieChart');
-    pieContainer.innerHTML = '';
-    pieChart = new ApexCharts(pieContainer, {
-      chart: { type: 'pie', height: 220, animations: { enabled: false } },
-      series: catData,
-      labels: catLabels,
-      colors: catColors,
-      legend: { position: 'bottom' },
-      noData: {
-        text: 'Sin datos de categorías',
-        align: 'center',
-        verticalAlign: 'middle',
-        style: { color: '#999', fontSize: '14px' }
-      }
-    });
-    pieChart.render();
-  }
-
   lastRevenue = [...revenue];
   lastSpend = [...spend];
+
+  renderPieChartForCurrentPeriod(); // ← llamada final y única para gestionar el pie chart
 }
+
 
 
 
@@ -400,6 +346,72 @@ function initCharts() {
   pieChart.render();
 }
 
+
+function renderPieChartForCurrentPeriod() {
+  console.log('[ANALYSIS] PieChart: Iniciando render para periodo:', selectedPeriod);
+
+  const now = new Date();
+  const year = now.getFullYear().toString();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const prefix = `${year}-${month}`;
+
+  const relevantKeys = Array.from(catByMonth.keys())
+    .filter(k => selectedPeriod === 'year' ? k.startsWith(year) : k === prefix);
+
+  if (relevantKeys.length === 0) {
+    console.log('[PieChart] No hay claves relevantes en catByMonth:', relevantKeys);
+    return;
+  }
+
+  const catMap = {};
+  for (const key of relevantKeys) {
+    const cats = catByMonth.get(key);
+    if (!cats) continue;
+    for (const [k, v] of Object.entries(cats)) {
+      catMap[k] = (catMap[k] || 0) + v;
+    }
+  }
+
+  const currentCatMapStr = JSON.stringify(catMap);
+  if (currentCatMapStr === lastCatMapStr) {
+    console.log('[PieChart] Sin cambios en categorías → Render omitido');
+    return;
+  }
+
+  lastCatMapStr = currentCatMapStr;
+  const catLabels = Object.keys(catMap);
+  const catData = catLabels.map(c => +catMap[c].toFixed(2));
+
+  if (catLabels.length === 0) {
+    console.log('[PieChart] No hay categorías para mostrar.');
+    return;
+  }
+
+  console.log('[PieChart] Etiquetas →', catLabels);
+  console.log('[PieChart] Valores   →', catData);
+
+  const catColors = catLabels.map(l => groupColors[l] || '#999');
+  const pieContainer = document.querySelector('#pieChart');
+  pieContainer.innerHTML = '';
+  pieChart = new ApexCharts(pieContainer, {
+    chart: { type: 'pie', height: 220, animations: { enabled: false } },
+    series: catData,
+    labels: catLabels,
+    colors: catColors,
+    legend: { position: 'bottom' },
+    noData: {
+      text: 'Sin datos de categorías',
+      align: 'center',
+      verticalAlign: 'middle',
+      style: { color: '#999', fontSize: '14px' }
+    }
+  });
+  pieChart.render();
+  console.log('[PieChart] Renderizado OK');
+}
+
+
+
 let lastScrollTop = 0;
 const nav = document.getElementById('bottom-nav');
 window.addEventListener('scroll', () => {
@@ -409,3 +421,6 @@ window.addEventListener('scroll', () => {
   else nav.classList.remove('hide');
   lastScrollTop = currentScroll <= 0 ? 0 : currentScroll;
 }, { passive: true });
+
+
+

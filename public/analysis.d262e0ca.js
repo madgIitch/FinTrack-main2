@@ -837,7 +837,7 @@ function renderAnalysis() {
         console.log('[ANALYSIS] No hay datos diarios disponibles');
         return;
     }
-    let xLabels = [], revenue = [], spend = [], netIncome = [], catMap = {};
+    let xLabels = [], revenue = [], spend = [], netIncome = [];
     if (selectedPeriod === 'month') {
         const semanas = [
             'S1',
@@ -856,10 +856,6 @@ function renderAnalysis() {
             revenue[weekIdx] += entry?.totalIncomes || 0;
             spend[weekIdx] += entry?.totalExpenses || 0;
         }
-        // Categorías del mes actual
-        catByMonth.forEach((cats, mon)=>{
-            if (mon === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`) for (const [k, v] of Object.entries(cats))catMap[k] = (catMap[k] || 0) + v;
-        });
     } else if (selectedPeriod === 'week') {
         const dias = [
             'Lun',
@@ -880,10 +876,6 @@ function renderAnalysis() {
             revenue[idx] += entry?.totalIncomes || 0;
             spend[idx] += entry?.totalExpenses || 0;
         }
-        // Categorías del mes actual
-        catByMonth.forEach((cats, mon)=>{
-            if (mon === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`) for (const [k, v] of Object.entries(cats))catMap[k] = (catMap[k] || 0) + v;
-        });
     } else if (selectedPeriod === 'year') {
         const year = new Date().getFullYear().toString();
         const months = [
@@ -896,10 +888,6 @@ function renderAnalysis() {
         xLabels = months.map((m)=>m.split('-')[1]);
         revenue = months.map((m)=>summaryByMonth.get(m)?.totalIncomes || 0);
         spend = months.map((m)=>summaryByMonth.get(m)?.totalExpenses || 0);
-        // Categorías acumuladas del año actual
-        catByMonth.forEach((cats, mon)=>{
-            if (mon.startsWith(year + '-')) for (const [k, v] of Object.entries(cats))catMap[k] = (catMap[k] || 0) + v;
-        });
     }
     if (selectedPeriod !== 'week' && arraysEqual(revenue, lastRevenue) && arraysEqual(spend, lastSpend)) {
         console.log('[ANALYSIS] No hay cambios en ingresos/gastos. Render omitido.');
@@ -941,51 +929,13 @@ function renderAnalysis() {
             categories: xLabels
         }
     });
-    const currentCatMapStr = JSON.stringify(catMap);
-    if (currentCatMapStr !== lastCatMapStr) {
-        lastCatMapStr = currentCatMapStr;
-        const catLabels = Object.keys(catMap);
-        const catData = catLabels.map((c)=>+catMap[c].toFixed(2));
-        if (catLabels.length === 0) {
-            console.log("[ANALYSIS] No hay categor\xedas. Saltando render de pie chart.");
-            return;
-        }
-        console.log("[ANALYSIS] Categor\xedas actualizadas. Redibujando gr\xe1fico de pastel...");
-        const catColors = catLabels.map((l)=>groupColors[l] || '#999');
-        const pieContainer = document.querySelector('#pieChart');
-        pieContainer.innerHTML = '';
-        pieChart = new ApexCharts(pieContainer, {
-            chart: {
-                type: 'pie',
-                height: 220,
-                animations: {
-                    enabled: false
-                }
-            },
-            series: catData,
-            labels: catLabels,
-            colors: catColors,
-            legend: {
-                position: 'bottom'
-            },
-            noData: {
-                text: "Sin datos de categor\xedas",
-                align: 'center',
-                verticalAlign: 'middle',
-                style: {
-                    color: '#999',
-                    fontSize: '14px'
-                }
-            }
-        });
-        pieChart.render();
-    }
     lastRevenue = [
         ...revenue
     ];
     lastSpend = [
         ...spend
     ];
+    renderPieChartForCurrentPeriod(); // ← llamada final y única para gestionar el pie chart
 }
 function arraysEqual(a, b) {
     if (a.length !== b.length) return false;
@@ -1098,6 +1048,80 @@ function initCharts() {
         }
     });
     pieChart.render();
+}
+function renderPieChartForCurrentPeriod() {
+    console.log(`[PieChart] Iniciando render seg\xfan periodo: ${selectedPeriod}`);
+    if (!areCategoriesReadyForPeriod()) {
+        console.warn("[PieChart] Categor\xedas a\xfan no disponibles para este periodo. Reintentando en 300ms...");
+        setTimeout(renderPieChartForCurrentPeriod, 300); // Reintenta más tarde
+        return;
+    }
+    const catMap = {};
+    const now = new Date();
+    const year = now.getFullYear().toString();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const prefix = `${year}-${month}`;
+    const monthsToInclude = selectedPeriod === 'year' ? Array.from(catByMonth.keys()).filter((k)=>k.startsWith(year)) : Array.from(catByMonth.keys()).filter((k)=>k.startsWith(prefix));
+    console.log("[PieChart] Meses a incluir seg\xfan periodo:", monthsToInclude);
+    for (const m of monthsToInclude){
+        const cats = catByMonth.get(m);
+        if (!cats) continue;
+        for (const [k, v] of Object.entries(cats))catMap[k] = (catMap[k] || 0) + v;
+    }
+    const currentCatMapStr = JSON.stringify(catMap);
+    if (currentCatMapStr === lastCatMapStr) {
+        console.log("[PieChart] Sin cambios en categor\xedas. Render omitido");
+        return;
+    }
+    lastCatMapStr = currentCatMapStr;
+    const catLabels = Object.keys(catMap);
+    const catData = catLabels.map((c)=>+catMap[c].toFixed(2));
+    if (catLabels.length === 0) {
+        console.log("[PieChart] No hay categor\xedas. No se renderiza");
+        return;
+    }
+    console.log("[PieChart] Etiquetas \u2192", catLabels);
+    console.log("[PieChart] Valores \u2192", catData);
+    const catColors = catLabels.map((l)=>groupColors[l] || '#999');
+    const pieContainer = document.querySelector('#pieChart');
+    pieContainer.innerHTML = '';
+    pieChart = new ApexCharts(pieContainer, {
+        chart: {
+            type: 'pie',
+            height: 220,
+            animations: {
+                enabled: false
+            }
+        },
+        series: catData,
+        labels: catLabels,
+        colors: catColors,
+        legend: {
+            position: 'bottom'
+        },
+        noData: {
+            text: "Sin datos de categor\xedas",
+            align: 'center',
+            verticalAlign: 'middle',
+            style: {
+                color: '#999',
+                fontSize: '14px'
+            }
+        }
+    });
+    pieChart.render();
+}
+function areCategoriesReadyForPeriod() {
+    const now = new Date();
+    const year = now.getFullYear().toString();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const prefix = `${year}-${month}`;
+    const monthsToCheck = selectedPeriod === 'year' ? Array.from({
+        length: 12
+    }, (_, i)=>`${year}-${String(i + 1).padStart(2, '0')}`) : [
+        prefix
+    ];
+    return monthsToCheck.every((m)=>catByMonth.has(m));
 }
 let lastScrollTop = 0;
 const nav = document.getElementById('bottom-nav');
