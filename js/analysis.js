@@ -18,6 +18,7 @@ const subscribedWeeks = new Set();
 let lastRevenue = [];
 let lastSpend = [];
 let lastCatMapStr = '';
+let summaryByMonth = new Map(); 
 
 const groupColors = {
   'Agricultura y Medio Ambiente': '#A8D5BA',
@@ -99,12 +100,14 @@ function getWeekKeyFromDate(date = new Date()) {
 }
 
 function reactiveAnalysis(userId) {
-  console.log('[ANALYSIS] Suscripciones reactivas iniciadas para usuario:', userId);
+  console.log('[ANALYSIS] Iniciando suscripciones reactivas para usuario:', userId);
+
   const histRef = collection(db, 'users', userId, 'history');
   const sumRef = collection(db, 'users', userId, 'historySummary');
-  initCharts();
-  let sourcesReady = { history: false, summary: false };
 
+  initCharts();
+
+  let sourcesReady = { history: false, summary: false };
   const checkIfReadyToRender = () => {
     if (sourcesReady.history && sourcesReady.summary) {
       console.log('[ANALYSIS] Datos cargados. Aplicando filtro de periodo...');
@@ -113,17 +116,30 @@ function reactiveAnalysis(userId) {
   };
 
   const updateSubscriptionsFromSnapshot = (type, snap) => {
-    console.log(`[ANALYSIS] Snapshot recibido para ${type}:`, snap.docs.length);
     const newMonths = new Set();
-    snap.docs.forEach(d => newMonths.add(d.id));
+    if (type === 'summary') summaryByMonth.clear();
+
+    snap.docs.forEach(doc => {
+      newMonths.add(doc.id);
+      if (type === 'summary') summaryByMonth.set(doc.id, doc.data());
+    });
+
     newMonths.forEach(m => monthsSet.add(m));
     sourcesReady[type] = true;
     checkIfReadyToRender();
   };
 
-  onSnapshot(histRef, snap => updateSubscriptionsFromSnapshot('history', snap));
-  onSnapshot(sumRef, snap => updateSubscriptionsFromSnapshot('summary', snap));
+  onSnapshot(histRef, snap => {
+    console.log('[ANALYSIS] Snapshot recibido para history:', snap.docs.length);
+    updateSubscriptionsFromSnapshot('history', snap);
+  });
+
+  onSnapshot(sumRef, snap => {
+    console.log('[ANALYSIS] Snapshot recibido para summary:', snap.docs.length);
+    updateSubscriptionsFromSnapshot('summary', snap);
+  });
 }
+
 
 function applyPeriodFilter(userId, period) {
   console.log('[ANALYSIS] Aplicando filtro para periodo:', period);
@@ -213,7 +229,7 @@ function renderAnalysis() {
 
     for (const [key, entry] of daysOfCurrentWeek.entries()) {
       const parts = key.split('/');
-      const weekIdx = semanas.indexOf(parts[2]);
+      const weekIdx = semanas.indexOf(parts[2]); // 'S1' → 0, etc.
       if (weekIdx === -1) continue;
       revenue[weekIdx] += entry?.totalIncomes || 0;
       spend[weekIdx] += entry?.totalExpenses || 0;
@@ -226,22 +242,31 @@ function renderAnalysis() {
     spend = new Array(7).fill(0);
 
     for (const [key, entry] of daysOfCurrentWeek.entries()) {
-      const dateStr = key.split('/').at(-1);
+      const dateStr = key.split('/').at(-1); // YYYY-MM-DD
       const date = new Date(dateStr);
-      const idx = (date.getDay() + 6) % 7;
+      const idx = (date.getDay() + 6) % 7; // Lunes = 0
       revenue[idx] += entry?.totalIncomes || 0;
       spend[idx] += entry?.totalExpenses || 0;
     }
 
   } else if (selectedPeriod === 'year') {
-    const months = [...catByMonth.keys()].sort(); // usamos las claves de categorías como fallback
-    xLabels = months;
-    revenue = months.map(m => 0);
-    spend = months.map(m => 0);
+    const year = new Date().getFullYear().toString();
+    const months = [...summaryByMonth.keys()]
+      .filter(k => k.startsWith(year))
+      .sort(); // ej: ['2025-01', '2025-02', ...]
+
+    if (months.length === 0) {
+      console.log('[ANALYSIS] No hay datos mensuales para el año actual');
+      return;
+    }
+
+    xLabels = months.map(m => m.split('-')[1]); // ['01', '02', ...]
+    revenue = months.map(m => summaryByMonth.get(m)?.totalIncomes || 0);
+    spend   = months.map(m => summaryByMonth.get(m)?.totalExpenses || 0);
   }
 
-  if (selectedPeriod !== 'year' && arraysEqual(revenue, lastRevenue) && arraysEqual(spend, lastSpend)) {
-    console.log('[ANALYSIS] No hay cambios detectados. Render omitido.');
+  if (selectedPeriod !== 'week' && arraysEqual(revenue, lastRevenue) && arraysEqual(spend, lastSpend)) {
+    console.log('[ANALYSIS] No hay cambios en ingresos/gastos. Render omitido.');
     return;
   }
 
@@ -258,6 +283,7 @@ function renderAnalysis() {
   document.getElementById('kpi-revenue-change').textContent = `${revChange >= 0 ? '+' : ''}${revChange.toFixed(1)}% vs periodo anterior`;
   document.getElementById('kpi-spend-change').textContent = `${spdChange >= 0 ? '+' : ''}${spdChange.toFixed(1)}% vs periodo anterior`;
 
+  console.log('[ANALYSIS] KPI actualizados. Redibujando gráficas...');
   trendChart.updateOptions({
     series: [
       { name: 'Ingresos', data: revenue },
@@ -281,6 +307,7 @@ function renderAnalysis() {
   const currentCatMapStr = JSON.stringify(catMap);
   if (currentCatMapStr !== lastCatMapStr) {
     lastCatMapStr = currentCatMapStr;
+    console.log('[ANALYSIS] Categorías actualizadas. Redibujando gráfico de pastel...');
     const catLabels = Object.keys(catMap);
     const catData = catLabels.map(c => +catMap[c].toFixed(2));
     const catColors = catLabels.map(l => groupColors[l] || '#999');
@@ -305,6 +332,7 @@ function renderAnalysis() {
   lastRevenue = [...revenue];
   lastSpend = [...spend];
 }
+
 
 
 function arraysEqual(a, b) {
