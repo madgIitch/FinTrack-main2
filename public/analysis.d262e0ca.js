@@ -664,11 +664,49 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 },{}],"l1WLd":[function(require,module,exports,__globalThis) {
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
+var _generalJs = require("./general.js");
+let userUid = null;
+let selectedPeriod = localStorage.getItem('selectedPeriod') || 'month';
+console.log('[ANALYSIS] Archivo analysis.js cargado');
+document.addEventListener('DOMContentLoaded', ()=>{
+    const sidebar = document.getElementById('sidebar');
+    document.getElementById('open-sidebar').addEventListener('click', ()=>sidebar.classList.add('open'));
+    document.getElementById('close-sidebar').addEventListener('click', ()=>sidebar.classList.remove('open'));
+    document.getElementById('logout-link').addEventListener('click', async (e)=>{
+        e.preventDefault();
+        await (0, _auth.signOut)((0, _firebaseJs.auth));
+        window.location.href = '../index.html';
+    });
+    document.getElementById('period-select').addEventListener('change', (e)=>{
+        selectedPeriod = e.target.value;
+        localStorage.setItem('selectedPeriod', selectedPeriod);
+        if (userUid) (0, _generalJs.loadGeneral)(userUid, selectedPeriod);
+    });
+    (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
+        if (user) {
+            userId = user.uid;
+            console.log('[ANALYSIS] Usuario autenticado:', userId);
+            const savedPeriod = localStorage.getItem('selectedPeriod') || 'month';
+            document.getElementById('period-select').value = savedPeriod;
+            selectedPeriod = savedPeriod;
+            console.log('[ANALYSIS] Periodo restaurado desde localStorage:', selectedPeriod);
+            // Ahora llama primero a applyPeriodFilter, y renderiza dentro del flujo de datos cargados
+            await reactiveAnalysis(userId);
+        } else window.location.href = '../index.html';
+    });
+});
+
+},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","./general.js":"lGg7R"}],"lGg7R":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "loadGeneral", ()=>loadGeneral);
+var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
+var _auth = require("firebase/auth");
 console.log('[ANALYSIS] Archivo analysis.js cargado');
 const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
 let trendChart, barChart, pieChart;
-let userUid = null;
+let userId = null;
 let selectedPeriod = 'month';
 const monthsSet = new Set();
 let unsubscribeFns = [];
@@ -707,14 +745,6 @@ const groupColors = {
 document.addEventListener('DOMContentLoaded', ()=>{
     console.log('[ANALYSIS] DOM cargado');
     const sidebar = document.getElementById('sidebar');
-    document.getElementById('open-sidebar').addEventListener('click', ()=>sidebar.classList.add('open'));
-    document.getElementById('close-sidebar').addEventListener('click', ()=>sidebar.classList.remove('open'));
-    document.getElementById('logout-link').addEventListener('click', async (e)=>{
-        e.preventDefault();
-        console.log("[ANALYSIS] Cierre de sesi\xf3n solicitado");
-        await (0, _auth.signOut)((0, _firebaseJs.auth));
-        window.location.href = '../index.html';
-    });
     document.querySelectorAll('.filter-btn').forEach((btn)=>{
         btn.addEventListener('click', ()=>{
             document.querySelector('.filter-btn.active')?.classList.remove('active');
@@ -725,25 +755,25 @@ document.addEventListener('DOMContentLoaded', ()=>{
         selectedPeriod = e.target.value;
         localStorage.setItem('selectedPeriod', selectedPeriod);
         console.log('[ANALYSIS] Periodo seleccionado cambiado a:', selectedPeriod);
-        if (userUid) applyPeriodFilter(userUid, selectedPeriod);
+        if (userId) applyPeriodFilter(userId, selectedPeriod);
     });
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
         if (user) {
-            userUid = user.uid;
-            console.log('[ANALYSIS] Usuario autenticado:', userUid);
+            userId = user.uid;
+            console.log('[ANALYSIS] Usuario autenticado:', userId);
             const savedPeriod = localStorage.getItem('selectedPeriod') || 'month';
             document.getElementById('period-select').value = savedPeriod;
             selectedPeriod = savedPeriod;
             console.log('[ANALYSIS] Periodo restaurado desde localStorage:', selectedPeriod);
-            reactiveAnalysis(userUid);
-            setTimeout(()=>applyPeriodFilter(userUid, selectedPeriod), 200);
+            reactiveAnalysis(userId);
+            setTimeout(()=>applyPeriodFilter(userId, selectedPeriod), 200);
         } else {
             console.log('[ANALYSIS] Usuario no autenticado. Redirigiendo...');
             window.location.href = '../index.html';
         }
     });
 });
-function reactiveAnalysis(userId) {
+async function reactiveAnalysis(userId) {
     console.log('[ANALYSIS] Iniciando suscripciones reactivas para usuario:', userId);
     const histRef = (0, _firestore.collection)(db, 'users', userId, 'history');
     const sumRef = (0, _firestore.collection)(db, 'users', userId, 'historySummary');
@@ -752,30 +782,33 @@ function reactiveAnalysis(userId) {
         history: false,
         summary: false
     };
-    const checkIfReadyToRender = ()=>{
-        if (sourcesReady.history && sourcesReady.summary) {
-            console.log('[ANALYSIS] Datos cargados. Aplicando filtro de periodo...');
-            applyPeriodFilter(userId, selectedPeriod);
-        }
-    };
-    const updateSubscriptionsFromSnapshot = (type, snap)=>{
-        const newMonths = new Set();
-        if (type === 'summary') summaryByMonth.clear();
-        snap.docs.forEach((doc)=>{
-            newMonths.add(doc.id);
-            if (type === 'summary') summaryByMonth.set(doc.id, doc.data());
+    return new Promise((resolve)=>{
+        const checkIfReadyToRender = ()=>{
+            if (sourcesReady.history && sourcesReady.summary) {
+                console.log('[ANALYSIS] Datos cargados. Aplicando filtro de periodo...');
+                applyPeriodFilter(userId, selectedPeriod);
+                resolve(); // <- Ahora sí podemos continuar
+            }
+        };
+        const updateSubscriptionsFromSnapshot = (type, snap)=>{
+            const newMonths = new Set();
+            if (type === 'summary') summaryByMonth.clear();
+            snap.docs.forEach((doc)=>{
+                newMonths.add(doc.id);
+                if (type === 'summary') summaryByMonth.set(doc.id, doc.data());
+            });
+            newMonths.forEach((m)=>monthsSet.add(m));
+            sourcesReady[type] = true;
+            checkIfReadyToRender();
+        };
+        (0, _firestore.onSnapshot)(histRef, (snap)=>{
+            console.log('[ANALYSIS] Snapshot recibido para history:', snap.docs.length);
+            updateSubscriptionsFromSnapshot('history', snap);
         });
-        newMonths.forEach((m)=>monthsSet.add(m));
-        sourcesReady[type] = true;
-        checkIfReadyToRender();
-    };
-    (0, _firestore.onSnapshot)(histRef, (snap)=>{
-        console.log('[ANALYSIS] Snapshot recibido para history:', snap.docs.length);
-        updateSubscriptionsFromSnapshot('history', snap);
-    });
-    (0, _firestore.onSnapshot)(sumRef, (snap)=>{
-        console.log('[ANALYSIS] Snapshot recibido para summary:', snap.docs.length);
-        updateSubscriptionsFromSnapshot('summary', snap);
+        (0, _firestore.onSnapshot)(sumRef, (snap)=>{
+            console.log('[ANALYSIS] Snapshot recibido para summary:', snap.docs.length);
+            updateSubscriptionsFromSnapshot('summary', snap);
+        });
     });
 }
 function applyPeriodFilter(userId, period) {
@@ -850,6 +883,7 @@ function renderAnalysis() {
         revenue = new Array(5).fill(0);
         spend = new Array(5).fill(0);
         for (const [key, entry] of daysOfCurrentWeek.entries()){
+            if (!key || typeof key !== 'string') continue;
             const parts = key.split('/');
             const weekIdx = semanas.indexOf(parts[2]);
             if (weekIdx === -1) continue;
@@ -898,8 +932,59 @@ function renderAnalysis() {
     const totalSpd = spend.reduce((a, b)=>a + b, 0);
     document.getElementById('kpi-revenue').textContent = `\u{20AC}${totalRev.toFixed(2)}`;
     document.getElementById('kpi-spend').textContent = `\u{20AC}${totalSpd.toFixed(2)}`;
-    const revChange = revenue.length > 1 ? (revenue.at(-1) - revenue.at(-2)) / Math.max(revenue.at(-2), 1) * 100 : 0;
-    const spdChange = spend.length > 1 ? (spend.at(-1) - spend.at(-2)) / Math.max(spend.at(-2), 1) * 100 : 0;
+    // ───── Cálculo del cambio porcentual según el periodo ─────
+    let revChange = 0, spdChange = 0;
+    if (selectedPeriod === 'year' || selectedPeriod === 'month') {
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const prevMonthKey = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
+        const currSummary = summaryByMonth.get(currentMonthKey);
+        const prevSummary = summaryByMonth.get(prevMonthKey);
+        const currRev = currSummary?.totalIncomes || 0;
+        const prevRev = prevSummary?.totalIncomes || 0;
+        const currSpd = currSummary?.totalExpenses || 0;
+        const prevSpd = prevSummary?.totalExpenses || 0;
+        revChange = (currRev - prevRev) / Math.max(prevRev, 1) * 100;
+        spdChange = (currSpd - prevSpd) / Math.max(prevSpd, 1) * 100;
+        console.log('[KPI] Comparando mes actual:', currentMonthKey, 'vs anterior:', prevMonthKey);
+        console.log('[KPI] Ingresos: actual', currRev, ', anterior', prevRev);
+        console.log('[KPI] Gastos: actual', currSpd, ', anterior', prevSpd);
+    } else if (selectedPeriod === 'week') {
+        function getWeekDates(baseDate = new Date()) {
+            const weekday = baseDate.getDay();
+            const startCurrentWeek = new Date(baseDate);
+            startCurrentWeek.setDate(baseDate.getDate() - (weekday + 6) % 7);
+            const startPrevWeek = new Date(startCurrentWeek);
+            startPrevWeek.setDate(startPrevWeek.getDate() - 7);
+            const thisWeekDates = [], lastWeekDates = [];
+            for(let i = 0; i < 7; i++){
+                thisWeekDates.push(new Date(startCurrentWeek.getTime() + i * 86400000).toISOString().split('T')[0]);
+                lastWeekDates.push(new Date(startPrevWeek.getTime() + i * 86400000).toISOString().split('T')[0]);
+            }
+            return [
+                thisWeekDates,
+                lastWeekDates
+            ];
+        }
+        const [thisWeekDates, lastWeekDates] = getWeekDates();
+        let thisWeekRev = 0, lastWeekRev = 0, thisWeekSpd = 0, lastWeekSpd = 0;
+        for (const [key, entry] of daysOfCurrentWeek.entries()){
+            const dateKey = key.split('/').pop();
+            if (thisWeekDates.includes(dateKey)) {
+                thisWeekRev += entry?.totalIncomes || 0;
+                thisWeekSpd += entry?.totalExpenses || 0;
+            } else if (lastWeekDates.includes(dateKey)) {
+                lastWeekRev += entry?.totalIncomes || 0;
+                lastWeekSpd += entry?.totalExpenses || 0;
+            }
+        }
+        revChange = (thisWeekRev - lastWeekRev) / Math.max(lastWeekRev, 1) * 100;
+        spdChange = (thisWeekSpd - lastWeekSpd) / Math.max(lastWeekSpd, 1) * 100;
+        console.log('[KPI] Comparando semana actual vs anterior');
+        console.log('[KPI] Ingresos: actual', thisWeekRev, ', anterior', lastWeekRev);
+        console.log('[KPI] Gastos: actual', thisWeekSpd, ', anterior', lastWeekSpd);
+    }
     document.getElementById('kpi-revenue-change').textContent = `${revChange >= 0 ? '+' : ''}${revChange.toFixed(1)}% vs periodo anterior`;
     document.getElementById('kpi-spend-change').textContent = `${spdChange >= 0 ? '+' : ''}${spdChange.toFixed(1)}% vs periodo anterior`;
     console.log("[ANALYSIS] KPI actualizados. Redibujando gr\xe1ficas...");
@@ -935,7 +1020,7 @@ function renderAnalysis() {
     lastSpend = [
         ...spend
     ];
-    renderPieChartForCurrentPeriod(); // ← llamada final y única para gestionar el pie chart
+    renderPieChartForCurrentPeriod();
 }
 function arraysEqual(a, b) {
     if (a.length !== b.length) return false;
@@ -1084,7 +1169,7 @@ async function renderPieChartForCurrentPeriod() {
     ];
     if (selectedPeriod === 'month') {
         // ✅ Leer directamente el doc mensual
-        const monthRef = (0, _firestore.doc)(db, 'users', userUid, 'historyCategorias', prefix);
+        const monthRef = (0, _firestore.doc)(db, 'users', userId, 'historyCategorias', prefix);
         try {
             const snap = await (0, _firestore.getDoc)(monthRef);
             if (snap.exists()) {
@@ -1103,7 +1188,7 @@ async function renderPieChartForCurrentPeriod() {
     } else if (selectedPeriod === 'week') {
         console.log("[PieChart] \u2192 Modo semana activado");
         const selectedWeek = getCurrentWeekInMonth();
-        const weekRef = (0, _firestore.doc)(db, 'users', userUid, 'historyCategorias', prefix, 'weeks', selectedWeek);
+        const weekRef = (0, _firestore.doc)(db, 'users', userId, 'historyCategorias', prefix, 'weeks', selectedWeek);
         try {
             const snap = await (0, _firestore.getDoc)(weekRef);
             if (snap.exists()) {
@@ -1129,7 +1214,7 @@ async function renderPieChartForCurrentPeriod() {
             return renderPieFinal(catMap);
         }
         months.forEach((m)=>{
-            const monthRef = (0, _firestore.doc)(db, 'users', userUid, 'historyCategorias', m);
+            const monthRef = (0, _firestore.doc)(db, 'users', userId, 'historyCategorias', m);
             (0, _firestore.getDoc)(monthRef).then((snap)=>{
                 if (snap.exists()) {
                     const data = snap.data();
@@ -1167,7 +1252,17 @@ function renderPieFinal(catMap) {
     console.log("[PieChart] Valores por categor\xeda:", catData);
     const catColors = catLabels.map((label)=>groupColors[label] || '#999');
     const pieContainer = document.querySelector('#pieChart');
-    pieContainer.innerHTML = '';
+    if (!pieContainer) {
+        console.warn("[PieChart] No se encontr\xf3 el contenedor #pieChart");
+        return;
+    }
+    // ─── Destruir gráfico anterior si existe ──────────────────────
+    if (pieChart && typeof pieChart.destroy === 'function') try {
+        pieChart.destroy();
+        console.log("[PieChart] Gr\xe1fico anterior destruido");
+    } catch (err) {
+        console.warn("[PieChart] Error al destruir gr\xe1fico anterior:", err);
+    }
     pieChart = new ApexCharts(pieContainer, {
         chart: {
             type: 'pie',
@@ -1192,7 +1287,11 @@ function renderPieFinal(catMap) {
             }
         }
     });
-    pieChart.render();
+    pieChart.render().then(()=>{
+        console.log("[PieChart] Gr\xe1fico renderizado correctamente");
+    }).catch((err)=>{
+        console.error("[PieChart] Error al renderizar gr\xe1fico:", err);
+    });
 }
 let lastScrollTop = 0;
 const nav = document.getElementById('bottom-nav');
@@ -1205,7 +1304,13 @@ window.addEventListener('scroll', ()=>{
 }, {
     passive: true
 });
+function loadGeneral(userId, selectedPeriod) {
+    console.log('[GENERAL] Iniciando con periodo:', selectedPeriod);
+    const period = selectedPeriod; // variable interna local
+    reactiveAnalysis(userId, period);
+    setTimeout(()=>applyPeriodFilter(userId, period), 200);
+}
 
-},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","firebase/firestore":"3RBs1"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
+},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
 
 //# sourceMappingURL=analysis.d262e0ca.js.map
