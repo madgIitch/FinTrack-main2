@@ -10,24 +10,37 @@ console.log('[ANALYSIS] Archivo analysis.js cargado');
 
 document.addEventListener('DOMContentLoaded', () => {
   const sidebar = document.getElementById('sidebar');
-  document.getElementById('open-sidebar').addEventListener('click', () => sidebar.classList.add('open'));
-  document.getElementById('close-sidebar').addEventListener('click', () => sidebar.classList.remove('open'));
-  document.getElementById('logout-link').addEventListener('click', async e => {
+  const periodSelect = document.getElementById('period-select');
+  const logoutLink = document.getElementById('logout-link');
+
+  document.getElementById('open-sidebar').addEventListener('click', () => {
+    sidebar.classList.add('open');
+  });
+
+  document.getElementById('close-sidebar').addEventListener('click', () => {
+    sidebar.classList.remove('open');
+  });
+
+  logoutLink.addEventListener('click', async e => {
     e.preventDefault();
     await signOut(auth);
     window.location.href = '../index.html';
   });
 
-  // Cambio de periodo en pestaña General
-  document.getElementById('period-select').addEventListener('change', e => {
+  // ───── Cambio de periodo (solo afecta a General) ─────
+  periodSelect.addEventListener('change', async e => {
     selectedPeriod = e.target.value;
     localStorage.setItem('selectedPeriod', selectedPeriod);
-    if (userUid) loadGeneral(userUid, selectedPeriod);
+    if (userUid) {
+      destroyGeneralCharts();
+      await loadGeneral(userUid, selectedPeriod);
+    }
   });
 
-  // Manejo de pestañas
+  // ───── Pestañas: General / Crecimiento / Comparación ─────
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
+      // Actualizar UI activa
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
@@ -36,26 +49,30 @@ document.addEventListener('DOMContentLoaded', () => {
       const panel = document.getElementById(`panel-${selected}`);
       panel.classList.add('active');
 
-      const periodSelect = document.getElementById('period-select');
-      periodSelect.style.display = (selected === 'overview') ? 'block' : 'none';
+      // Mostrar u ocultar selector de periodo
+      periodSelect.style.display = selected === 'overview' ? 'block' : 'none';
 
       if (!userUid) return;
 
       switch (selected) {
         case 'overview':
           destroyGrowthCharts();
+          destroyGeneralCharts(); // importante
           await loadGeneral(userUid, selectedPeriod);
           break;
         case 'growth':
           destroyGeneralCharts();
+          destroyGrowthCharts(); // opcional pero seguro
           await loadGrowth();
           break;
         case 'compare':
-          // Aquí irá loadComparison() más adelante
+          destroyGeneralCharts();
+          destroyGrowthCharts();
+          // Aquí se añadirá loadComparison() en el futuro
           break;
       }
 
-      // Forzar redibujado de gráficos
+      // Forzar redibujado de gráficos tras mostrar panel
       setTimeout(() => {
         if (selected === 'overview') {
           window.trendChart?.resize?.();
@@ -69,13 +86,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // ───── Autenticación ─────
   onAuthStateChanged(auth, async user => {
     if (user) {
       userUid = user.uid;
       console.log('[ANALYSIS] Usuario autenticado:', userUid);
 
       const savedPeriod = localStorage.getItem('selectedPeriod') || 'month';
-      document.getElementById('period-select').value = savedPeriod;
+      periodSelect.value = savedPeriod;
       selectedPeriod = savedPeriod;
 
       // Activar pestaña por defecto
@@ -85,6 +103,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+// ───── Funciones para destruir gráficas ─────
 
 function destroyGeneralCharts() {
   try {

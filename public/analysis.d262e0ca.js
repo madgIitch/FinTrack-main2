@@ -671,44 +671,58 @@ let selectedPeriod = localStorage.getItem('selectedPeriod') || 'month';
 console.log('[ANALYSIS] Archivo analysis.js cargado');
 document.addEventListener('DOMContentLoaded', ()=>{
     const sidebar = document.getElementById('sidebar');
-    document.getElementById('open-sidebar').addEventListener('click', ()=>sidebar.classList.add('open'));
-    document.getElementById('close-sidebar').addEventListener('click', ()=>sidebar.classList.remove('open'));
-    document.getElementById('logout-link').addEventListener('click', async (e)=>{
+    const periodSelect = document.getElementById('period-select');
+    const logoutLink = document.getElementById('logout-link');
+    document.getElementById('open-sidebar').addEventListener('click', ()=>{
+        sidebar.classList.add('open');
+    });
+    document.getElementById('close-sidebar').addEventListener('click', ()=>{
+        sidebar.classList.remove('open');
+    });
+    logoutLink.addEventListener('click', async (e)=>{
         e.preventDefault();
         await (0, _auth.signOut)((0, _firebaseJs.auth));
         window.location.href = '../index.html';
     });
-    // Cambio de periodo en pestaña General
-    document.getElementById('period-select').addEventListener('change', (e)=>{
+    // ───── Cambio de periodo (solo afecta a General) ─────
+    periodSelect.addEventListener('change', async (e)=>{
         selectedPeriod = e.target.value;
         localStorage.setItem('selectedPeriod', selectedPeriod);
-        if (userUid) (0, _generalJs.loadGeneral)(userUid, selectedPeriod);
+        if (userUid) {
+            destroyGeneralCharts();
+            await (0, _generalJs.loadGeneral)(userUid, selectedPeriod);
+        }
     });
-    // Manejo de pestañas
+    // ───── Pestañas: General / Crecimiento / Comparación ─────
     document.querySelectorAll('.filter-btn').forEach((btn)=>{
         btn.addEventListener('click', async ()=>{
+            // Actualizar UI activa
             document.querySelectorAll('.filter-btn').forEach((b)=>b.classList.remove('active'));
             document.querySelectorAll('.tab-panel').forEach((p)=>p.classList.remove('active'));
             btn.classList.add('active');
             const selected = btn.dataset.filter;
             const panel = document.getElementById(`panel-${selected}`);
             panel.classList.add('active');
-            const periodSelect = document.getElementById('period-select');
+            // Mostrar u ocultar selector de periodo
             periodSelect.style.display = selected === 'overview' ? 'block' : 'none';
             if (!userUid) return;
             switch(selected){
                 case 'overview':
                     destroyGrowthCharts();
+                    destroyGeneralCharts(); // importante
                     await (0, _generalJs.loadGeneral)(userUid, selectedPeriod);
                     break;
                 case 'growth':
                     destroyGeneralCharts();
+                    destroyGrowthCharts(); // opcional pero seguro
                     await (0, _growthJs.loadGrowth)();
                     break;
                 case 'compare':
+                    destroyGeneralCharts();
+                    destroyGrowthCharts();
                     break;
             }
-            // Forzar redibujado de gráficos
+            // Forzar redibujado de gráficos tras mostrar panel
             setTimeout(()=>{
                 if (selected === 'overview') {
                     window.trendChart?.resize?.();
@@ -721,18 +735,20 @@ document.addEventListener('DOMContentLoaded', ()=>{
             }, 150);
         });
     });
+    // ───── Autenticación ─────
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
         if (user) {
             userUid = user.uid;
             console.log('[ANALYSIS] Usuario autenticado:', userUid);
             const savedPeriod = localStorage.getItem('selectedPeriod') || 'month';
-            document.getElementById('period-select').value = savedPeriod;
+            periodSelect.value = savedPeriod;
             selectedPeriod = savedPeriod;
             // Activar pestaña por defecto
             document.querySelector('.filter-btn[data-filter="overview"]').click();
         } else window.location.href = '../index.html';
     });
 });
+// ───── Funciones para destruir gráficas ─────
 function destroyGeneralCharts() {
     try {
         window.trendChart?.destroy();
@@ -874,6 +890,7 @@ async function reactiveAnalysis(userId) {
     });
 }
 function applyPeriodFilter(userId, period) {
+    clearDataState();
     console.log('[ANALYSIS] Aplicando filtro para periodo:', period);
     const now = new Date();
     const year = now.getFullYear();
@@ -1076,6 +1093,10 @@ function renderAnalysis() {
             categories: xLabels
         }
     });
+    setTimeout(()=>{
+        trendChart.render();
+        barChart.render();
+    }, 100);
     lastRevenue = [
         ...revenue
     ];
@@ -1090,6 +1111,14 @@ function arraysEqual(a, b) {
     return true;
 }
 function initCharts() {
+    if (trendChart?.destroy) {
+        trendChart.destroy();
+        console.log('[CHART] trendChart destruido');
+    }
+    if (barChart?.destroy) {
+        barChart.destroy();
+        console.log('[CHART] barChart destruido');
+    }
     console.log("[ANALYSIS] Inicializando gr\xe1ficos");
     trendChart = new ApexCharts(document.querySelector('#trendChart'), {
         chart: {
@@ -1213,6 +1242,14 @@ function getCurrentWeekInMonth() {
     if (day <= 21) return 'S3';
     if (day <= 28) return 'S4';
     return 'S5';
+}
+function clearDataState() {
+    daysOfCurrentWeek.clear();
+    catByMonth.clear();
+    summaryByMonth.clear();
+    lastRevenue = [];
+    lastSpend = [];
+    lastCatMapStr = '';
 }
 // Renderiza gráfico de pastel (por categoría) según el periodo seleccionado
 async function renderPieChartForCurrentPeriod() {
@@ -1368,9 +1405,10 @@ window.addEventListener('scroll', ()=>{
 });
 function loadGeneral(userId, selectedPeriod) {
     console.log('[GENERAL] Iniciando con periodo:', selectedPeriod);
-    const period = selectedPeriod; // variable interna local
-    reactiveAnalysis(userId, period);
-    setTimeout(()=>applyPeriodFilter(userId, period), 200);
+    clearDataState(); // limpia datos
+    initCharts(); // siempre reinicia gráficos
+    reactiveAnalysis(userId); // suscripciones
+    setTimeout(()=>applyPeriodFilter(userId, selectedPeriod), 200);
 }
 
 },{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"4z1LS":[function(require,module,exports,__globalThis) {
