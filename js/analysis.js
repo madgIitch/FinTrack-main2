@@ -132,6 +132,7 @@ function reactiveAnalysis(userId) {
 }
 
 
+
 function applyPeriodFilter(userId, period) {
   console.log('[ANALYSIS] Aplicando filtro para periodo:', period);
   const now = new Date();
