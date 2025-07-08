@@ -134,6 +134,15 @@ function renderGrowthChart(data) {
   console.log('[GROWTH] Gráfico principal renderizado');
 }
 
+const growthPanel = document.getElementById('panel-growth');
+whenVisible(growthPanel, () => {
+  console.log('[Observer] panel-growth visible → render charts');
+  if (window.growthChart) window.growthChart.render();
+  if (window.categoryTrendChart) window.categoryTrendChart.render();
+});
+
+
+
 function renderCategoryTrendChart(months, categoryData) {
   const allGroups = new Set();
   months.forEach(m => {

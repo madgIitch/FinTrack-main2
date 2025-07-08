@@ -1,5 +1,6 @@
 import {auth, app } from './firebase.js';
-import { getFirestore, collection, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, doc } from 'firebase/firestore';
+import { getDoc, doc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 
 
@@ -131,7 +132,6 @@ async function reactiveAnalysis(userId) {
 
 
 function applyPeriodFilter(userId, period) {
-  clearDataState();
   console.log('[ANALYSIS] Aplicando filtro para periodo:', period);
   const now = new Date();
   const year = now.getFullYear();
@@ -351,12 +351,6 @@ function renderAnalysis() {
     xaxis: { categories: xLabels }
   });
 
-  setTimeout(() => {
-  trendChart.render();
-  barChart.render();
-}, 100);
-
-
   lastRevenue = [...revenue];
   lastSpend = [...spend];
 
@@ -375,16 +369,6 @@ function arraysEqual(a, b) {
 }
 
 function initCharts() {
-    if (trendChart?.destroy) {
-    trendChart.destroy();
-    console.log('[CHART] trendChart destruido');
-    }
-    if (barChart?.destroy) {
-    barChart.destroy();
-    console.log('[CHART] barChart destruido');
-    }
-
-
   console.log('[ANALYSIS] Inicializando gráficos');
   trendChart = new ApexCharts(document.querySelector('#trendChart'), {
     chart: { type: 'line', height: 240, toolbar: { show: false } },
@@ -451,14 +435,6 @@ function getCurrentWeekInMonth() {
   return 'S5';
 }
 
-function clearDataState() {
-  daysOfCurrentWeek.clear();
-  catByMonth.clear();
-  summaryByMonth.clear();
-  lastRevenue = [];
-  lastSpend = [];
-  lastCatMapStr = '';
-}
 
 
 // Renderiza gráfico de pastel (por categoría) según el periodo seleccionado
@@ -634,10 +610,16 @@ window.addEventListener('scroll', () => {
 
 export function loadGeneral(userId, selectedPeriod) {
   console.log('[GENERAL] Iniciando con periodo:', selectedPeriod);
-  clearDataState();                      // limpia datos
-  initCharts();                          // siempre reinicia gráficos
-  reactiveAnalysis(userId);              // suscripciones
-  setTimeout(() => applyPeriodFilter(userId, selectedPeriod), 200);
+  const period = selectedPeriod;
+
+  reactiveAnalysis(userId, period).then(() => {
+    const overviewPanel = document.getElementById('panel-overview');
+    whenVisible(overviewPanel, () => {
+      console.log('[Observer] panel-overview visible → initCharts + renderAnalysis');
+      initCharts();
+      renderAnalysis();
+    });
+  });
 }
 
 
