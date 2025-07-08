@@ -265,7 +265,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     const budgetsMap = userSnap.data().settings?.budgets || {};
     const accounts = userSnap.data().plaid?.accounts || [];
 
-    // ── Paso 1: Obtener transacciones desde Plaid ───────────────────────────
+    // ── Paso 1: Obtener transacciones desde Plaid ─────────────────────────
     let allPlaidTxs = [];
     for (const { accessToken } of accounts) {
       const resp = await plaidClient.transactionsGet({
@@ -278,7 +278,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     }
     console.log('[PLAIDROUTES] Total Plaid transactions:', allPlaidTxs.length);
 
-    // ── Paso 2: Incluir transacciones de Firestore ──────────────────────────
+    // ── Paso 2: Incluir transacciones de Firestore ─────────────────────────
     const monthRefs = await userRef.collection('history').listDocuments();
     const idToTx = new Map(allPlaidTxs.map(tx => [tx.transaction_id, tx]));
 
@@ -299,7 +299,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       });
     }
 
-    // ── Paso 3: Agrupar por mes, semana y día ────────────────────────────────
+    // ── Paso 3: Agrupar por mes, semana y día ─────────────────────────
     const txsByMonth = {};        // YYYY-MM -> [tx]
     const txsByWeekInMonth = {};  // YYYY-MM -> { S1: [tx], S2: [tx], ... }
     const txsByDayInWeek = {};    // YYYY-MM -> { S1: { YYYY-MM-DD: [tx] }, ... }
@@ -314,23 +314,20 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       const weekNum = Math.floor((parseInt(day) - 1) / 7) + 1;
       const weekKey = `S${weekNum}`;
 
-      // Mes
       txsByMonth[monthKey] = txsByMonth[monthKey] || [];
       txsByMonth[monthKey].push(tx);
 
-      // Semana dentro del mes
       txsByWeekInMonth[monthKey] = txsByWeekInMonth[monthKey] || {};
       txsByWeekInMonth[monthKey][weekKey] = txsByWeekInMonth[monthKey][weekKey] || [];
       txsByWeekInMonth[monthKey][weekKey].push(tx);
 
-      // Día dentro de semana
       txsByDayInWeek[monthKey] = txsByDayInWeek[monthKey] || {};
       txsByDayInWeek[monthKey][weekKey] = txsByDayInWeek[monthKey][weekKey] || {};
       txsByDayInWeek[monthKey][weekKey][dateKey] = txsByDayInWeek[monthKey][weekKey][dateKey] || [];
       txsByDayInWeek[monthKey][weekKey][dateKey].push(tx);
     }
 
-    // ── Paso 4: Cargar categorías ───────────────────────────────────────────
+    // ── Paso 4: Cargar categorías ─────────────────────────
     const catGroupsSnap = await db.collection('categoryGroups').get();
     const catToGroup = {};
     catGroupsSnap.forEach(doc => {
@@ -342,7 +339,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       });
     });
 
-    // ── Paso 5: Escribir en batch los datos agrupados ──────────────────────
+    // ── Paso 5: Escribir en batch los datos agrupados ─────────────────────────
     const batch = db.batch();
     for (const [monthKey, txs] of Object.entries(txsByMonth)) {
       const sumRef = userRef.collection('historySummary').doc(monthKey);
@@ -371,11 +368,12 @@ router.post('/sync_transactions_and_store', async (req, res) => {
         batch.set(grpDocRef, { limit, spent }, { merge: true });
       });
 
-      // ── Paso 6: Crear subcolecciones por semana/día ──────────────────────
       const weeksObj = txsByDayInWeek[monthKey] || {};
       for (const [weekKey, daysObj] of Object.entries(weeksObj)) {
         const weekRef = sumRef.collection('weeks').doc(weekKey);
+        const weekCatRef = catRef.collection('weeks').doc(weekKey);
         const weekCatTotals = {};
+        const dayCatData = {};
 
         for (const [dateKey, txs] of Object.entries(daysObj)) {
           const totalExpenses = txs.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
@@ -383,17 +381,24 @@ router.post('/sync_transactions_and_store', async (req, res) => {
           const dayRef = weekRef.collection('days').doc(dateKey);
           batch.set(dayRef, { totalExpenses, totalIncomes });
 
+          const catTotalsPerDay = {};
           txs.forEach(tx => {
             const key = normalizeKey(tx.personal_finance_category?.primary || tx.category || 'Otros');
             const grp = catToGroup[key] || 'Otros';
             const amt = tx.amount < 0 ? Math.abs(tx.amount) : 0;
             weekCatTotals[grp] = (weekCatTotals[grp] || 0) + amt;
+            catTotalsPerDay[grp] = (catTotalsPerDay[grp] || 0) + amt;
           });
+
+          dayCatData[dateKey] = catTotalsPerDay;
         }
 
-        // Guardar totales por grupo por semana en historyCategorias/{mes}/weeks/{S}/
-        const weekCatRef = catRef.collection('weeks').doc(weekKey);
         batch.set(weekCatRef, weekCatTotals, { merge: true });
+
+        for (const [dateKey, catMap] of Object.entries(dayCatData)) {
+          const dayDocRef = weekCatRef.collection('days').doc(dateKey);
+          batch.set(dayDocRef, catMap, { merge: true });
+        }
       }
     }
 
@@ -405,6 +410,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 
