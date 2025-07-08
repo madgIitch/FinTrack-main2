@@ -1068,74 +1068,95 @@ function getCurrentWeekInMonth() {
     return 'S5';
 }
 // Renderiza gráfico de pastel (por categoría) según el periodo seleccionado
-function renderPieChartForCurrentPeriod() {
+async function renderPieChartForCurrentPeriod() {
     console.log(`[PieChart] Iniciando render seg\xfan periodo: ${selectedPeriod}`);
     const catMap = {};
     const now = new Date();
     const year = now.getFullYear().toString();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const prefix = `${year}-${month}`;
-    // Función auxiliar para renderizar tras cargar todas las semanas necesarias
-    const processWeeks = (semanas)=>{
-        let pending = semanas.length;
-        let validWeeks = 0;
-        semanas.forEach((sem)=>{
-            const weekRef = (0, _firestore.doc)(db, 'users', userUid, 'historyCategorias', prefix, 'weeks', sem);
-            (0, _firestore.getDoc)(weekRef).then((snap)=>{
+    const semanas = [
+        'S1',
+        'S2',
+        'S3',
+        'S4',
+        'S5'
+    ];
+    if (selectedPeriod === 'month') {
+        // ✅ Leer directamente el doc mensual
+        const monthRef = (0, _firestore.doc)(db, 'users', userUid, 'historyCategorias', prefix);
+        try {
+            const snap = await (0, _firestore.getDoc)(monthRef);
+            if (snap.exists()) {
+                const data = snap.data();
+                console.log(`[PieChart] Categor\xedas mensuales para ${prefix}:`, data);
+                for (const [cat, val] of Object.entries(data)){
+                    if (cat === 'weeks') continue; // saltar referencia a subcolección
+                    catMap[cat] = val;
+                }
+            } else console.warn(`[PieChart] No existe el documento mensual ${prefix}`);
+        } catch (err) {
+            console.error(`[PieChart] Error al leer ${prefix}:`, err);
+        } finally{
+            renderPieFinal(catMap);
+        }
+    } else if (selectedPeriod === 'week') {
+        console.log("[PieChart] \u2192 Modo semana activado");
+        const selectedWeek = getCurrentWeekInMonth();
+        const weekRef = (0, _firestore.doc)(db, 'users', userUid, 'historyCategorias', prefix, 'weeks', selectedWeek);
+        try {
+            const snap = await (0, _firestore.getDoc)(weekRef);
+            if (snap.exists()) {
+                const data = snap.data();
+                if (!data || Object.keys(data).length === 0) console.warn(`[PieChart] Semana ${selectedWeek} existe pero sin datos`);
+                else {
+                    console.log(`[PieChart] Datos de ${prefix}/weeks/${selectedWeek}:`, data);
+                    for (const [cat, val] of Object.entries(data))catMap[cat] = val;
+                }
+            } else console.warn(`[PieChart] No existe el documento de semana ${selectedWeek}`);
+        } catch (err) {
+            console.error(`[PieChart] Error al leer semana ${selectedWeek}:`, err);
+        } finally{
+            console.log("[PieChart] Acumulado semanal \u2192", catMap);
+            renderPieFinal(catMap);
+        }
+    } else if (selectedPeriod === 'year') {
+        const months = Array.from(monthsSet).filter((m)=>m.startsWith(year));
+        console.log(`[PieChart] Procesando meses del a\xf1o: ${months.join(', ')}`);
+        let pendingMonths = months.length;
+        if (pendingMonths === 0) {
+            console.warn('[PieChart] No hay meses en monthsSet');
+            return renderPieFinal(catMap);
+        }
+        months.forEach((m)=>{
+            const monthRef = (0, _firestore.doc)(db, 'users', userUid, 'historyCategorias', m);
+            (0, _firestore.getDoc)(monthRef).then((snap)=>{
                 if (snap.exists()) {
                     const data = snap.data();
-                    console.log(`[PieChart] Datos de ${prefix}/weeks/${sem}:`, data);
-                    for (const [cat, val] of Object.entries(data))catMap[cat] = (catMap[cat] || 0) + val;
-                    validWeeks++;
-                } else console.warn(`[PieChart] Semana no encontrada: ${prefix}/weeks/${sem}`);
+                    console.log(`[PieChart] A\xf1o\u{2192} ${m}:`, data);
+                    for (const [cat, val] of Object.entries(data)){
+                        if (cat === 'weeks') continue;
+                        catMap[cat] = (catMap[cat] || 0) + val;
+                    }
+                } else console.warn(`[PieChart] No existe el mes ${m}`);
             }).catch((err)=>{
-                console.error(`[PieChart] Error al leer semana ${sem}:`, err);
+                console.error(`[PieChart] Error al leer mes ${m}:`, err);
             }).finally(()=>{
-                if (--pending === 0) {
-                    console.log(`[PieChart] Semanas v\xe1lidas le\xeddas: ${validWeeks}`);
+                if (--pendingMonths === 0) {
+                    console.log("[PieChart] Acumulado anual \u2192", catMap);
                     renderPieFinal(catMap);
                 }
             });
         });
-    };
-    if (selectedPeriod === 'month') {
-        const semanas = [
-            'S1',
-            'S2',
-            'S3',
-            'S4',
-            'S5'
-        ];
-        console.log(`[PieChart] Cargando TODAS las semanas del mes: ${semanas}`);
-        processWeeks(semanas);
-    } else if (selectedPeriod === 'week') {
-        // 🟠 Aquí podrías determinar dinámicamente la semana actual (ej: 'S1')
-        const currentWeek = getCurrentWeekInMonth(); // debes tener esta función implementada
-        console.log(`[PieChart] Cargando SOLO la semana actual: ${currentWeek}`);
-        processWeeks([
-            currentWeek
-        ]);
-    } else if (selectedPeriod === 'year') {
-        const months = Array.from(catByMonth.keys()).filter((k)=>k.startsWith(year));
-        console.log("[PieChart] Meses disponibles para el a\xf1o actual:", months);
-        for (const m of months){
-            const data = catByMonth.get(m);
-            if (!data) continue;
-            for (const [cat, val] of Object.entries(data))catMap[cat] = (catMap[cat] || 0) + val;
-        }
-        renderPieFinal(catMap);
     }
 }
-// ─────────────────────────────────────────────────────────────────────────────
-// Lógica común para renderizar el gráfico de pastel (usa ApexCharts)
-// ─────────────────────────────────────────────────────────────────────────────
-function renderPieFinal(catMap, period) {
+function renderPieFinal(catMap) {
     const currentCatMapStr = JSON.stringify(catMap);
-    if (currentCatMapStr === lastCatMapByPeriod[period]) {
+    if (currentCatMapStr === lastCatMapStr) {
         console.log("[PieChart] Sin cambios en categor\xedas. Render omitido.");
         return;
     }
-    lastCatMapByPeriod[period] = currentCatMapStr;
+    lastCatMapStr = currentCatMapStr;
     const catLabels = Object.keys(catMap);
     const catData = catLabels.map((cat)=>+catMap[cat].toFixed(2));
     if (catLabels.length === 0) {
@@ -1144,15 +1165,9 @@ function renderPieFinal(catMap, period) {
     }
     console.log('[PieChart] Etiquetas a mostrar:', catLabels);
     console.log("[PieChart] Valores por categor\xeda:", catData);
-    let total = 0;
-    catLabels.forEach((cat, i)=>{
-        console.log(`[PieChart] ${cat}: ${catData[i]}\u{20AC}`);
-        total += catData[i];
-    });
-    console.log(`[PieChart] Total acumulado en categor\xedas: ${total.toFixed(2)}\u{20AC}`);
     const catColors = catLabels.map((label)=>groupColors[label] || '#999');
     const pieContainer = document.querySelector('#pieChart');
-    pieContainer.innerHTML = ''; // Limpia el contenedor
+    pieContainer.innerHTML = '';
     pieChart = new ApexCharts(pieContainer, {
         chart: {
             type: 'pie',
