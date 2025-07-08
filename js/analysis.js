@@ -8,14 +8,16 @@ let selectedPeriod = localStorage.getItem('selectedPeriod') || 'month';
 
 console.log('[ANALYSIS] Archivo analysis.js cargado');
 
+// ───── Función utilitaria: render si visible ─────
 function whenVisible(el, callback) {
   if (!el) return console.warn('[Observer] Elemento no encontrado');
-  
+
   const observer = new IntersectionObserver((entries, observer) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
-        callback();           // ejecuta la lógica cuando sea visible
-        observer.disconnect(); // deja de observar después de entrar en pantalla
+        console.log('[Observer] Panel visible → ejecutando callback');
+        callback();
+        observer.disconnect();
       }
     });
   });
@@ -23,12 +25,12 @@ function whenVisible(el, callback) {
   observer.observe(el);
 }
 
-
-
+// ───── Inicio DOM ─────
 document.addEventListener('DOMContentLoaded', () => {
   const sidebar = document.getElementById('sidebar');
   document.getElementById('open-sidebar').addEventListener('click', () => sidebar.classList.add('open'));
   document.getElementById('close-sidebar').addEventListener('click', () => sidebar.classList.remove('open'));
+
   document.getElementById('logout-link').addEventListener('click', async e => {
     e.preventDefault();
     await signOut(auth);
@@ -42,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (userUid) loadGeneral(userUid, selectedPeriod);
   });
 
-  // Manejo de pestañas
+  // Pestañas
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -66,6 +68,17 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'growth':
           destroyGeneralCharts();
           await loadGrowth();
+
+          // render diferido de las gráficas si visibles
+          whenVisible(document.getElementById('panel-growth'), () => {
+            console.log('[Observer] panel-growth visible → render gráficos crecimiento');
+            try {
+              window.growthChart?.render();
+              window.categoryTrendChart?.render();
+            } catch (e) {
+              console.warn('[Observer] Error al renderizar gráficos crecimiento:', e);
+            }
+          });
           break;
         case 'compare':
           // Aquí irá loadComparison() más adelante
@@ -74,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Autenticación
   onAuthStateChanged(auth, async user => {
     if (user) {
       userUid = user.uid;
@@ -91,6 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+// ───── Funciones de limpieza ─────
 function destroyGeneralCharts() {
   try {
     window.trendChart?.destroy();

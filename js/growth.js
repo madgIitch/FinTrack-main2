@@ -12,7 +12,8 @@ const DB_VERSION = 1;
 const STORE_SUMMARY = 'historySummary';
 const STORE_CATEGORIAS = 'historyCategorias';
 
-let growthChart, categoryTrendChart;
+let summaryDataGlobal = [];
+let categoryDataGlobal = new Map();
 
 export async function loadGrowth() {
   console.log('[GROWTH] Iniciando carga de datos para crecimiento');
@@ -75,10 +76,13 @@ export async function loadGrowth() {
     }
   }
 
-  console.log('[GROWTH] Datos cargados, generando KPIs y gráficas');
+  summaryDataGlobal = summaryData;
+  categoryDataGlobal = categoryData;
+
+  console.log('[GROWTH] Datos cargados, generando KPIs y construyendo gráficas');
   renderGrowthKPIs(summaryData);
-  renderGrowthChart(summaryData);
-  renderCategoryTrendChart(months, categoryData);
+  buildGrowthChart(summaryData);
+  buildCategoryTrendChart(months, categoryData);
 }
 
 function getLast12Months() {
@@ -113,7 +117,7 @@ function renderGrowthKPIs(data) {
   console.log('[GROWTH] KPIs renderizados');
 }
 
-function renderGrowthChart(data) {
+function buildGrowthChart(data) {
   const categories = data.map(e => e.month);
   const incomes = data.map(e => e.ingresos);
   const expenses = data.map(e => e.gastos);
@@ -136,14 +140,13 @@ function renderGrowthChart(data) {
   try {
     if (window.growthChart) window.growthChart.destroy();
     window.growthChart = new ApexCharts(document.querySelector('#growthChart'), options);
-    window.growthChart.render();
-    console.log('[GROWTH] Gráfico principal renderizado');
+    console.log('[GROWTH] growthChart construido (pendiente de render)');
   } catch (e) {
-    console.error('[GROWTH] Error al renderizar growthChart:', e);
+    console.error('[GROWTH] Error al construir growthChart:', e);
   }
 }
 
-function renderCategoryTrendChart(months, categoryData) {
+function buildCategoryTrendChart(months, categoryData) {
   const allGroups = new Set();
   months.forEach(m => {
     const data = categoryData.get(m);
@@ -166,28 +169,8 @@ function renderCategoryTrendChart(months, categoryData) {
   try {
     if (window.categoryTrendChart) window.categoryTrendChart.destroy();
     window.categoryTrendChart = new ApexCharts(document.querySelector('#categoryTrendChart'), options);
-    window.categoryTrendChart.render();
-    console.log('[GROWTH] Gráfico de categorías renderizado');
+    console.log('[GROWTH] categoryTrendChart construido (pendiente de render)');
   } catch (e) {
-    console.error('[GROWTH] Error al renderizar categoryTrendChart:', e);
+    console.error('[GROWTH] Error al construir categoryTrendChart:', e);
   }
-}
-
-// Observer: renderiza solo si el panel está visible
-const growthPanel = document.getElementById('panel-growth');
-if (growthPanel) {
-  console.log('[GROWTH] Estableciendo observer para panel-growth');
-  const observer = new IntersectionObserver((entries, observer) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        console.log('[Observer] panel-growth visible → re-render');
-        if (window.growthChart) window.growthChart.render();
-        if (window.categoryTrendChart) window.categoryTrendChart.render();
-        observer.disconnect();
-      }
-    });
-  });
-  observer.observe(growthPanel);
-} else {
-  console.warn('[GROWTH] No se encontró #panel-growth');
 }
