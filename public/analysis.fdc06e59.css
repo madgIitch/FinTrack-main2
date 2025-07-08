@@ -152,4 +152,12 @@
     max-height: 300px;
   }
 }
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
+}
 /*# sourceMappingURL=analysis.fdc06e59.css.map */

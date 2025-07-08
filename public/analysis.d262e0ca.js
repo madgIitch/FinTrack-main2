@@ -665,6 +665,7 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
 var _generalJs = require("./general.js");
+var _growthJs = require("./growth.js");
 let userUid = null;
 let selectedPeriod = localStorage.getItem('selectedPeriod') || 'month';
 console.log('[ANALYSIS] Archivo analysis.js cargado');
@@ -677,26 +678,87 @@ document.addEventListener('DOMContentLoaded', ()=>{
         await (0, _auth.signOut)((0, _firebaseJs.auth));
         window.location.href = '../index.html';
     });
+    // Cambio de periodo en pestaña General
     document.getElementById('period-select').addEventListener('change', (e)=>{
         selectedPeriod = e.target.value;
         localStorage.setItem('selectedPeriod', selectedPeriod);
         if (userUid) (0, _generalJs.loadGeneral)(userUid, selectedPeriod);
     });
+    // Manejo de pestañas
+    document.querySelectorAll('.filter-btn').forEach((btn)=>{
+        btn.addEventListener('click', async ()=>{
+            document.querySelectorAll('.filter-btn').forEach((b)=>b.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach((p)=>p.classList.remove('active'));
+            btn.classList.add('active');
+            const selected = btn.dataset.filter;
+            const panel = document.getElementById(`panel-${selected}`);
+            panel.classList.add('active');
+            const periodSelect = document.getElementById('period-select');
+            periodSelect.style.display = selected === 'overview' ? 'block' : 'none';
+            if (!userUid) return;
+            switch(selected){
+                case 'overview':
+                    destroyGrowthCharts();
+                    await (0, _generalJs.loadGeneral)(userUid, selectedPeriod);
+                    break;
+                case 'growth':
+                    destroyGeneralCharts();
+                    await (0, _growthJs.loadGrowth)();
+                    break;
+                case 'compare':
+                    break;
+            }
+            // Forzar redibujado de gráficos
+            setTimeout(()=>{
+                if (selected === 'overview') {
+                    window.trendChart?.resize?.();
+                    window.barChart?.resize?.();
+                    window.pieChart?.resize?.();
+                } else if (selected === 'growth') {
+                    window.growthChart?.resize?.();
+                    window.categoryTrendChart?.resize?.();
+                }
+            }, 150);
+        });
+    });
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
         if (user) {
-            userId = user.uid;
-            console.log('[ANALYSIS] Usuario autenticado:', userId);
+            userUid = user.uid;
+            console.log('[ANALYSIS] Usuario autenticado:', userUid);
             const savedPeriod = localStorage.getItem('selectedPeriod') || 'month';
             document.getElementById('period-select').value = savedPeriod;
             selectedPeriod = savedPeriod;
-            console.log('[ANALYSIS] Periodo restaurado desde localStorage:', selectedPeriod);
-            // Ahora llama primero a applyPeriodFilter, y renderiza dentro del flujo de datos cargados
-            await reactiveAnalysis(userId);
+            // Activar pestaña por defecto
+            document.querySelector('.filter-btn[data-filter="overview"]').click();
         } else window.location.href = '../index.html';
     });
 });
+function destroyGeneralCharts() {
+    try {
+        window.trendChart?.destroy();
+        window.barChart?.destroy();
+        window.pieChart?.destroy();
+        window.trendChart = null;
+        window.barChart = null;
+        window.pieChart = null;
+        console.log("[CLEAN] Gr\xe1ficas generales destruidas");
+    } catch (e) {
+        console.warn("[CLEAN] Error al destruir gr\xe1ficas generales:", e);
+    }
+}
+function destroyGrowthCharts() {
+    try {
+        window.growthChart?.destroy();
+        window.categoryTrendChart?.destroy();
+        window.growthChart = null;
+        window.categoryTrendChart = null;
+        console.log("[CLEAN] Gr\xe1ficas de crecimiento destruidas");
+    } catch (e) {
+        console.warn("[CLEAN] Error al destruir gr\xe1ficas de crecimiento:", e);
+    }
+}
 
-},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","./general.js":"lGg7R"}],"lGg7R":[function(require,module,exports,__globalThis) {
+},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","./general.js":"lGg7R","./growth.js":"4z1LS"}],"lGg7R":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "loadGeneral", ()=>loadGeneral);
@@ -1311,6 +1373,460 @@ function loadGeneral(userId, selectedPeriod) {
     setTimeout(()=>applyPeriodFilter(userId, period), 200);
 }
 
-},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
+},{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"4z1LS":[function(require,module,exports,__globalThis) {
+// growth.js – Pestaña de Crecimiento
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "loadGrowth", ()=>loadGrowth);
+var _firestore = require("firebase/firestore");
+var _idb = require("idb");
+var _firebaseJs = require("./firebase.js");
+console.log("[GROWTH] M\xf3dulo growth.js cargado");
+const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
+const DB_NAME = 'growth-cache';
+const DB_VERSION = 1;
+const STORE_SUMMARY = 'historySummary';
+const STORE_CATEGORIAS = 'historyCategorias';
+let growthChart, categoryTrendChart;
+async function loadGrowth() {
+    console.log('[GROWTH] Iniciando carga de datos para crecimiento');
+    const months = getLast12Months();
+    const summaryData = [];
+    const categoryData = new Map();
+    const isOnline = navigator.onLine;
+    const dbLocal = await (0, _idb.openDB)(DB_NAME, DB_VERSION, {
+        upgrade (db) {
+            if (!db.objectStoreNames.contains(STORE_SUMMARY)) db.createObjectStore(STORE_SUMMARY);
+            if (!db.objectStoreNames.contains(STORE_CATEGORIAS)) db.createObjectStore(STORE_CATEGORIAS);
+        }
+    });
+    for (const month of months)if (isOnline) {
+        const docRef = (0, _firestore.doc)(db, `historySummary/${month}`);
+        const snap = await (0, _firestore.getDocs)((0, _firestore.collection)(docRef, 'weeks'));
+        let ingresos = 0;
+        let gastos = 0;
+        snap.forEach((doc)=>{
+            ingresos += doc.data().totalIncomes || 0;
+            gastos += doc.data().totalExpenses || 0;
+        });
+        summaryData.push({
+            month,
+            ingresos,
+            gastos
+        });
+        await dbLocal.put(STORE_SUMMARY, {
+            ingresos,
+            gastos
+        }, month);
+        const catDoc = (0, _firestore.doc)(db, `historyCategorias/${month}`);
+        const catSnap = await (0, _firestore.getDocs)((0, _firestore.collection)(catDoc, 'weeks'));
+        const groupTotals = {};
+        catSnap.forEach((semana)=>{
+            const datos = semana.data().totals || {};
+            for (const [group, value] of Object.entries(datos))groupTotals[group] = (groupTotals[group] || 0) + value;
+        });
+        categoryData.set(month, groupTotals);
+        await dbLocal.put(STORE_CATEGORIAS, groupTotals, month);
+    } else {
+        const resumen = await dbLocal.get(STORE_SUMMARY, month);
+        const categorias = await dbLocal.get(STORE_CATEGORIAS, month);
+        summaryData.push({
+            month,
+            ingresos: resumen?.ingresos || 0,
+            gastos: resumen?.gastos || 0
+        });
+        categoryData.set(month, categorias || {});
+    }
+    renderGrowthKPIs(summaryData);
+    renderGrowthChart(summaryData);
+    renderCategoryTrendChart(months, categoryData);
+}
+function getLast12Months() {
+    const months = [];
+    const today = new Date();
+    for(let i = 11; i >= 0; i--){
+        const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+        months.push(date.toISOString().slice(0, 7));
+    }
+    return months;
+}
+function renderGrowthKPIs(data) {
+    const len = data.length;
+    if (len < 2) return;
+    const prev = data[len - 2];
+    const curr = data[len - 1];
+    const growthIncomes = (curr.ingresos - prev.ingresos) / (prev.ingresos || 1) * 100;
+    const growthExpenses = (curr.gastos - prev.gastos) / (prev.gastos || 1) * 100;
+    const bestMonth = data.reduce((acc, m)=>{
+        const ahorro = m.ingresos - m.gastos;
+        return ahorro > (acc.ahorro || 0) ? {
+            ...m,
+            ahorro
+        } : acc;
+    }, {});
+    document.getElementById('kpi-growth-incomes').textContent = growthIncomes.toFixed(2) + '%';
+    document.getElementById('kpi-growth-expenses').textContent = growthExpenses.toFixed(2) + '%';
+    document.getElementById('kpi-best-month').textContent = bestMonth.month || '-';
+    console.log('[GROWTH] KPIs renderizados');
+}
+function renderGrowthChart(data) {
+    const categories = data.map((e)=>e.month);
+    const incomes = data.map((e)=>e.ingresos);
+    const expenses = data.map((e)=>e.gastos);
+    const savings = data.map((e)=>e.ingresos - e.gastos);
+    const options = {
+        chart: {
+            type: 'line',
+            height: 300
+        },
+        series: [
+            {
+                name: 'Ingresos',
+                data: incomes
+            },
+            {
+                name: 'Gastos',
+                data: expenses
+            },
+            {
+                name: 'Ahorro',
+                data: savings
+            }
+        ],
+        xaxis: {
+            categories
+        },
+        stroke: {
+            curve: 'smooth'
+        },
+        markers: {
+            size: 4
+        },
+        dataLabels: {
+            enabled: false
+        },
+        colors: [
+            '#00C49F',
+            '#FF4C4C',
+            '#0074D9'
+        ]
+    };
+    if (growthChart) growthChart.destroy();
+    growthChart = new ApexCharts(document.querySelector('#growth-chart'), options);
+    growthChart.render();
+    console.log("[GROWTH] Gr\xe1fico principal renderizado");
+}
+function renderCategoryTrendChart(months, categoryData) {
+    const allGroups = new Set();
+    months.forEach((m)=>{
+        const data = categoryData.get(m);
+        if (data) Object.keys(data).forEach((g)=>allGroups.add(g));
+    });
+    const series = Array.from(allGroups).map((group)=>({
+            name: group,
+            data: months.map((m)=>categoryData.get(m)?.[group] || 0)
+        }));
+    const options = {
+        chart: {
+            type: 'area',
+            height: 300,
+            stacked: true
+        },
+        series,
+        xaxis: {
+            categories: months
+        },
+        dataLabels: {
+            enabled: false
+        },
+        stroke: {
+            curve: 'smooth'
+        },
+        colors: undefined // que Apex decida
+    };
+    if (categoryTrendChart) categoryTrendChart.destroy();
+    categoryTrendChart = new ApexCharts(document.querySelector('#category-trend-chart'), options);
+    categoryTrendChart.render();
+    console.log("[GROWTH] Gr\xe1fico de categor\xedas renderizado");
+}
+
+},{"firebase/firestore":"3RBs1","idb":"258QC","./firebase.js":"24zHi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"258QC":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "deleteDB", ()=>deleteDB);
+parcelHelpers.export(exports, "openDB", ()=>openDB);
+parcelHelpers.export(exports, "unwrap", ()=>unwrap);
+parcelHelpers.export(exports, "wrap", ()=>wrap);
+const instanceOfAny = (object, constructors)=>constructors.some((c)=>object instanceof c);
+let idbProxyableTypes;
+let cursorAdvanceMethods;
+// This is a function to prevent it throwing up in node environments.
+function getIdbProxyableTypes() {
+    return idbProxyableTypes || (idbProxyableTypes = [
+        IDBDatabase,
+        IDBObjectStore,
+        IDBIndex,
+        IDBCursor,
+        IDBTransaction
+    ]);
+}
+// This is a function to prevent it throwing up in node environments.
+function getCursorAdvanceMethods() {
+    return cursorAdvanceMethods || (cursorAdvanceMethods = [
+        IDBCursor.prototype.advance,
+        IDBCursor.prototype.continue,
+        IDBCursor.prototype.continuePrimaryKey
+    ]);
+}
+const transactionDoneMap = new WeakMap();
+const transformCache = new WeakMap();
+const reverseTransformCache = new WeakMap();
+function promisifyRequest(request) {
+    const promise = new Promise((resolve, reject)=>{
+        const unlisten = ()=>{
+            request.removeEventListener('success', success);
+            request.removeEventListener('error', error);
+        };
+        const success = ()=>{
+            resolve(wrap(request.result));
+            unlisten();
+        };
+        const error = ()=>{
+            reject(request.error);
+            unlisten();
+        };
+        request.addEventListener('success', success);
+        request.addEventListener('error', error);
+    });
+    // This mapping exists in reverseTransformCache but doesn't exist in transformCache. This
+    // is because we create many promises from a single IDBRequest.
+    reverseTransformCache.set(promise, request);
+    return promise;
+}
+function cacheDonePromiseForTransaction(tx) {
+    // Early bail if we've already created a done promise for this transaction.
+    if (transactionDoneMap.has(tx)) return;
+    const done = new Promise((resolve, reject)=>{
+        const unlisten = ()=>{
+            tx.removeEventListener('complete', complete);
+            tx.removeEventListener('error', error);
+            tx.removeEventListener('abort', error);
+        };
+        const complete = ()=>{
+            resolve();
+            unlisten();
+        };
+        const error = ()=>{
+            reject(tx.error || new DOMException('AbortError', 'AbortError'));
+            unlisten();
+        };
+        tx.addEventListener('complete', complete);
+        tx.addEventListener('error', error);
+        tx.addEventListener('abort', error);
+    });
+    // Cache it for later retrieval.
+    transactionDoneMap.set(tx, done);
+}
+let idbProxyTraps = {
+    get (target, prop, receiver) {
+        if (target instanceof IDBTransaction) {
+            // Special handling for transaction.done.
+            if (prop === 'done') return transactionDoneMap.get(target);
+            // Make tx.store return the only store in the transaction, or undefined if there are many.
+            if (prop === 'store') return receiver.objectStoreNames[1] ? undefined : receiver.objectStore(receiver.objectStoreNames[0]);
+        }
+        // Else transform whatever we get back.
+        return wrap(target[prop]);
+    },
+    set (target, prop, value) {
+        target[prop] = value;
+        return true;
+    },
+    has (target, prop) {
+        if (target instanceof IDBTransaction && (prop === 'done' || prop === 'store')) return true;
+        return prop in target;
+    }
+};
+function replaceTraps(callback) {
+    idbProxyTraps = callback(idbProxyTraps);
+}
+function wrapFunction(func) {
+    // Due to expected object equality (which is enforced by the caching in `wrap`), we
+    // only create one new func per func.
+    // Cursor methods are special, as the behaviour is a little more different to standard IDB. In
+    // IDB, you advance the cursor and wait for a new 'success' on the IDBRequest that gave you the
+    // cursor. It's kinda like a promise that can resolve with many values. That doesn't make sense
+    // with real promises, so each advance methods returns a new promise for the cursor object, or
+    // undefined if the end of the cursor has been reached.
+    if (getCursorAdvanceMethods().includes(func)) return function(...args) {
+        // Calling the original function with the proxy as 'this' causes ILLEGAL INVOCATION, so we use
+        // the original object.
+        func.apply(unwrap(this), args);
+        return wrap(this.request);
+    };
+    return function(...args) {
+        // Calling the original function with the proxy as 'this' causes ILLEGAL INVOCATION, so we use
+        // the original object.
+        return wrap(func.apply(unwrap(this), args));
+    };
+}
+function transformCachableValue(value) {
+    if (typeof value === 'function') return wrapFunction(value);
+    // This doesn't return, it just creates a 'done' promise for the transaction,
+    // which is later returned for transaction.done (see idbObjectHandler).
+    if (value instanceof IDBTransaction) cacheDonePromiseForTransaction(value);
+    if (instanceOfAny(value, getIdbProxyableTypes())) return new Proxy(value, idbProxyTraps);
+    // Return the same value back if we're not going to transform it.
+    return value;
+}
+function wrap(value) {
+    // We sometimes generate multiple promises from a single IDBRequest (eg when cursoring), because
+    // IDB is weird and a single IDBRequest can yield many responses, so these can't be cached.
+    if (value instanceof IDBRequest) return promisifyRequest(value);
+    // If we've already transformed this value before, reuse the transformed value.
+    // This is faster, but it also provides object equality.
+    if (transformCache.has(value)) return transformCache.get(value);
+    const newValue = transformCachableValue(value);
+    // Not all types are transformed.
+    // These may be primitive types, so they can't be WeakMap keys.
+    if (newValue !== value) {
+        transformCache.set(value, newValue);
+        reverseTransformCache.set(newValue, value);
+    }
+    return newValue;
+}
+const unwrap = (value)=>reverseTransformCache.get(value);
+/**
+ * Open a database.
+ *
+ * @param name Name of the database.
+ * @param version Schema version.
+ * @param callbacks Additional callbacks.
+ */ function openDB(name, version, { blocked, upgrade, blocking, terminated } = {}) {
+    const request = indexedDB.open(name, version);
+    const openPromise = wrap(request);
+    if (upgrade) request.addEventListener('upgradeneeded', (event)=>{
+        upgrade(wrap(request.result), event.oldVersion, event.newVersion, wrap(request.transaction), event);
+    });
+    if (blocked) request.addEventListener('blocked', (event)=>blocked(// Casting due to https://github.com/microsoft/TypeScript-DOM-lib-generator/pull/1405
+        event.oldVersion, event.newVersion, event));
+    openPromise.then((db)=>{
+        if (terminated) db.addEventListener('close', ()=>terminated());
+        if (blocking) db.addEventListener('versionchange', (event)=>blocking(event.oldVersion, event.newVersion, event));
+    }).catch(()=>{});
+    return openPromise;
+}
+/**
+ * Delete a database.
+ *
+ * @param name Name of the database.
+ */ function deleteDB(name, { blocked } = {}) {
+    const request = indexedDB.deleteDatabase(name);
+    if (blocked) request.addEventListener('blocked', (event)=>blocked(// Casting due to https://github.com/microsoft/TypeScript-DOM-lib-generator/pull/1405
+        event.oldVersion, event));
+    return wrap(request).then(()=>undefined);
+}
+const readMethods = [
+    'get',
+    'getKey',
+    'getAll',
+    'getAllKeys',
+    'count'
+];
+const writeMethods = [
+    'put',
+    'add',
+    'delete',
+    'clear'
+];
+const cachedMethods = new Map();
+function getMethod(target, prop) {
+    if (!(target instanceof IDBDatabase && !(prop in target) && typeof prop === 'string')) return;
+    if (cachedMethods.get(prop)) return cachedMethods.get(prop);
+    const targetFuncName = prop.replace(/FromIndex$/, '');
+    const useIndex = prop !== targetFuncName;
+    const isWrite = writeMethods.includes(targetFuncName);
+    if (// Bail if the target doesn't exist on the target. Eg, getAll isn't in Edge.
+    !(targetFuncName in (useIndex ? IDBIndex : IDBObjectStore).prototype) || !(isWrite || readMethods.includes(targetFuncName))) return;
+    const method = async function(storeName, ...args) {
+        // isWrite ? 'readwrite' : undefined gzipps better, but fails in Edge :(
+        const tx = this.transaction(storeName, isWrite ? 'readwrite' : 'readonly');
+        let target = tx.store;
+        if (useIndex) target = target.index(args.shift());
+        // Must reject if op rejects.
+        // If it's a write operation, must reject if tx.done rejects.
+        // Must reject with op rejection first.
+        // Must resolve with op value.
+        // Must handle both promises (no unhandled rejections)
+        return (await Promise.all([
+            target[targetFuncName](...args),
+            isWrite && tx.done
+        ]))[0];
+    };
+    cachedMethods.set(prop, method);
+    return method;
+}
+replaceTraps((oldTraps)=>({
+        ...oldTraps,
+        get: (target, prop, receiver)=>getMethod(target, prop) || oldTraps.get(target, prop, receiver),
+        has: (target, prop)=>!!getMethod(target, prop) || oldTraps.has(target, prop)
+    }));
+const advanceMethodProps = [
+    'continue',
+    'continuePrimaryKey',
+    'advance'
+];
+const methodMap = {};
+const advanceResults = new WeakMap();
+const ittrProxiedCursorToOriginalProxy = new WeakMap();
+const cursorIteratorTraps = {
+    get (target, prop) {
+        if (!advanceMethodProps.includes(prop)) return target[prop];
+        let cachedFunc = methodMap[prop];
+        if (!cachedFunc) cachedFunc = methodMap[prop] = function(...args) {
+            advanceResults.set(this, ittrProxiedCursorToOriginalProxy.get(this)[prop](...args));
+        };
+        return cachedFunc;
+    }
+};
+async function* iterate(...args) {
+    // tslint:disable-next-line:no-this-assignment
+    let cursor = this;
+    if (!(cursor instanceof IDBCursor)) cursor = await cursor.openCursor(...args);
+    if (!cursor) return;
+    cursor;
+    const proxiedCursor = new Proxy(cursor, cursorIteratorTraps);
+    ittrProxiedCursorToOriginalProxy.set(proxiedCursor, cursor);
+    // Map this double-proxy back to the original, so other cursor methods work.
+    reverseTransformCache.set(proxiedCursor, unwrap(cursor));
+    while(cursor){
+        yield proxiedCursor;
+        // If one of the advancing methods was not called, call continue().
+        cursor = await (advanceResults.get(proxiedCursor) || cursor.continue());
+        advanceResults.delete(proxiedCursor);
+    }
+}
+function isIteratorProp(target, prop) {
+    return prop === Symbol.asyncIterator && instanceOfAny(target, [
+        IDBIndex,
+        IDBObjectStore,
+        IDBCursor
+    ]) || prop === 'iterate' && instanceOfAny(target, [
+        IDBIndex,
+        IDBObjectStore
+    ]);
+}
+replaceTraps((oldTraps)=>({
+        ...oldTraps,
+        get (target, prop, receiver) {
+            if (isIteratorProp(target, prop)) return iterate;
+            return oldTraps.get(target, prop, receiver);
+        },
+        has (target, prop) {
+            return isIteratorProp(target, prop) || oldTraps.has(target, prop);
+        }
+    }));
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
 
 //# sourceMappingURL=analysis.d262e0ca.js.map

@@ -105,8 +105,6 @@
   }
 }
 
-
-
 .chart-card {
   background: var(--surface);
   padding: 8px;
@@ -118,7 +116,6 @@
   min-height: 220px;
   height: 100%;
 }
-
 
 /* Estilo base para gráficos Apex */
 .chart-card > div {
@@ -151,4 +148,12 @@
   #pieChart {
     max-height: 300px;
   }
+}
+
+/* Ocultar paneles no activos */
+.tab-panel {
+  display: none;
+}
+.tab-panel.active {
+  display: block;
 }

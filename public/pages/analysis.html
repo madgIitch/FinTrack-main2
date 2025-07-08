@@ -20,7 +20,7 @@
       <h2>Menú</h2>
       <ul>
         <li><a href="/pages/profile.html" class="sidebar-btn">Perfil</a></li>
-        <li><a href="/pages/notifications.html" class="sidebar-btn">Notificaciones</a></li> <!-- NUEVO ITEM -->
+        <li><a href="/pages/notifications.html" class="sidebar-btn">Notificaciones</a></li>
         <li><button id="logout-link" class="sidebar-btn">Cerrar Sesión</button></li>
       </ul>
     </aside>
@@ -31,14 +31,14 @@
       <h1 class="page-title">Analysis</h1>
       <div class="header-right">
         <a href="/pages/notifications.html" class="notification-button" aria-label="Notificaciones">
-        <i class="material-icons">notifications</i>
-      </a>
+          <i class="material-icons">notifications</i>
+        </a>
       </div>
     </header>
 
-    <!-- Main contenido ajustado al viewport -->
+    <!-- Contenido principal -->
     <main class="analysis-fullscreen">
-      <!-- Filtros encima -->
+      <!-- Filtro de pestañas y periodo -->
       <div class="filter-card">
         <div class="filters">
           <button class="filter-btn active" data-filter="overview">General</button>
@@ -48,32 +48,61 @@
         <div class="period-select-wrapper">
           <select id="period-select" class="period-select">
             <option value="week">Esta Semana</option>
-            <option value="month">Este Mes</option>
+            <option value="month" selected="">Este Mes</option>
             <option value="year">Este Año</option>
           </select>
         </div>
       </div>
 
-      <!-- KPIs justo debajo -->
-      <section class="kpi-row">
-        <div class="card kpi-card">
-          <h2>Ingresos</h2>
-          <p id="kpi-revenue" class="kpi-value">€0</p>
-          <p id="kpi-revenue-change" class="kpi-change">+0% vs anterior mes</p>
-        </div>
-        <div class="card kpi-card">
-          <h2>Gastos</h2>
-          <p id="kpi-spend" class="kpi-value">€0</p>
-          <p id="kpi-spend-change" class="kpi-change">+0% vs anterior mes</p>
-        </div>
-      </section>
+      <!-- Panel: General -->
+      <div id="panel-overview" class="tab-panel active">
+        <section class="kpi-row">
+          <div class="card kpi-card">
+            <h2>Ingresos</h2>
+            <p id="kpi-revenue" class="kpi-value">€0</p>
+            <p id="kpi-revenue-change" class="kpi-change">+0% vs anterior mes</p>
+          </div>
+          <div class="card kpi-card">
+            <h2>Gastos</h2>
+            <p id="kpi-spend" class="kpi-value">€0</p>
+            <p id="kpi-spend-change" class="kpi-change">+0% vs anterior mes</p>
+          </div>
+        </section>
 
-      <!-- Gráficas en 3 columnas, cada una muy compacta -->
-      <section class="charts-row">
-        <div class="card chart-card" id="trendChart"></div>
-        <div class="card chart-card" id="barChart"></div>
-        <div class="card chart-card" id="pieChart"></div>
-      </section>
+        <section class="charts-row">
+          <div class="card chart-card" id="trendChart"></div>
+          <div class="card chart-card" id="barChart"></div>
+          <div class="card chart-card" id="pieChart"></div>
+        </section>
+      </div>
+
+      <!-- Panel: Crecimiento -->
+      <div id="panel-growth" class="tab-panel">
+        <section class="kpi-row">
+          <div class="card kpi-card">
+            <h2>Crecimiento Ingresos</h2>
+            <p id="kpi-growth-revenue" class="kpi-value">0%</p>
+          </div>
+          <div class="card kpi-card">
+            <h2>Crecimiento Gastos</h2>
+            <p id="kpi-growth-spend" class="kpi-value">0%</p>
+          </div>
+          <div class="card kpi-card">
+            <h2>Mes más Ahorrador</h2>
+            <p id="kpi-best-month" class="kpi-value">---</p>
+          </div>
+        </section>
+
+        <section class="charts-row">
+          <div class="card chart-card" id="growthChart"></div>
+          <div class="card chart-card" id="categoryTrendChart"></div>
+        </section>
+      </div>
+
+      <!-- Panel: Comparación -->
+      <div id="panel-compare" class="tab-panel">
+        <p style="padding: 1rem">Próximamente: comparación de meses.</p>
+      </div>
     </main>
 
     <!-- Bottom Nav -->
