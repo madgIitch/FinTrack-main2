@@ -1407,43 +1407,50 @@ async function loadGrowth() {
             if (!db.objectStoreNames.contains(STORE_CATEGORIAS)) db.createObjectStore(STORE_CATEGORIAS);
         }
     });
-    for (const month of months)if (isOnline) {
-        const docRef = (0, _firestore.doc)(db, `historySummary/${month}`);
-        const snap = await (0, _firestore.getDocs)((0, _firestore.collection)(docRef, 'weeks'));
-        let ingresos = 0;
-        let gastos = 0;
-        snap.forEach((doc)=>{
-            ingresos += doc.data().totalIncomes || 0;
-            gastos += doc.data().totalExpenses || 0;
-        });
-        summaryData.push({
-            month,
-            ingresos,
-            gastos
-        });
-        await dbLocal.put(STORE_SUMMARY, {
-            ingresos,
-            gastos
-        }, month);
-        const catDoc = (0, _firestore.doc)(db, `historyCategorias/${month}`);
-        const catSnap = await (0, _firestore.getDocs)((0, _firestore.collection)(catDoc, 'weeks'));
-        const groupTotals = {};
-        catSnap.forEach((semana)=>{
-            const datos = semana.data().totals || {};
-            for (const [group, value] of Object.entries(datos))groupTotals[group] = (groupTotals[group] || 0) + value;
-        });
-        categoryData.set(month, groupTotals);
-        await dbLocal.put(STORE_CATEGORIAS, groupTotals, month);
-    } else {
-        const resumen = await dbLocal.get(STORE_SUMMARY, month);
-        const categorias = await dbLocal.get(STORE_CATEGORIAS, month);
-        summaryData.push({
-            month,
-            ingresos: resumen?.ingresos || 0,
-            gastos: resumen?.gastos || 0
-        });
-        categoryData.set(month, categorias || {});
+    for (const month of months){
+        console.log(`[GROWTH] Procesando mes ${month} (${isOnline ? 'online' : 'offline'})`);
+        if (isOnline) try {
+            const docRef = (0, _firestore.doc)(db, `historySummary/${month}`);
+            const snap = await (0, _firestore.getDocs)((0, _firestore.collection)(docRef, 'weeks'));
+            let ingresos = 0;
+            let gastos = 0;
+            snap.forEach((doc)=>{
+                ingresos += doc.data().totalIncomes || 0;
+                gastos += doc.data().totalExpenses || 0;
+            });
+            summaryData.push({
+                month,
+                ingresos,
+                gastos
+            });
+            await dbLocal.put(STORE_SUMMARY, {
+                ingresos,
+                gastos
+            }, month);
+            const catDoc = (0, _firestore.doc)(db, `historyCategorias/${month}`);
+            const catSnap = await (0, _firestore.getDocs)((0, _firestore.collection)(catDoc, 'weeks'));
+            const groupTotals = {};
+            catSnap.forEach((semana)=>{
+                const datos = semana.data().totals || {};
+                for (const [group, value] of Object.entries(datos))groupTotals[group] = (groupTotals[group] || 0) + value;
+            });
+            categoryData.set(month, groupTotals);
+            await dbLocal.put(STORE_CATEGORIAS, groupTotals, month);
+        } catch (e) {
+            console.error('[GROWTH] Error durante fetch online para', month, e);
+        }
+        else {
+            const resumen = await dbLocal.get(STORE_SUMMARY, month);
+            const categorias = await dbLocal.get(STORE_CATEGORIAS, month);
+            summaryData.push({
+                month,
+                ingresos: resumen?.ingresos || 0,
+                gastos: resumen?.gastos || 0
+            });
+            categoryData.set(month, categorias || {});
+        }
     }
+    console.log("[GROWTH] Datos cargados, generando KPIs y gr\xe1ficas");
     renderGrowthKPIs(summaryData);
     renderGrowthChart(summaryData);
     renderCategoryTrendChart(months, categoryData);
@@ -1471,8 +1478,8 @@ function renderGrowthKPIs(data) {
             ahorro
         } : acc;
     }, {});
-    document.getElementById('kpi-growth-incomes').textContent = growthIncomes.toFixed(2) + '%';
-    document.getElementById('kpi-growth-expenses').textContent = growthExpenses.toFixed(2) + '%';
+    document.getElementById('kpi-growth-revenue').textContent = growthIncomes.toFixed(2) + '%';
+    document.getElementById('kpi-growth-spend').textContent = growthExpenses.toFixed(2) + '%';
     document.getElementById('kpi-best-month').textContent = bestMonth.month || '-';
     console.log('[GROWTH] KPIs renderizados');
 }
@@ -1518,17 +1525,15 @@ function renderGrowthChart(data) {
             '#0074D9'
         ]
     };
-    if (growthChart) growthChart.destroy();
-    growthChart = new ApexCharts(document.querySelector('#growth-chart'), options);
-    growthChart.render();
-    console.log("[GROWTH] Gr\xe1fico principal renderizado");
+    try {
+        if (window.growthChart) window.growthChart.destroy();
+        window.growthChart = new ApexCharts(document.querySelector('#growthChart'), options);
+        window.growthChart.render();
+        console.log("[GROWTH] Gr\xe1fico principal renderizado");
+    } catch (e) {
+        console.error('[GROWTH] Error al renderizar growthChart:', e);
+    }
 }
-const growthPanel = document.getElementById('panel-growth');
-whenVisible(growthPanel, ()=>{
-    console.log("[Observer] panel-growth visible \u2192 render charts");
-    if (window.growthChart) window.growthChart.render();
-    if (window.categoryTrendChart) window.categoryTrendChart.render();
-});
 function renderCategoryTrendChart(months, categoryData) {
     const allGroups = new Set();
     months.forEach((m)=>{
@@ -1554,14 +1559,33 @@ function renderCategoryTrendChart(months, categoryData) {
         },
         stroke: {
             curve: 'smooth'
-        },
-        colors: undefined // que Apex decida
+        }
     };
-    if (categoryTrendChart) categoryTrendChart.destroy();
-    categoryTrendChart = new ApexCharts(document.querySelector('#category-trend-chart'), options);
-    categoryTrendChart.render();
-    console.log("[GROWTH] Gr\xe1fico de categor\xedas renderizado");
+    try {
+        if (window.categoryTrendChart) window.categoryTrendChart.destroy();
+        window.categoryTrendChart = new ApexCharts(document.querySelector('#categoryTrendChart'), options);
+        window.categoryTrendChart.render();
+        console.log("[GROWTH] Gr\xe1fico de categor\xedas renderizado");
+    } catch (e) {
+        console.error('[GROWTH] Error al renderizar categoryTrendChart:', e);
+    }
 }
+// Observer: renderiza solo si el panel está visible
+const growthPanel = document.getElementById('panel-growth');
+if (growthPanel) {
+    console.log('[GROWTH] Estableciendo observer para panel-growth');
+    const observer = new IntersectionObserver((entries, observer)=>{
+        entries.forEach((entry)=>{
+            if (entry.isIntersecting) {
+                console.log("[Observer] panel-growth visible \u2192 re-render");
+                if (window.growthChart) window.growthChart.render();
+                if (window.categoryTrendChart) window.categoryTrendChart.render();
+                observer.disconnect();
+            }
+        });
+    });
+    observer.observe(growthPanel);
+} else console.warn("[GROWTH] No se encontr\xf3 #panel-growth");
 
 },{"firebase/firestore":"3RBs1","idb":"258QC","./firebase.js":"24zHi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"258QC":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");

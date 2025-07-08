@@ -34,34 +34,39 @@ export async function loadGrowth() {
   });
 
   for (const month of months) {
+    console.log(`[GROWTH] Procesando mes ${month} (${isOnline ? 'online' : 'offline'})`);
     if (isOnline) {
-      const docRef = doc(db, `historySummary/${month}`);
-      const snap = await getDocs(collection(docRef, 'weeks'));
+      try {
+        const docRef = doc(db, `historySummary/${month}`);
+        const snap = await getDocs(collection(docRef, 'weeks'));
 
-      let ingresos = 0;
-      let gastos = 0;
+        let ingresos = 0;
+        let gastos = 0;
 
-      snap.forEach(doc => {
-        ingresos += doc.data().totalIncomes || 0;
-        gastos += doc.data().totalExpenses || 0;
-      });
+        snap.forEach(doc => {
+          ingresos += doc.data().totalIncomes || 0;
+          gastos += doc.data().totalExpenses || 0;
+        });
 
-      summaryData.push({ month, ingresos, gastos });
-      await dbLocal.put(STORE_SUMMARY, { ingresos, gastos }, month);
+        summaryData.push({ month, ingresos, gastos });
+        await dbLocal.put(STORE_SUMMARY, { ingresos, gastos }, month);
 
-      const catDoc = doc(db, `historyCategorias/${month}`);
-      const catSnap = await getDocs(collection(catDoc, 'weeks'));
-      const groupTotals = {};
+        const catDoc = doc(db, `historyCategorias/${month}`);
+        const catSnap = await getDocs(collection(catDoc, 'weeks'));
+        const groupTotals = {};
 
-      catSnap.forEach(semana => {
-        const datos = semana.data().totals || {};
-        for (const [group, value] of Object.entries(datos)) {
-          groupTotals[group] = (groupTotals[group] || 0) + value;
-        }
-      });
+        catSnap.forEach(semana => {
+          const datos = semana.data().totals || {};
+          for (const [group, value] of Object.entries(datos)) {
+            groupTotals[group] = (groupTotals[group] || 0) + value;
+          }
+        });
 
-      categoryData.set(month, groupTotals);
-      await dbLocal.put(STORE_CATEGORIAS, groupTotals, month);
+        categoryData.set(month, groupTotals);
+        await dbLocal.put(STORE_CATEGORIAS, groupTotals, month);
+      } catch (e) {
+        console.error('[GROWTH] Error durante fetch online para', month, e);
+      }
     } else {
       const resumen = await dbLocal.get(STORE_SUMMARY, month);
       const categorias = await dbLocal.get(STORE_CATEGORIAS, month);
@@ -70,6 +75,7 @@ export async function loadGrowth() {
     }
   }
 
+  console.log('[GROWTH] Datos cargados, generando KPIs y gráficas');
   renderGrowthKPIs(summaryData);
   renderGrowthChart(summaryData);
   renderCategoryTrendChart(months, categoryData);
@@ -100,8 +106,8 @@ function renderGrowthKPIs(data) {
     return ahorro > (acc.ahorro || 0) ? { ...m, ahorro } : acc;
   }, {});
 
-  document.getElementById('kpi-growth-incomes').textContent = growthIncomes.toFixed(2) + '%';
-  document.getElementById('kpi-growth-expenses').textContent = growthExpenses.toFixed(2) + '%';
+  document.getElementById('kpi-growth-revenue').textContent = growthIncomes.toFixed(2) + '%';
+  document.getElementById('kpi-growth-spend').textContent = growthExpenses.toFixed(2) + '%';
   document.getElementById('kpi-best-month').textContent = bestMonth.month || '-';
 
   console.log('[GROWTH] KPIs renderizados');
@@ -127,21 +133,15 @@ function renderGrowthChart(data) {
     colors: ['#00C49F', '#FF4C4C', '#0074D9']
   };
 
-  if (growthChart) growthChart.destroy();
-  growthChart = new ApexCharts(document.querySelector('#growth-chart'), options);
-  growthChart.render();
-
-  console.log('[GROWTH] Gráfico principal renderizado');
+  try {
+    if (window.growthChart) window.growthChart.destroy();
+    window.growthChart = new ApexCharts(document.querySelector('#growthChart'), options);
+    window.growthChart.render();
+    console.log('[GROWTH] Gráfico principal renderizado');
+  } catch (e) {
+    console.error('[GROWTH] Error al renderizar growthChart:', e);
+  }
 }
-
-const growthPanel = document.getElementById('panel-growth');
-whenVisible(growthPanel, () => {
-  console.log('[Observer] panel-growth visible → render charts');
-  if (window.growthChart) window.growthChart.render();
-  if (window.categoryTrendChart) window.categoryTrendChart.render();
-});
-
-
 
 function renderCategoryTrendChart(months, categoryData) {
   const allGroups = new Set();
@@ -160,15 +160,34 @@ function renderCategoryTrendChart(months, categoryData) {
     series,
     xaxis: { categories: months },
     dataLabels: { enabled: false },
-    stroke: { curve: 'smooth' },
-    colors: undefined // que Apex decida
+    stroke: { curve: 'smooth' }
   };
 
-  if (categoryTrendChart) categoryTrendChart.destroy();
-  categoryTrendChart = new ApexCharts(document.querySelector('#category-trend-chart'), options);
-  categoryTrendChart.render();
+  try {
+    if (window.categoryTrendChart) window.categoryTrendChart.destroy();
+    window.categoryTrendChart = new ApexCharts(document.querySelector('#categoryTrendChart'), options);
+    window.categoryTrendChart.render();
+    console.log('[GROWTH] Gráfico de categorías renderizado');
+  } catch (e) {
+    console.error('[GROWTH] Error al renderizar categoryTrendChart:', e);
+  }
+}
 
-  console.log('[GROWTH] Gráfico de categorías renderizado');
-
-  
+// Observer: renderiza solo si el panel está visible
+const growthPanel = document.getElementById('panel-growth');
+if (growthPanel) {
+  console.log('[GROWTH] Estableciendo observer para panel-growth');
+  const observer = new IntersectionObserver((entries, observer) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        console.log('[Observer] panel-growth visible → re-render');
+        if (window.growthChart) window.growthChart.render();
+        if (window.categoryTrendChart) window.categoryTrendChart.render();
+        observer.disconnect();
+      }
+    });
+  });
+  observer.observe(growthPanel);
+} else {
+  console.warn('[GROWTH] No se encontró #panel-growth');
 }
