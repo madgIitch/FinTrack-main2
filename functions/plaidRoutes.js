@@ -375,12 +375,25 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       const weeksObj = txsByDayInWeek[monthKey] || {};
       for (const [weekKey, daysObj] of Object.entries(weeksObj)) {
         const weekRef = sumRef.collection('weeks').doc(weekKey);
+        const weekCatTotals = {};
+
         for (const [dateKey, txs] of Object.entries(daysObj)) {
           const totalExpenses = txs.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
           const totalIncomes = txs.filter(t => t.amount >= 0).reduce((s, t) => s + t.amount, 0);
           const dayRef = weekRef.collection('days').doc(dateKey);
           batch.set(dayRef, { totalExpenses, totalIncomes });
+
+          txs.forEach(tx => {
+            const key = normalizeKey(tx.personal_finance_category?.primary || tx.category || 'Otros');
+            const grp = catToGroup[key] || 'Otros';
+            const amt = tx.amount < 0 ? Math.abs(tx.amount) : 0;
+            weekCatTotals[grp] = (weekCatTotals[grp] || 0) + amt;
+          });
         }
+
+        // Guardar totales por grupo por semana en historyCategorias/{mes}/weeks/{S}/
+        const weekCatRef = catRef.collection('weeks').doc(weekKey);
+        batch.set(weekCatRef, weekCatTotals, { merge: true });
       }
     }
 

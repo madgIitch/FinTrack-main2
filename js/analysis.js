@@ -348,24 +348,29 @@ function initCharts() {
 
 
 function renderPieChartForCurrentPeriod() {
-  console.log('[ANALYSIS] PieChart: Iniciando render para periodo:', selectedPeriod);
+  console.log(`[PieChart] Iniciando render según periodo: ${selectedPeriod}`);
 
+  if (!areCategoriesReadyForPeriod()) {
+    console.warn('[PieChart] Categorías aún no disponibles para este periodo. Reintentando en 300ms...');
+    setTimeout(renderPieChartForCurrentPeriod, 300); // Reintenta más tarde
+    return;
+  }
+
+  const catMap = {};
   const now = new Date();
   const year = now.getFullYear().toString();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const prefix = `${year}-${month}`;
 
-  const relevantKeys = Array.from(catByMonth.keys())
-    .filter(k => selectedPeriod === 'year' ? k.startsWith(year) : k === prefix);
+  const monthsToInclude =
+    selectedPeriod === 'year'
+      ? Array.from(catByMonth.keys()).filter(k => k.startsWith(year))
+      : Array.from(catByMonth.keys()).filter(k => k.startsWith(prefix));
 
-  if (relevantKeys.length === 0) {
-    console.log('[PieChart] No hay claves relevantes en catByMonth:', relevantKeys);
-    return;
-  }
+  console.log('[PieChart] Meses a incluir según periodo:', monthsToInclude);
 
-  const catMap = {};
-  for (const key of relevantKeys) {
-    const cats = catByMonth.get(key);
+  for (const m of monthsToInclude) {
+    const cats = catByMonth.get(m);
     if (!cats) continue;
     for (const [k, v] of Object.entries(cats)) {
       catMap[k] = (catMap[k] || 0) + v;
@@ -374,21 +379,22 @@ function renderPieChartForCurrentPeriod() {
 
   const currentCatMapStr = JSON.stringify(catMap);
   if (currentCatMapStr === lastCatMapStr) {
-    console.log('[PieChart] Sin cambios en categorías → Render omitido');
+    console.log('[PieChart] Sin cambios en categorías. Render omitido');
     return;
   }
 
   lastCatMapStr = currentCatMapStr;
+
   const catLabels = Object.keys(catMap);
   const catData = catLabels.map(c => +catMap[c].toFixed(2));
 
   if (catLabels.length === 0) {
-    console.log('[PieChart] No hay categorías para mostrar.');
+    console.log('[PieChart] No hay categorías. No se renderiza');
     return;
   }
 
   console.log('[PieChart] Etiquetas →', catLabels);
-  console.log('[PieChart] Valores   →', catData);
+  console.log('[PieChart] Valores →', catData);
 
   const catColors = catLabels.map(l => groupColors[l] || '#999');
   const pieContainer = document.querySelector('#pieChart');
@@ -407,7 +413,20 @@ function renderPieChartForCurrentPeriod() {
     }
   });
   pieChart.render();
-  console.log('[PieChart] Renderizado OK');
+}
+
+function areCategoriesReadyForPeriod() {
+  const now = new Date();
+  const year = now.getFullYear().toString();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const prefix = `${year}-${month}`;
+
+  const monthsToCheck =
+    selectedPeriod === 'year'
+      ? Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
+      : [prefix];
+
+  return monthsToCheck.every(m => catByMonth.has(m));
 }
 
 
