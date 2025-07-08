@@ -1049,31 +1049,56 @@ function initCharts() {
     });
     pieChart.render();
 }
-function renderPieChartForCurrentPeriod() {
+async function renderPieChartForCurrentPeriod() {
     console.log(`[PieChart] Iniciando render seg\xfan periodo: ${selectedPeriod}`);
-    if (!areCategoriesReadyForPeriod()) {
-        console.warn("[PieChart] Categor\xedas a\xfan no disponibles para este periodo. Reintentando en 300ms...");
-        setTimeout(renderPieChartForCurrentPeriod, 300); // Reintenta más tarde
-        return;
-    }
-    const catMap = {};
     const now = new Date();
     const year = now.getFullYear().toString();
     const month = String(now.getMonth() + 1).padStart(2, '0');
-    const prefix = `${year}-${month}`;
-    const monthsToInclude = selectedPeriod === 'year' ? Array.from(catByMonth.keys()).filter((k)=>k.startsWith(year)) : Array.from(catByMonth.keys()).filter((k)=>k.startsWith(prefix));
-    console.log("[PieChart] Meses a incluir seg\xfan periodo:", monthsToInclude);
-    for (const m of monthsToInclude){
-        const cats = catByMonth.get(m);
-        if (!cats) continue;
-        for (const [k, v] of Object.entries(cats))catMap[k] = (catMap[k] || 0) + v;
+    const currentMonthKey = `${year}-${month}`;
+    const catMap = {};
+    if (selectedPeriod === 'year') {
+        // ── Sumar categorías mensuales ──────────────────────────────
+        const monthsToInclude = Array.from(catByMonth.keys()).filter((k)=>k.startsWith(year));
+        console.log("[PieChart] Meses a incluir (a\xf1o):", monthsToInclude);
+        for (const m of monthsToInclude){
+            const cats = catByMonth.get(m);
+            if (!cats) continue;
+            for (const [k, v] of Object.entries(cats))catMap[k] = (catMap[k] || 0) + v;
+        }
+    } else if (selectedPeriod === 'month') // ── Sumar categorías por semana ─────────────────────────────
+    for(let i = 1; i <= 5; i++){
+        const weekId = `S${i}`;
+        const weekRef = (0, _firestore.doc)(db, 'users', userUid, 'historyCategorias', currentMonthKey, 'weeks', weekId);
+        try {
+            const weekSnap = await (0, _firestore.getDoc)(weekRef);
+            if (!weekSnap.exists()) continue;
+            const data = weekSnap.data();
+            for (const [k, v] of Object.entries(data))catMap[k] = (catMap[k] || 0) + v;
+        } catch (err) {
+            console.warn(`[PieChart] Error leyendo semana ${weekId}:`, err.message);
+        }
     }
+    else if (selectedPeriod === 'week') // ── Sumar categorías por día ────────────────────────────────
+    for (const [key, _] of daysOfCurrentWeek.entries()){
+        const [mon, , weekKey, dayKey] = key.split('/');
+        const dayRef = (0, _firestore.doc)(db, 'users', userUid, 'historyCategorias', mon, 'weeks', weekKey, 'days', dayKey);
+        try {
+            const daySnap = await (0, _firestore.getDoc)(dayRef);
+            if (!daySnap.exists()) continue;
+            const data = daySnap.data();
+            for (const [k, v] of Object.entries(data))catMap[k] = (catMap[k] || 0) + v;
+        } catch (err) {
+            console.warn(`[PieChart] Error leyendo d\xeda ${dayKey} de ${weekKey}:`, err.message);
+        }
+    }
+    // ── Evitar render innecesario ─────────────────────────────────
     const currentCatMapStr = JSON.stringify(catMap);
     if (currentCatMapStr === lastCatMapStr) {
         console.log("[PieChart] Sin cambios en categor\xedas. Render omitido");
         return;
     }
     lastCatMapStr = currentCatMapStr;
+    // ── Preparar datos para el gráfico ────────────────────────────
     const catLabels = Object.keys(catMap);
     const catData = catLabels.map((c)=>+catMap[c].toFixed(2));
     if (catLabels.length === 0) {
@@ -1082,6 +1107,7 @@ function renderPieChartForCurrentPeriod() {
     }
     console.log("[PieChart] Etiquetas \u2192", catLabels);
     console.log("[PieChart] Valores \u2192", catData);
+    // ── Renderizar gráfico de pastel ──────────────────────────────
     const catColors = catLabels.map((l)=>groupColors[l] || '#999');
     const pieContainer = document.querySelector('#pieChart');
     pieContainer.innerHTML = '';
@@ -1110,18 +1136,6 @@ function renderPieChartForCurrentPeriod() {
         }
     });
     pieChart.render();
-}
-function areCategoriesReadyForPeriod() {
-    const now = new Date();
-    const year = now.getFullYear().toString();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const prefix = `${year}-${month}`;
-    const monthsToCheck = selectedPeriod === 'year' ? Array.from({
-        length: 12
-    }, (_, i)=>`${year}-${String(i + 1).padStart(2, '0')}`) : [
-        prefix
-    ];
-    return monthsToCheck.every((m)=>catByMonth.has(m));
 }
 let lastScrollTop = 0;
 const nav = document.getElementById('bottom-nav');
