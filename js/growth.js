@@ -12,9 +12,6 @@ const DB_VERSION = 1;
 const STORE_SUMMARY = 'historySummary';
 const STORE_CATEGORIAS = 'historyCategorias';
 
-let summaryDataGlobal = [];
-let categoryDataGlobal = new Map();
-
 export async function loadGrowth() {
   console.log('[GROWTH] Iniciando carga de datos para crecimiento');
 
@@ -76,13 +73,10 @@ export async function loadGrowth() {
     }
   }
 
-  summaryDataGlobal = summaryData;
-  categoryDataGlobal = categoryData;
-
-  console.log('[GROWTH] Datos cargados, generando KPIs y construyendo gráficas');
+  console.log('[GROWTH] Datos cargados, generando KPIs y gráficas');
   renderGrowthKPIs(summaryData);
-  buildGrowthChart(summaryData);
-  buildCategoryTrendChart(months, categoryData);
+  renderGrowthChart(summaryData);
+  renderCategoryTrendChart(months, categoryData);
 }
 
 function getLast12Months() {
@@ -117,7 +111,7 @@ function renderGrowthKPIs(data) {
   console.log('[GROWTH] KPIs renderizados');
 }
 
-function buildGrowthChart(data) {
+function renderGrowthChart(data) {
   const categories = data.map(e => e.month);
   const incomes = data.map(e => e.ingresos);
   const expenses = data.map(e => e.gastos);
@@ -140,13 +134,14 @@ function buildGrowthChart(data) {
   try {
     if (window.growthChart) window.growthChart.destroy();
     window.growthChart = new ApexCharts(document.querySelector('#growthChart'), options);
-    console.log('[GROWTH] growthChart construido (pendiente de render)');
+    window.growthChart.render();
+    console.log('[GROWTH] Gráfico principal renderizado');
   } catch (e) {
-    console.error('[GROWTH] Error al construir growthChart:', e);
+    console.error('[GROWTH] Error al renderizar growthChart:', e);
   }
 }
 
-function buildCategoryTrendChart(months, categoryData) {
+function renderCategoryTrendChart(months, categoryData) {
   const allGroups = new Set();
   months.forEach(m => {
     const data = categoryData.get(m);
@@ -169,8 +164,9 @@ function buildCategoryTrendChart(months, categoryData) {
   try {
     if (window.categoryTrendChart) window.categoryTrendChart.destroy();
     window.categoryTrendChart = new ApexCharts(document.querySelector('#categoryTrendChart'), options);
-    console.log('[GROWTH] categoryTrendChart construido (pendiente de render)');
+    window.categoryTrendChart.render();
+    console.log('[GROWTH] Gráfico de categorías renderizado');
   } catch (e) {
-    console.error('[GROWTH] Error al construir categoryTrendChart:', e);
+    console.error('[GROWTH] Error al renderizar categoryTrendChart:', e);
   }
 }

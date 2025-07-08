@@ -1409,8 +1409,6 @@ const DB_NAME = 'growth-cache';
 const DB_VERSION = 1;
 const STORE_SUMMARY = 'historySummary';
 const STORE_CATEGORIAS = 'historyCategorias';
-let summaryDataGlobal = [];
-let categoryDataGlobal = new Map();
 async function loadGrowth() {
     console.log('[GROWTH] Iniciando carga de datos para crecimiento');
     const months = getLast12Months();
@@ -1466,12 +1464,10 @@ async function loadGrowth() {
             categoryData.set(month, categorias || {});
         }
     }
-    summaryDataGlobal = summaryData;
-    categoryDataGlobal = categoryData;
-    console.log("[GROWTH] Datos cargados, generando KPIs y construyendo gr\xe1ficas");
+    console.log("[GROWTH] Datos cargados, generando KPIs y gr\xe1ficas");
     renderGrowthKPIs(summaryData);
-    buildGrowthChart(summaryData);
-    buildCategoryTrendChart(months, categoryData);
+    renderGrowthChart(summaryData);
+    renderCategoryTrendChart(months, categoryData);
 }
 function getLast12Months() {
     const months = [];
@@ -1501,7 +1497,7 @@ function renderGrowthKPIs(data) {
     document.getElementById('kpi-best-month').textContent = bestMonth.month || '-';
     console.log('[GROWTH] KPIs renderizados');
 }
-function buildGrowthChart(data) {
+function renderGrowthChart(data) {
     const categories = data.map((e)=>e.month);
     const incomes = data.map((e)=>e.ingresos);
     const expenses = data.map((e)=>e.gastos);
@@ -1546,12 +1542,13 @@ function buildGrowthChart(data) {
     try {
         if (window.growthChart) window.growthChart.destroy();
         window.growthChart = new ApexCharts(document.querySelector('#growthChart'), options);
-        console.log('[GROWTH] growthChart construido (pendiente de render)');
+        window.growthChart.render();
+        console.log("[GROWTH] Gr\xe1fico principal renderizado");
     } catch (e) {
-        console.error('[GROWTH] Error al construir growthChart:', e);
+        console.error('[GROWTH] Error al renderizar growthChart:', e);
     }
 }
-function buildCategoryTrendChart(months, categoryData) {
+function renderCategoryTrendChart(months, categoryData) {
     const allGroups = new Set();
     months.forEach((m)=>{
         const data = categoryData.get(m);
@@ -1581,9 +1578,10 @@ function buildCategoryTrendChart(months, categoryData) {
     try {
         if (window.categoryTrendChart) window.categoryTrendChart.destroy();
         window.categoryTrendChart = new ApexCharts(document.querySelector('#categoryTrendChart'), options);
-        console.log('[GROWTH] categoryTrendChart construido (pendiente de render)');
+        window.categoryTrendChart.render();
+        console.log("[GROWTH] Gr\xe1fico de categor\xedas renderizado");
     } catch (e) {
-        console.error('[GROWTH] Error al construir categoryTrendChart:', e);
+        console.error('[GROWTH] Error al renderizar categoryTrendChart:', e);
     }
 }
 
