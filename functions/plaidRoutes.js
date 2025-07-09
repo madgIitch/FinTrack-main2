@@ -512,6 +512,52 @@ router.post('/get_growth_history', async (req, res) => {
   }
 });
 
+// ── Obtener gastos mensuales por grupo de categorías ──────────────────────────────
+router.post('/get_category_trends', async (req, res) => {
+  console.log('[PLAIDROUTES] POST /get_category_trends body:', req.body);
+  const { userId } = req.body;
+
+  if (!userId) {
+    console.error('[PLAIDROUTES] Falta userId');
+    return res.status(400).json({ error: 'Falta userId' });
+  }
+
+  try {
+    const userRef = db.collection('users').doc(userId);
+    const catTrendsRef = userRef.collection('historyCategorias');
+
+    const snapshot = await catTrendsRef.get();
+    if (snapshot.empty) {
+      console.warn('[CATEGORY_TRENDS] No hay documentos en historyCategorias');
+      return res.json({ categoryTrends: {} });
+    }
+
+    const categoryTrends = {};
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const month = doc.id;
+
+      // Excluir campos no numéricos (como subcolecciones)
+      const monthlyData = {};
+      for (const [group, value] of Object.entries(data)) {
+        if (typeof value === 'number') {
+          monthlyData[group] = value;
+        }
+      }
+
+      categoryTrends[month] = monthlyData;
+    }
+
+    console.log('[CATEGORY_TRENDS] Datos generados correctamente');
+    return res.json({ categoryTrends });
+
+  } catch (err) {
+    console.error('[CATEGORY_TRENDS] Error al obtener datos:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 
 // ── Guardar Push Subscription ──────────────────────────────────────────────────
 router.post('/save_push_subscription', async (req, res) => {

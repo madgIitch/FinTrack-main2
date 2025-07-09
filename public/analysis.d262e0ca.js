@@ -1442,12 +1442,13 @@ function loadGeneral(userId, selectedPeriod) {
 }
 
 },{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"4z1LS":[function(require,module,exports,__globalThis) {
-// growth.js – Pestaña de Crecimiento (versión en tiempo real con Firestore + Auth)
+// growth.js – Pestaña de Crecimiento (con carga de categorías por endpoint separado)
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "loadGrowth", ()=>loadGrowth);
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
+var _analysisJs = require("./analysis.js");
 console.log("[GROWTH] M\xf3dulo growth.js cargado");
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 async function loadGrowth() {
@@ -1463,7 +1464,8 @@ async function loadGrowth() {
     try {
         const userId = await getCurrentUserId();
         if (!userId) throw new Error('Usuario no autenticado');
-        const res = await fetch(`${apiUrl}/plaid/get_growth_history`, {
+        // ───── Obtener datos de resumen de ingresos/gastos ─────
+        const summaryRes = await fetch(`${apiUrl}/plaid/get_growth_history`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1472,25 +1474,43 @@ async function loadGrowth() {
                 userId
             })
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const { summary, categories } = await res.json();
+        if (!summaryRes.ok) throw new Error(`HTTP ${summaryRes.status} en get_growth_history`);
+        const { summary } = await summaryRes.json();
         for (const month of months)if (summary[month]) {
             const ingresos = summary[month].totalIncomes || 0;
             const gastos = summary[month].totalExpenses || 0;
-            const grupos = categories?.[month] || {};
             summaryData.push({
                 month,
                 ingresos,
                 gastos
             });
-            categoryData.set(month, grupos);
             console.log(`[GROWTH] \u{2705} Datos cargados para ${month}`);
         } else console.log(`[GROWTH] \u{23ED}\u{FE0F} No hay datos para ${month}, se omite`);
         if (summaryData.length === 0) throw new Error('No hay meses con datos disponibles');
-        console.log("[GROWTH] \u2705 Datos finalizados, generando KPIs y gr\xe1ficas...");
-        renderGrowthKPIs(summaryData);
-        renderGrowthChart(summaryData);
-        renderCategoryTrendChart(summaryData.map((d)=>d.month), categoryData);
+        // ───── Obtener datos de categorías agregadas ─────
+        const catRes = await fetch(`${apiUrl}/plaid/get_category_trends`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId
+            })
+        });
+        if (!catRes.ok) throw new Error(`HTTP ${catRes.status} en get_category_trends`);
+        const { categoryTrends } = await catRes.json();
+        console.log("[GROWTH] \uD83D\uDD0E categoryTrends completos:", categoryTrends);
+        for (const month of months){
+            console.log(`[GROWTH] \xbfHay datos para ${month}?`, categoryTrends[month]);
+            if (categoryTrends[month]) categoryData.set(month, categoryTrends[month]);
+        }
+        console.log("[GROWTH] \u2705 Datos finalizados, esperando visibilidad de pesta\xf1a para renderizar KPIs y gr\xe1ficas...");
+        (0, _analysisJs.whenVisible)(document.getElementById('panel-growth'), ()=>{
+            console.log("[GROWTH] \uD83D\uDC40 Pesta\xf1a visible, renderizando KPIs y gr\xe1ficas");
+            renderGrowthKPIs(summaryData);
+            renderGrowthChart(summaryData);
+            renderCategoryTrendChart(summaryData.map((d)=>d.month), categoryData);
+        });
     } catch (e) {
         console.error("[GROWTH] \u274C Error al obtener datos de crecimiento:", e.message);
     }
@@ -1542,7 +1562,10 @@ function renderGrowthChart(data) {
     const options = {
         chart: {
             type: 'line',
-            height: 300
+            height: 300,
+            toolbar: {
+                show: false
+            }
         },
         series: [
             {
@@ -1560,6 +1583,11 @@ function renderGrowthChart(data) {
         ],
         xaxis: {
             categories
+        },
+        yaxis: {
+            labels: {
+                formatter: (value)=>value.toFixed(2)
+            }
         },
         stroke: {
             curve: 'smooth'
@@ -1591,6 +1619,9 @@ function renderGrowthChart(data) {
     }
 }
 function renderCategoryTrendChart(months, categoryData) {
+    console.log("[GROWTH] \uD83D\uDD0D Iniciando renderCategoryTrendChart...");
+    console.log("[GROWTH] \uD83D\uDCC6 Meses a mostrar:", months);
+    console.log("[GROWTH] \uD83D\uDCCA Datos de categor\xeda:", categoryData);
     const allGroups = new Set();
     months.forEach((m)=>{
         const data = categoryData.get(m);
@@ -1600,38 +1631,53 @@ function renderCategoryTrendChart(months, categoryData) {
             name: group,
             data: months.map((m)=>categoryData.get(m)?.[group] || 0)
         }));
+    console.log("[GROWTH] \uD83E\uDDE9 Series generadas para gr\xe1fico:", series);
     const options = {
         chart: {
             type: 'area',
             height: 300,
-            stacked: true
+            stacked: true,
+            toolbar: {
+                show: false
+            }
         },
         series,
         xaxis: {
             categories: months
+        },
+        yaxis: {
+            labels: {
+                formatter: (val)=>val.toFixed(2)
+            }
         },
         dataLabels: {
             enabled: false
         },
         stroke: {
             curve: 'smooth'
-        }
+        },
+        colors: undefined
     };
     try {
         const el = document.querySelector('#categoryTrendChart');
-        if (!el) return console.warn("[GROWTH] \u26A0\uFE0F categoryTrendChart container NO ENCONTRADO");
+        if (!el) {
+            console.warn("[GROWTH] \u26A0\uFE0F categoryTrendChart container NO ENCONTRADO");
+            return;
+        }
+        console.log("[GROWTH] \uD83D\uDCE6 Contenedor encontrado:", el);
+        console.log("[GROWTH] \uD83D\uDCCF Dimensiones del contenedor:", el.getBoundingClientRect());
         if (window.categoryTrendChart) {
             console.log("[GROWTH] \uD83D\uDD01 Destruyendo gr\xe1fico de categor\xedas anterior");
             window.categoryTrendChart.destroy();
         }
         window.categoryTrendChart = new ApexCharts(el, options);
         window.categoryTrendChart.render();
-        console.log("[GROWTH] \uD83D\uDCCA categoryTrendChart renderizado correctamente");
+        console.log("[GROWTH] \u2705 categoryTrendChart renderizado correctamente");
     } catch (e) {
         console.error("[GROWTH] \u274C Error al renderizar categoryTrendChart:", e);
     }
 }
 
-},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
+},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","./analysis.js":"l1WLd","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
 
 //# sourceMappingURL=analysis.d262e0ca.js.map

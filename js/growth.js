@@ -1,7 +1,8 @@
-// growth.js – Pestaña de Crecimiento (versión en tiempo real con Firestore + Auth)
+// growth.js – Pestaña de Crecimiento (con carga de categorías por endpoint separado)
 
 import { auth } from './firebase.js';
 import { onAuthStateChanged } from 'firebase/auth';
+import { whenVisible } from './analysis.js';
 
 console.log('[GROWTH] Módulo growth.js cargado');
 
@@ -26,23 +27,21 @@ export async function loadGrowth() {
     const userId = await getCurrentUserId();
     if (!userId) throw new Error('Usuario no autenticado');
 
-    const res = await fetch(`${apiUrl}/plaid/get_growth_history`, {
+    // ───── Obtener datos de resumen de ingresos/gastos ─────
+    const summaryRes = await fetch(`${apiUrl}/plaid/get_growth_history`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId })
     });
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const { summary, categories } = await res.json();
+    if (!summaryRes.ok) throw new Error(`HTTP ${summaryRes.status} en get_growth_history`);
+    const { summary } = await summaryRes.json();
 
     for (const month of months) {
       if (summary[month]) {
         const ingresos = summary[month].totalIncomes || 0;
         const gastos = summary[month].totalExpenses || 0;
-        const grupos = categories?.[month] || {};
-
         summaryData.push({ month, ingresos, gastos });
-        categoryData.set(month, grupos);
         console.log(`[GROWTH] ✅ Datos cargados para ${month}`);
       } else {
         console.log(`[GROWTH] ⏭️ No hay datos para ${month}, se omite`);
@@ -51,10 +50,32 @@ export async function loadGrowth() {
 
     if (summaryData.length === 0) throw new Error('No hay meses con datos disponibles');
 
-    console.log('[GROWTH] ✅ Datos finalizados, generando KPIs y gráficas...');
-    renderGrowthKPIs(summaryData);
-    renderGrowthChart(summaryData);
-    renderCategoryTrendChart(summaryData.map(d => d.month), categoryData);
+    // ───── Obtener datos de categorías agregadas ─────
+    const catRes = await fetch(`${apiUrl}/plaid/get_category_trends`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId })
+    });
+
+    if (!catRes.ok) throw new Error(`HTTP ${catRes.status} en get_category_trends`);
+    const { categoryTrends } = await catRes.json();
+    console.log('[GROWTH] 🔎 categoryTrends completos:', categoryTrends);
+
+    for (const month of months) {
+     console.log(`[GROWTH] ¿Hay datos para ${month}?`, categoryTrends[month]);
+      if (categoryTrends[month]) {
+        categoryData.set(month, categoryTrends[month]);
+      }
+    }
+
+    console.log('[GROWTH] ✅ Datos finalizados, esperando visibilidad de pestaña para renderizar KPIs y gráficas...');
+
+    whenVisible(document.getElementById('panel-growth'), () => {
+      console.log('[GROWTH] 👀 Pestaña visible, renderizando KPIs y gráficas');
+      renderGrowthKPIs(summaryData);
+      renderGrowthChart(summaryData);
+      renderCategoryTrendChart(summaryData.map(d => d.month), categoryData);
+    });
 
   } catch (e) {
     console.error('[GROWTH] ❌ Error al obtener datos de crecimiento:', e.message);
@@ -115,13 +136,22 @@ function renderGrowthChart(data) {
   const savings = data.map(e => e.ingresos - e.gastos);
 
   const options = {
-    chart: { type: 'line', height: 300 },
+    chart: {
+      type: 'line',
+      height: 300,
+      toolbar: { show: false }
+    },
     series: [
       { name: 'Ingresos', data: incomes },
       { name: 'Gastos', data: expenses },
       { name: 'Ahorro', data: savings }
     ],
     xaxis: { categories },
+    yaxis: {
+      labels: {
+        formatter: value => value.toFixed(2)
+      }
+    },
     stroke: { curve: 'smooth' },
     markers: { size: 4 },
     dataLabels: { enabled: false },
@@ -146,6 +176,10 @@ function renderGrowthChart(data) {
 }
 
 function renderCategoryTrendChart(months, categoryData) {
+  console.log('[GROWTH] 🔍 Iniciando renderCategoryTrendChart...');
+  console.log('[GROWTH] 📆 Meses a mostrar:', months);
+  console.log('[GROWTH] 📊 Datos de categoría:', categoryData);
+
   const allGroups = new Set();
   months.forEach(m => {
     const data = categoryData.get(m);
@@ -157,17 +191,36 @@ function renderCategoryTrendChart(months, categoryData) {
     data: months.map(m => categoryData.get(m)?.[group] || 0)
   }));
 
+  console.log('[GROWTH] 🧩 Series generadas para gráfico:', series);
+
   const options = {
-    chart: { type: 'area', height: 300, stacked: true },
+    chart: {
+      type: 'area',
+      height: 300,
+      stacked: true,
+      toolbar: { show: false }
+    },
     series,
     xaxis: { categories: months },
+    yaxis: {
+      labels: {
+        formatter: val => val.toFixed(2)
+      }
+    },
     dataLabels: { enabled: false },
-    stroke: { curve: 'smooth' }
+    stroke: { curve: 'smooth' },
+    colors: undefined
   };
 
   try {
     const el = document.querySelector('#categoryTrendChart');
-    if (!el) return console.warn('[GROWTH] ⚠️ categoryTrendChart container NO ENCONTRADO');
+    if (!el) {
+      console.warn('[GROWTH] ⚠️ categoryTrendChart container NO ENCONTRADO');
+      return;
+    }
+
+    console.log('[GROWTH] 📦 Contenedor encontrado:', el);
+    console.log('[GROWTH] 📏 Dimensiones del contenedor:', el.getBoundingClientRect());
 
     if (window.categoryTrendChart) {
       console.log('[GROWTH] 🔁 Destruyendo gráfico de categorías anterior');
@@ -176,7 +229,7 @@ function renderCategoryTrendChart(months, categoryData) {
 
     window.categoryTrendChart = new ApexCharts(el, options);
     window.categoryTrendChart.render();
-    console.log('[GROWTH] 📊 categoryTrendChart renderizado correctamente');
+    console.log('[GROWTH] ✅ categoryTrendChart renderizado correctamente');
   } catch (e) {
     console.error('[GROWTH] ❌ Error al renderizar categoryTrendChart:', e);
   }
