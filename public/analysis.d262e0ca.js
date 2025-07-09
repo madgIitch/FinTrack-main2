@@ -727,16 +727,13 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 case 'overview':
                     console.log("[UI] \u2192 Mostrando pesta\xf1a General");
                     destroyGrowthCharts();
-                    const panel1 = document.getElementById('panel-overview');
-                    if (panel1) {
-                        initCharts();
-                        renderAnalysis();
-                    }
+                    (0, _generalJs.initCharts)();
+                    (0, _generalJs.renderAnalysis)();
                     break;
                 case 'growth':
                     console.log("[UI] \u2192 Mostrando pesta\xf1a Crecimiento");
                     destroyGeneralCharts();
-                    whenVisible(panel1, async ()=>{
+                    whenVisible(panel, async ()=>{
                         console.log("[Observer] panel-growth visible \u2192 ejecutando loadGrowth");
                         try {
                             await (0, _growthJs.loadGrowth)();
@@ -791,6 +788,8 @@ var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 // ───── Utilidad: Ejecutar cuando visible ─────
 parcelHelpers.export(exports, "whenVisible", ()=>whenVisible);
+parcelHelpers.export(exports, "renderAnalysis", ()=>renderAnalysis);
+parcelHelpers.export(exports, "initCharts", ()=>initCharts);
 parcelHelpers.export(exports, "loadGeneral", ()=>loadGeneral);
 var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
@@ -1446,96 +1445,67 @@ function loadGeneral(userId, selectedPeriod) {
 }
 
 },{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"4z1LS":[function(require,module,exports,__globalThis) {
-// growth.js – Pestaña de Crecimiento
+// growth.js – Pestaña de Crecimiento (versión con endpoint backend)
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
-parcelHelpers.export(exports, "whenVisible", ()=>whenVisible);
 parcelHelpers.export(exports, "loadGrowth", ()=>loadGrowth);
-var _firestore = require("firebase/firestore");
 var _idb = require("idb");
-var _firebaseJs = require("./firebase.js");
+var $352bce0e090dc351$import_meta = Object.assign(Object.create(null), {
+    url: "file:///js/growth.js"
+});
 console.log("[GROWTH] M\xf3dulo growth.js cargado");
-const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
 const DB_NAME = 'growth-cache';
 const DB_VERSION = 1;
 const STORE_SUMMARY = 'historySummary';
 const STORE_CATEGORIAS = 'historyCategorias';
-function whenVisible(el, callback) {
-    if (!el) {
-        console.warn('[Observer] Elemento no encontrado');
-        return;
-    }
-    console.log('[Observer] Observando visibilidad de', el.id);
-    const observer = new IntersectionObserver((entries, obs)=>{
-        entries.forEach((entry)=>{
-            const isVisible = entry.isIntersecting && getComputedStyle(el).display !== 'none' && el.classList.contains('active');
-            console.log(`[Observer] entry para ${el.id} \u{2192} isIntersecting=${entry.isIntersecting}, display=${getComputedStyle(el).display}, active=${el.classList.contains('active')}`);
-            if (isVisible) {
-                console.log(`[Observer] ${el.id} visible y activo \u{2192} ejecutando callback`);
-                callback();
-                obs.disconnect();
-            }
-        });
-    });
-    observer.observe(el);
-}
+const API_URL = $352bce0e090dc351$import_meta.env.VITE_API_URL || 'https://your-backend-url.com';
 async function loadGrowth() {
     console.log("[GROWTH] \u2699\uFE0F Iniciando carga de datos para crecimiento");
+    const isOnline = navigator.onLine;
     const months = getLast12Months();
     const summaryData = [];
     const categoryData = new Map();
-    const isOnline = navigator.onLine;
     const dbLocal = await (0, _idb.openDB)(DB_NAME, DB_VERSION, {
         upgrade (db) {
             if (!db.objectStoreNames.contains(STORE_SUMMARY)) db.createObjectStore(STORE_SUMMARY);
             if (!db.objectStoreNames.contains(STORE_CATEGORIAS)) db.createObjectStore(STORE_CATEGORIAS);
         }
     });
-    for (const month of months){
-        console.log(`[GROWTH] \u{1F504} Procesando mes ${month} (${isOnline ? 'online' : 'offline'})`);
-        if (isOnline) try {
-            const docRef = (0, _firestore.doc)(db, `historySummary/${month}`);
-            const snap = await (0, _firestore.getDocs)((0, _firestore.collection)(docRef, 'weeks'));
-            let ingresos = 0;
-            let gastos = 0;
-            snap.forEach((doc)=>{
-                ingresos += doc.data().totalIncomes || 0;
-                gastos += doc.data().totalExpenses || 0;
-            });
+    if (isOnline) try {
+        const userId = localStorage.getItem('userUid');
+        const res = await fetch(`${API_URL}/get_growth_history`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId
+            })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const { summary, categories } = await res.json();
+        for (const month of months){
+            const ingresos = summary[month]?.totalIncomes || 0;
+            const gastos = summary[month]?.totalExpenses || 0;
+            const grupos = categories[month] || {};
             summaryData.push({
                 month,
                 ingresos,
                 gastos
             });
+            categoryData.set(month, grupos);
             await dbLocal.put(STORE_SUMMARY, {
                 ingresos,
                 gastos
             }, month);
-            const catDoc = (0, _firestore.doc)(db, `historyCategorias/${month}`);
-            const catSnap = await (0, _firestore.getDocs)((0, _firestore.collection)(catDoc, 'weeks'));
-            const groupTotals = {};
-            catSnap.forEach((semana)=>{
-                const datos = semana.data().totals || {};
-                for (const [group, value] of Object.entries(datos))groupTotals[group] = (groupTotals[group] || 0) + value;
-            });
-            categoryData.set(month, groupTotals);
-            await dbLocal.put(STORE_CATEGORIAS, groupTotals, month);
-            console.log(`[GROWTH] \u{2705} Datos online guardados en cache para ${month}`);
-        } catch (e) {
-            console.error("[GROWTH] \u274C Error durante fetch online para", month, e);
+            await dbLocal.put(STORE_CATEGORIAS, grupos, month);
+            console.log(`[GROWTH] \u{2705} Cache actualizada para ${month}`);
         }
-        else {
-            const resumen = await dbLocal.get(STORE_SUMMARY, month);
-            const categorias = await dbLocal.get(STORE_CATEGORIAS, month);
-            summaryData.push({
-                month,
-                ingresos: resumen?.ingresos || 0,
-                gastos: resumen?.gastos || 0
-            });
-            categoryData.set(month, categorias || {});
-            console.log(`[GROWTH] \u{2705} Datos offline obtenidos de cache para ${month}`);
-        }
+    } catch (e) {
+        console.error("[GROWTH] \u274C Error durante fetch desde backend:", e);
+        await cargarDesdeIndexedDB(months, dbLocal, summaryData, categoryData);
     }
+    else await cargarDesdeIndexedDB(months, dbLocal, summaryData, categoryData);
     console.log("[GROWTH] \u2705 Datos finalizados, generando KPIs y gr\xe1ficas...");
     renderGrowthKPIs(summaryData);
     renderGrowthChart(summaryData);
@@ -1549,6 +1519,19 @@ function getLast12Months() {
         months.push(date.toISOString().slice(0, 7));
     }
     return months;
+}
+async function cargarDesdeIndexedDB(months, dbLocal, summaryData, categoryData) {
+    for (const month of months){
+        const resumen = await dbLocal.get(STORE_SUMMARY, month);
+        const categorias = await dbLocal.get(STORE_CATEGORIAS, month);
+        summaryData.push({
+            month,
+            ingresos: resumen?.ingresos || 0,
+            gastos: resumen?.gastos || 0
+        });
+        categoryData.set(month, categorias || {});
+        console.log(`[GROWTH] \u{2705} Datos offline obtenidos para ${month}`);
+    }
 }
 function renderGrowthKPIs(data) {
     const len = data.length;
@@ -1667,7 +1650,7 @@ function renderCategoryTrendChart(months, categoryData) {
     }
 }
 
-},{"firebase/firestore":"3RBs1","idb":"258QC","./firebase.js":"24zHi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"258QC":[function(require,module,exports,__globalThis) {
+},{"idb":"258QC","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"258QC":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "deleteDB", ()=>deleteDB);

@@ -1,52 +1,23 @@
-// growth.js – Pestaña de Crecimiento
+// growth.js – Pestaña de Crecimiento (versión con endpoint backend)
 
-import { getFirestore, collection, getDocs, doc } from 'firebase/firestore';
 import { openDB } from 'idb';
-import { app } from './firebase.js';
 
 console.log('[GROWTH] Módulo growth.js cargado');
 
-const db = getFirestore(app);
 const DB_NAME = 'growth-cache';
 const DB_VERSION = 1;
 const STORE_SUMMARY = 'historySummary';
 const STORE_CATEGORIAS = 'historyCategorias';
-
-export function whenVisible(el, callback) {
-  if (!el) {
-    console.warn('[Observer] Elemento no encontrado');
-    return;
-  }
-
-  console.log('[Observer] Observando visibilidad de', el.id);
-
-  const observer = new IntersectionObserver((entries, obs) => {
-    entries.forEach(entry => {
-      const isVisible = entry.isIntersecting && getComputedStyle(el).display !== 'none' && el.classList.contains('active');
-
-      console.log(`[Observer] entry para ${el.id} → isIntersecting=${entry.isIntersecting}, display=${getComputedStyle(el).display}, active=${el.classList.contains('active')}`);
-
-      if (isVisible) {
-        console.log(`[Observer] ${el.id} visible y activo → ejecutando callback`);
-        callback();
-        obs.disconnect();
-      }
-    });
-  });
-
-  observer.observe(el);
-}
-
-
+const API_URL = import.meta.env.VITE_API_URL || 'https://your-backend-url.com';
 
 export async function loadGrowth() {
   console.log('[GROWTH] ⚙️ Iniciando carga de datos para crecimiento');
 
+  const isOnline = navigator.onLine;
   const months = getLast12Months();
   const summaryData = [];
   const categoryData = new Map();
 
-  const isOnline = navigator.onLine;
   const dbLocal = await openDB(DB_NAME, DB_VERSION, {
     upgrade(db) {
       if (!db.objectStoreNames.contains(STORE_SUMMARY)) {
@@ -58,48 +29,37 @@ export async function loadGrowth() {
     }
   });
 
-  for (const month of months) {
-    console.log(`[GROWTH] 🔄 Procesando mes ${month} (${isOnline ? 'online' : 'offline'})`);
-    if (isOnline) {
-      try {
-        const docRef = doc(db, `historySummary/${month}`);
-        const snap = await getDocs(collection(docRef, 'weeks'));
+  if (isOnline) {
+    try {
+      const userId = localStorage.getItem('userUid');
+      const res = await fetch(`${API_URL}/get_growth_history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      });
 
-        let ingresos = 0;
-        let gastos = 0;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-        snap.forEach(doc => {
-          ingresos += doc.data().totalIncomes || 0;
-          gastos += doc.data().totalExpenses || 0;
-        });
+      const { summary, categories } = await res.json();
+
+      for (const month of months) {
+        const ingresos = summary[month]?.totalIncomes || 0;
+        const gastos = summary[month]?.totalExpenses || 0;
+        const grupos = categories[month] || {};
 
         summaryData.push({ month, ingresos, gastos });
+        categoryData.set(month, grupos);
+
         await dbLocal.put(STORE_SUMMARY, { ingresos, gastos }, month);
-
-        const catDoc = doc(db, `historyCategorias/${month}`);
-        const catSnap = await getDocs(collection(catDoc, 'weeks'));
-        const groupTotals = {};
-
-        catSnap.forEach(semana => {
-          const datos = semana.data().totals || {};
-          for (const [group, value] of Object.entries(datos)) {
-            groupTotals[group] = (groupTotals[group] || 0) + value;
-          }
-        });
-
-        categoryData.set(month, groupTotals);
-        await dbLocal.put(STORE_CATEGORIAS, groupTotals, month);
-        console.log(`[GROWTH] ✅ Datos online guardados en cache para ${month}`);
-      } catch (e) {
-        console.error('[GROWTH] ❌ Error durante fetch online para', month, e);
+        await dbLocal.put(STORE_CATEGORIAS, grupos, month);
+        console.log(`[GROWTH] ✅ Cache actualizada para ${month}`);
       }
-    } else {
-      const resumen = await dbLocal.get(STORE_SUMMARY, month);
-      const categorias = await dbLocal.get(STORE_CATEGORIAS, month);
-      summaryData.push({ month, ingresos: resumen?.ingresos || 0, gastos: resumen?.gastos || 0 });
-      categoryData.set(month, categorias || {});
-      console.log(`[GROWTH] ✅ Datos offline obtenidos de cache para ${month}`);
+    } catch (e) {
+      console.error('[GROWTH] ❌ Error durante fetch desde backend:', e);
+      await cargarDesdeIndexedDB(months, dbLocal, summaryData, categoryData);
     }
+  } else {
+    await cargarDesdeIndexedDB(months, dbLocal, summaryData, categoryData);
   }
 
   console.log('[GROWTH] ✅ Datos finalizados, generando KPIs y gráficas...');
@@ -107,7 +67,6 @@ export async function loadGrowth() {
   renderGrowthChart(summaryData);
   renderCategoryTrendChart(months, categoryData);
 }
-
 
 function getLast12Months() {
   const months = [];
@@ -117,6 +76,16 @@ function getLast12Months() {
     months.push(date.toISOString().slice(0, 7));
   }
   return months;
+}
+
+async function cargarDesdeIndexedDB(months, dbLocal, summaryData, categoryData) {
+  for (const month of months) {
+    const resumen = await dbLocal.get(STORE_SUMMARY, month);
+    const categorias = await dbLocal.get(STORE_CATEGORIAS, month);
+    summaryData.push({ month, ingresos: resumen?.ingresos || 0, gastos: resumen?.gastos || 0 });
+    categoryData.set(month, categorias || {});
+    console.log(`[GROWTH] ✅ Datos offline obtenidos para ${month}`);
+  }
 }
 
 function renderGrowthKPIs(data) {
@@ -178,7 +147,6 @@ function renderGrowthChart(data) {
   }
 }
 
-
 function renderCategoryTrendChart(months, categoryData) {
   const allGroups = new Set();
   months.forEach(m => {
@@ -215,4 +183,3 @@ function renderCategoryTrendChart(months, categoryData) {
     console.error('[GROWTH] ❌ Error al renderizar categoryTrendChart:', e);
   }
 }
-

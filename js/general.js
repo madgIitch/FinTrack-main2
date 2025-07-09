@@ -236,7 +236,7 @@ function subscribeToMonth(mon, userId) {
 
 
 
-function renderAnalysis() {
+export function renderAnalysis() {
   console.log('[ANALYSIS] Renderizando análisis...');
 
   if ((selectedPeriod === 'month' || selectedPeriod === 'week') && daysOfCurrentWeek.size === 0) {
@@ -406,7 +406,7 @@ function arraysEqual(a, b) {
   return true;
 }
 
-function initCharts() {
+export function initCharts() {
   console.log('[ANALYSIS] Inicializando gráficos');
   trendChart = new ApexCharts(document.querySelector('#trendChart'), {
     chart: { type: 'line', height: 240, toolbar: { show: false } },

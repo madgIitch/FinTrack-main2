@@ -1,6 +1,6 @@
 import { auth, app } from './firebase.js';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { loadGeneral } from './general.js';
+import { loadGeneral, initCharts, renderAnalysis } from './general.js';
 import { loadGrowth } from './growth.js';
 
 let userUid = null;
@@ -34,7 +34,6 @@ export function whenVisible(el, callback) {
   observer.observe(el);
 }
 
-
 // ───── Inicio DOM ─────
 document.addEventListener('DOMContentLoaded', () => {
   const sidebar = document.getElementById('sidebar');
@@ -59,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', async () => {
       const selected = btn.dataset.filter;
       const panel = document.getElementById(`panel-${selected}`);
+
       console.log(`[UI] Click en pestaña: ${selected}`);
 
       if (!panel) {
@@ -79,15 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'overview':
           console.log('[UI] → Mostrando pestaña General');
           destroyGrowthCharts();
-
-          const panel = document.getElementById('panel-overview');
-          if (panel) {
-            initCharts();
-            renderAnalysis();
-          }
-
+          initCharts();
+          renderAnalysis();
           break;
-
 
         case 'growth':
           console.log('[UI] → Mostrando pestaña Crecimiento');

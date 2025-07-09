@@ -181,3 +181,9 @@
   margin-top: 8px;
   max-width: 260px;
 }
+
+
+#growthChart, #categoryTrendChart {
+  min-height: 280px;
+  height: 100%;
+}

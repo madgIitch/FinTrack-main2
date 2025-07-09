@@ -478,6 +478,44 @@ router.post('/sync_history_limits_and_store', async (req, res) => {
 });
 
 
+// ── Obtener historial mensual para pestaña Crecimiento ─────────────────────────
+router.post('/get_growth_history', async (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'Falta userId' });
+
+  try {
+    const historyRef = db.collection('users').doc(userId).collection('historySummary');
+    const snapshot = await historyRef.get();
+
+    if (snapshot.empty) {
+      console.warn('[GROWTH] No hay documentos en historySummary');
+      return res.json({ history: [] });
+    }
+
+    const history = [];
+
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      history.push({
+        month: doc.id,
+        totalExpenses: data.totalExpenses || 0,
+        totalIncomes: data.totalIncomes || 0,
+        updatedAt: data.updatedAt?.toDate().toISOString() || null
+      });
+    });
+
+    // Orden cronológico ascendente
+    history.sort((a, b) => a.month.localeCompare(b.month));
+
+    return res.json({ history });
+  } catch (err) {
+    console.error('[GROWTH] get_growth_history error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
+
 // ── Guardar Push Subscription ──────────────────────────────────────────────────
 router.post('/save_push_subscription', async (req, res) => {
   console.log('[PLAIDROUTES] POST /save_push_subscription body:', req.body);

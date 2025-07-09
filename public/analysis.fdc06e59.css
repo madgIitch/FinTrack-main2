@@ -180,4 +180,9 @@
   max-width: 260px;
   margin-top: 8px;
 }
+
+#growthChart, #categoryTrendChart {
+  height: 100%;
+  min-height: 280px;
+}
 /*# sourceMappingURL=analysis.fdc06e59.css.map */
