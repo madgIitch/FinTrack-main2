@@ -75,6 +75,8 @@ export async function loadGrowth() {
       renderGrowthKPIs(summaryData);
       renderGrowthChart(summaryData);
       renderCategoryTrendChart(summaryData.map(d => d.month), categoryData);
+      renderCategoryHeatmap(months, categoryData);
+
     });
 
   } catch (e) {
@@ -233,4 +235,83 @@ function renderCategoryTrendChart(months, categoryData) {
   } catch (e) {
     console.error('[GROWTH] ❌ Error al renderizar categoryTrendChart:', e);
   }
+}
+
+function renderCategoryHeatmap(months, categoryData) {
+  console.log('[GROWTH] 🟡 Generando heatmap por categoría...');
+
+  // ─── Paso 1: Detectar todos los grupos únicos ────────────────
+  const allGroups = new Set();
+  months.forEach(month => {
+    const data = categoryData.get(month);
+    if (data && typeof data === 'object') {
+      Object.keys(data).forEach(group => allGroups.add(group));
+    }
+  });
+
+  // ─── Paso 2: Construir y limpiar series ──────────────────────
+  const rawSeries = Array.from(allGroups).map(group => {
+    const data = months.map(month => {
+      const raw = categoryData.get(month)?.[group];
+      const value = typeof raw === 'number' && isFinite(raw) ? raw : 0;
+      return { x: month, y: parseFloat(value.toFixed(2)) };
+    });
+    return { name: group, data };
+  });
+
+  // ─── Paso 3: Filtrar series inválidas ────────────────────────
+  const series = rawSeries.filter(
+    s => s && Array.isArray(s.data) && s.data.length === months.length
+  );
+
+  if (!series.length) {
+    console.warn('[GROWTH] ❌ No hay series válidas para renderizar el heatmap');
+    return;
+  }
+
+  console.log('[GROWTH] 🔬 Series finales para heatmap:', series);
+
+  // ─── Paso 4: Configuración del gráfico ───────────────────────
+  const options = {
+    chart: {
+      height: 350,
+      type: 'heatmap',
+      toolbar: { show: false }
+    },
+    plotOptions: {
+      heatmap: {
+        shadeIntensity: 0.5,
+        colorScale: {
+          ranges: [
+            { from: 0, to: 100, color: '#DCE775' },
+            { from: 101, to: 500, color: '#FFF176' },
+            { from: 501, to: 1000, color: '#FFB74D' },
+            { from: 1001, to: Infinity, color: '#F44336' }
+          ]
+        }
+      }
+    },
+    dataLabels: { enabled: false },
+    xaxis: {
+      type: 'category',
+      categories: months
+    },
+    series // 👈 Muy importante: ahora sí se inyecta la `series`
+  };
+
+  // ─── Paso 5: Renderizar en el DOM ────────────────────────────
+  const el = document.querySelector('#categoryHeatmap');
+  if (!el) {
+    console.warn('[GROWTH] ⚠️ Contenedor #categoryHeatmap no encontrado');
+    return;
+  }
+
+  if (window.categoryHeatmap && typeof window.categoryHeatmap.destroy === 'function') {
+    console.log('[GROWTH] 🔁 Destruyendo gráfico de heatmap anterior');
+    window.categoryHeatmap.destroy();
+  }
+
+  window.categoryHeatmap = new ApexCharts(el, options);
+  window.categoryHeatmap.render();
+  console.log('[GROWTH] ✅ Heatmap renderizado correctamente');
 }

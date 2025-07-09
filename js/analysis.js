@@ -141,6 +141,8 @@ function destroyGeneralCharts() {
 function destroyGrowthCharts() {
   destroyChart(window.growthChart, 'growthChart');
   destroyChart(window.categoryTrendChart, 'categoryTrendChart');
+  destroyChart(window.categoryHeatmap, 'categoryHeatmap');  // ✅ añade esto
   window.growthChart = null;
   window.categoryTrendChart = null;
+  window.categoryHeatmap = null;
 }
