@@ -2,6 +2,7 @@ import {auth, app } from './firebase.js';
 import { getFirestore, collection, onSnapshot, doc } from 'firebase/firestore';
 import { getDoc, doc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
+import { whenVisible } from './analysis.js';
 
 
 console.log('[ANALYSIS] Archivo analysis.js cargado');
