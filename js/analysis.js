@@ -86,16 +86,13 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'growth':
           console.log('[UI] → Mostrando pestaña Crecimiento');
           destroyGeneralCharts();
-
-          whenVisible(panel, async () => {
-            console.log('[Observer] panel-growth visible → ejecutando loadGrowth');
-            try {
-              await loadGrowth();
-            } catch (e) {
-              console.error('[Observer] Error al cargar crecimiento:', e);
-            }
-          });
+          try {
+            await loadGrowth();
+          } catch (e) {
+            console.error('[GROWTH] Error al cargar crecimiento:', e);
+          }
           break;
+
 
         case 'compare':
           console.log('[UI] → Mostrando pestaña Comparación (sin lógica aún)');

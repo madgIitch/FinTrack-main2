@@ -489,31 +489,28 @@ router.post('/get_growth_history', async (req, res) => {
 
     if (snapshot.empty) {
       console.warn('[GROWTH] No hay documentos en historySummary');
-      return res.json({ history: [] });
+      return res.json({ summary: {}, categories: {} });
     }
 
-    const history = [];
+    const summary = {};
+    // De momento categorías vacías
+    const categories = {};
 
     snapshot.forEach(doc => {
       const data = doc.data();
-      history.push({
-        month: doc.id,
+      summary[doc.id] = {
         totalExpenses: data.totalExpenses || 0,
         totalIncomes: data.totalIncomes || 0,
         updatedAt: data.updatedAt?.toDate().toISOString() || null
-      });
+      };
     });
 
-    // Orden cronológico ascendente
-    history.sort((a, b) => a.month.localeCompare(b.month));
-
-    return res.json({ history });
+    return res.json({ summary, categories });
   } catch (err) {
     console.error('[GROWTH] get_growth_history error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 });
-
 
 
 // ── Guardar Push Subscription ──────────────────────────────────────────────────

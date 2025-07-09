@@ -1,14 +1,13 @@
-// growth.js – Pestaña de Crecimiento (versión con endpoint backend)
+// growth.js – Pestaña de Crecimiento (versión en tiempo real con Firestore + Auth)
 
-import { openDB } from 'idb';
+import { auth } from './firebase.js';
+import { onAuthStateChanged } from 'firebase/auth';
 
 console.log('[GROWTH] Módulo growth.js cargado');
 
-const DB_NAME = 'growth-cache';
-const DB_VERSION = 1;
-const STORE_SUMMARY = 'historySummary';
-const STORE_CATEGORIAS = 'historyCategorias';
-const API_URL = import.meta.env.VITE_API_URL || 'https://your-backend-url.com';
+const apiUrl = window.location.hostname === 'localhost'
+  ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
+  : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 
 export async function loadGrowth() {
   console.log('[GROWTH] ⚙️ Iniciando carga de datos para crecimiento');
@@ -18,54 +17,63 @@ export async function loadGrowth() {
   const summaryData = [];
   const categoryData = new Map();
 
-  const dbLocal = await openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains(STORE_SUMMARY)) {
-        db.createObjectStore(STORE_SUMMARY);
-      }
-      if (!db.objectStoreNames.contains(STORE_CATEGORIAS)) {
-        db.createObjectStore(STORE_CATEGORIAS);
-      }
-    }
-  });
+  if (!isOnline) {
+    console.warn('[GROWTH] ⚠️ Estás offline. No se puede cargar crecimiento desde Firestore.');
+    return;
+  }
 
-  if (isOnline) {
-    try {
-      const userId = localStorage.getItem('userUid');
-      const res = await fetch(`${API_URL}/get_growth_history`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
-      });
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuario no autenticado');
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const res = await fetch(`${apiUrl}/plaid/get_growth_history`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId })
+    });
 
-      const { summary, categories } = await res.json();
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { summary, categories } = await res.json();
 
-      for (const month of months) {
-        const ingresos = summary[month]?.totalIncomes || 0;
-        const gastos = summary[month]?.totalExpenses || 0;
-        const grupos = categories[month] || {};
+    for (const month of months) {
+      if (summary[month]) {
+        const ingresos = summary[month].totalIncomes || 0;
+        const gastos = summary[month].totalExpenses || 0;
+        const grupos = categories?.[month] || {};
 
         summaryData.push({ month, ingresos, gastos });
         categoryData.set(month, grupos);
-
-        await dbLocal.put(STORE_SUMMARY, { ingresos, gastos }, month);
-        await dbLocal.put(STORE_CATEGORIAS, grupos, month);
-        console.log(`[GROWTH] ✅ Cache actualizada para ${month}`);
+        console.log(`[GROWTH] ✅ Datos cargados para ${month}`);
+      } else {
+        console.log(`[GROWTH] ⏭️ No hay datos para ${month}, se omite`);
       }
-    } catch (e) {
-      console.error('[GROWTH] ❌ Error durante fetch desde backend:', e);
-      await cargarDesdeIndexedDB(months, dbLocal, summaryData, categoryData);
     }
-  } else {
-    await cargarDesdeIndexedDB(months, dbLocal, summaryData, categoryData);
-  }
 
-  console.log('[GROWTH] ✅ Datos finalizados, generando KPIs y gráficas...');
-  renderGrowthKPIs(summaryData);
-  renderGrowthChart(summaryData);
-  renderCategoryTrendChart(months, categoryData);
+    if (summaryData.length === 0) throw new Error('No hay meses con datos disponibles');
+
+    console.log('[GROWTH] ✅ Datos finalizados, generando KPIs y gráficas...');
+    renderGrowthKPIs(summaryData);
+    renderGrowthChart(summaryData);
+    renderCategoryTrendChart(summaryData.map(d => d.month), categoryData);
+
+  } catch (e) {
+    console.error('[GROWTH] ❌ Error al obtener datos de crecimiento:', e.message);
+  }
+}
+
+async function getCurrentUserId() {
+  return new Promise((resolve, reject) => {
+    const unsubscribe = onAuthStateChanged(auth, user => {
+      unsubscribe();
+      if (user) {
+        resolve(user.uid);
+      } else {
+        reject(new Error('No hay usuario autenticado'));
+      }
+    }, error => {
+      reject(error);
+    });
+  });
 }
 
 function getLast12Months() {
@@ -76,16 +84,6 @@ function getLast12Months() {
     months.push(date.toISOString().slice(0, 7));
   }
   return months;
-}
-
-async function cargarDesdeIndexedDB(months, dbLocal, summaryData, categoryData) {
-  for (const month of months) {
-    const resumen = await dbLocal.get(STORE_SUMMARY, month);
-    const categorias = await dbLocal.get(STORE_CATEGORIAS, month);
-    summaryData.push({ month, ingresos: resumen?.ingresos || 0, gastos: resumen?.gastos || 0 });
-    categoryData.set(month, categorias || {});
-    console.log(`[GROWTH] ✅ Datos offline obtenidos para ${month}`);
-  }
 }
 
 function renderGrowthKPIs(data) {

@@ -733,14 +733,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 case 'growth':
                     console.log("[UI] \u2192 Mostrando pesta\xf1a Crecimiento");
                     destroyGeneralCharts();
-                    whenVisible(panel, async ()=>{
-                        console.log("[Observer] panel-growth visible \u2192 ejecutando loadGrowth");
-                        try {
-                            await (0, _growthJs.loadGrowth)();
-                        } catch (e) {
-                            console.error('[Observer] Error al cargar crecimiento:', e);
-                        }
-                    });
+                    try {
+                        await (0, _growthJs.loadGrowth)();
+                    } catch (e) {
+                        console.error('[GROWTH] Error al cargar crecimiento:', e);
+                    }
                     break;
                 case 'compare':
                     console.log("[UI] \u2192 Mostrando pesta\xf1a Comparaci\xf3n (sin l\xf3gica a\xfan)");
@@ -1445,35 +1442,28 @@ function loadGeneral(userId, selectedPeriod) {
 }
 
 },{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"4z1LS":[function(require,module,exports,__globalThis) {
-// growth.js – Pestaña de Crecimiento (versión con endpoint backend)
+// growth.js – Pestaña de Crecimiento (versión en tiempo real con Firestore + Auth)
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "loadGrowth", ()=>loadGrowth);
-var _idb = require("idb");
-var $352bce0e090dc351$import_meta = Object.assign(Object.create(null), {
-    url: "file:///js/growth.js"
-});
+var _firebaseJs = require("./firebase.js");
+var _auth = require("firebase/auth");
 console.log("[GROWTH] M\xf3dulo growth.js cargado");
-const DB_NAME = 'growth-cache';
-const DB_VERSION = 1;
-const STORE_SUMMARY = 'historySummary';
-const STORE_CATEGORIAS = 'historyCategorias';
-const API_URL = $352bce0e090dc351$import_meta.env.VITE_API_URL || 'https://your-backend-url.com';
+const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 async function loadGrowth() {
     console.log("[GROWTH] \u2699\uFE0F Iniciando carga de datos para crecimiento");
     const isOnline = navigator.onLine;
     const months = getLast12Months();
     const summaryData = [];
     const categoryData = new Map();
-    const dbLocal = await (0, _idb.openDB)(DB_NAME, DB_VERSION, {
-        upgrade (db) {
-            if (!db.objectStoreNames.contains(STORE_SUMMARY)) db.createObjectStore(STORE_SUMMARY);
-            if (!db.objectStoreNames.contains(STORE_CATEGORIAS)) db.createObjectStore(STORE_CATEGORIAS);
-        }
-    });
-    if (isOnline) try {
-        const userId = localStorage.getItem('userUid');
-        const res = await fetch(`${API_URL}/get_growth_history`, {
+    if (!isOnline) {
+        console.warn("[GROWTH] \u26A0\uFE0F Est\xe1s offline. No se puede cargar crecimiento desde Firestore.");
+        return;
+    }
+    try {
+        const userId = await getCurrentUserId();
+        if (!userId) throw new Error('Usuario no autenticado');
+        const res = await fetch(`${apiUrl}/plaid/get_growth_history`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1484,32 +1474,37 @@ async function loadGrowth() {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const { summary, categories } = await res.json();
-        for (const month of months){
-            const ingresos = summary[month]?.totalIncomes || 0;
-            const gastos = summary[month]?.totalExpenses || 0;
-            const grupos = categories[month] || {};
+        for (const month of months)if (summary[month]) {
+            const ingresos = summary[month].totalIncomes || 0;
+            const gastos = summary[month].totalExpenses || 0;
+            const grupos = categories?.[month] || {};
             summaryData.push({
                 month,
                 ingresos,
                 gastos
             });
             categoryData.set(month, grupos);
-            await dbLocal.put(STORE_SUMMARY, {
-                ingresos,
-                gastos
-            }, month);
-            await dbLocal.put(STORE_CATEGORIAS, grupos, month);
-            console.log(`[GROWTH] \u{2705} Cache actualizada para ${month}`);
-        }
+            console.log(`[GROWTH] \u{2705} Datos cargados para ${month}`);
+        } else console.log(`[GROWTH] \u{23ED}\u{FE0F} No hay datos para ${month}, se omite`);
+        if (summaryData.length === 0) throw new Error('No hay meses con datos disponibles');
+        console.log("[GROWTH] \u2705 Datos finalizados, generando KPIs y gr\xe1ficas...");
+        renderGrowthKPIs(summaryData);
+        renderGrowthChart(summaryData);
+        renderCategoryTrendChart(summaryData.map((d)=>d.month), categoryData);
     } catch (e) {
-        console.error("[GROWTH] \u274C Error durante fetch desde backend:", e);
-        await cargarDesdeIndexedDB(months, dbLocal, summaryData, categoryData);
+        console.error("[GROWTH] \u274C Error al obtener datos de crecimiento:", e.message);
     }
-    else await cargarDesdeIndexedDB(months, dbLocal, summaryData, categoryData);
-    console.log("[GROWTH] \u2705 Datos finalizados, generando KPIs y gr\xe1ficas...");
-    renderGrowthKPIs(summaryData);
-    renderGrowthChart(summaryData);
-    renderCategoryTrendChart(months, categoryData);
+}
+async function getCurrentUserId() {
+    return new Promise((resolve, reject)=>{
+        const unsubscribe = (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), (user)=>{
+            unsubscribe();
+            if (user) resolve(user.uid);
+            else reject(new Error('No hay usuario autenticado'));
+        }, (error)=>{
+            reject(error);
+        });
+    });
 }
 function getLast12Months() {
     const months = [];
@@ -1519,19 +1514,6 @@ function getLast12Months() {
         months.push(date.toISOString().slice(0, 7));
     }
     return months;
-}
-async function cargarDesdeIndexedDB(months, dbLocal, summaryData, categoryData) {
-    for (const month of months){
-        const resumen = await dbLocal.get(STORE_SUMMARY, month);
-        const categorias = await dbLocal.get(STORE_CATEGORIAS, month);
-        summaryData.push({
-            month,
-            ingresos: resumen?.ingresos || 0,
-            gastos: resumen?.gastos || 0
-        });
-        categoryData.set(month, categorias || {});
-        console.log(`[GROWTH] \u{2705} Datos offline obtenidos para ${month}`);
-    }
 }
 function renderGrowthKPIs(data) {
     const len = data.length;
@@ -1650,283 +1632,6 @@ function renderCategoryTrendChart(months, categoryData) {
     }
 }
 
-},{"idb":"258QC","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"258QC":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-parcelHelpers.export(exports, "deleteDB", ()=>deleteDB);
-parcelHelpers.export(exports, "openDB", ()=>openDB);
-parcelHelpers.export(exports, "unwrap", ()=>unwrap);
-parcelHelpers.export(exports, "wrap", ()=>wrap);
-const instanceOfAny = (object, constructors)=>constructors.some((c)=>object instanceof c);
-let idbProxyableTypes;
-let cursorAdvanceMethods;
-// This is a function to prevent it throwing up in node environments.
-function getIdbProxyableTypes() {
-    return idbProxyableTypes || (idbProxyableTypes = [
-        IDBDatabase,
-        IDBObjectStore,
-        IDBIndex,
-        IDBCursor,
-        IDBTransaction
-    ]);
-}
-// This is a function to prevent it throwing up in node environments.
-function getCursorAdvanceMethods() {
-    return cursorAdvanceMethods || (cursorAdvanceMethods = [
-        IDBCursor.prototype.advance,
-        IDBCursor.prototype.continue,
-        IDBCursor.prototype.continuePrimaryKey
-    ]);
-}
-const transactionDoneMap = new WeakMap();
-const transformCache = new WeakMap();
-const reverseTransformCache = new WeakMap();
-function promisifyRequest(request) {
-    const promise = new Promise((resolve, reject)=>{
-        const unlisten = ()=>{
-            request.removeEventListener('success', success);
-            request.removeEventListener('error', error);
-        };
-        const success = ()=>{
-            resolve(wrap(request.result));
-            unlisten();
-        };
-        const error = ()=>{
-            reject(request.error);
-            unlisten();
-        };
-        request.addEventListener('success', success);
-        request.addEventListener('error', error);
-    });
-    // This mapping exists in reverseTransformCache but doesn't exist in transformCache. This
-    // is because we create many promises from a single IDBRequest.
-    reverseTransformCache.set(promise, request);
-    return promise;
-}
-function cacheDonePromiseForTransaction(tx) {
-    // Early bail if we've already created a done promise for this transaction.
-    if (transactionDoneMap.has(tx)) return;
-    const done = new Promise((resolve, reject)=>{
-        const unlisten = ()=>{
-            tx.removeEventListener('complete', complete);
-            tx.removeEventListener('error', error);
-            tx.removeEventListener('abort', error);
-        };
-        const complete = ()=>{
-            resolve();
-            unlisten();
-        };
-        const error = ()=>{
-            reject(tx.error || new DOMException('AbortError', 'AbortError'));
-            unlisten();
-        };
-        tx.addEventListener('complete', complete);
-        tx.addEventListener('error', error);
-        tx.addEventListener('abort', error);
-    });
-    // Cache it for later retrieval.
-    transactionDoneMap.set(tx, done);
-}
-let idbProxyTraps = {
-    get (target, prop, receiver) {
-        if (target instanceof IDBTransaction) {
-            // Special handling for transaction.done.
-            if (prop === 'done') return transactionDoneMap.get(target);
-            // Make tx.store return the only store in the transaction, or undefined if there are many.
-            if (prop === 'store') return receiver.objectStoreNames[1] ? undefined : receiver.objectStore(receiver.objectStoreNames[0]);
-        }
-        // Else transform whatever we get back.
-        return wrap(target[prop]);
-    },
-    set (target, prop, value) {
-        target[prop] = value;
-        return true;
-    },
-    has (target, prop) {
-        if (target instanceof IDBTransaction && (prop === 'done' || prop === 'store')) return true;
-        return prop in target;
-    }
-};
-function replaceTraps(callback) {
-    idbProxyTraps = callback(idbProxyTraps);
-}
-function wrapFunction(func) {
-    // Due to expected object equality (which is enforced by the caching in `wrap`), we
-    // only create one new func per func.
-    // Cursor methods are special, as the behaviour is a little more different to standard IDB. In
-    // IDB, you advance the cursor and wait for a new 'success' on the IDBRequest that gave you the
-    // cursor. It's kinda like a promise that can resolve with many values. That doesn't make sense
-    // with real promises, so each advance methods returns a new promise for the cursor object, or
-    // undefined if the end of the cursor has been reached.
-    if (getCursorAdvanceMethods().includes(func)) return function(...args) {
-        // Calling the original function with the proxy as 'this' causes ILLEGAL INVOCATION, so we use
-        // the original object.
-        func.apply(unwrap(this), args);
-        return wrap(this.request);
-    };
-    return function(...args) {
-        // Calling the original function with the proxy as 'this' causes ILLEGAL INVOCATION, so we use
-        // the original object.
-        return wrap(func.apply(unwrap(this), args));
-    };
-}
-function transformCachableValue(value) {
-    if (typeof value === 'function') return wrapFunction(value);
-    // This doesn't return, it just creates a 'done' promise for the transaction,
-    // which is later returned for transaction.done (see idbObjectHandler).
-    if (value instanceof IDBTransaction) cacheDonePromiseForTransaction(value);
-    if (instanceOfAny(value, getIdbProxyableTypes())) return new Proxy(value, idbProxyTraps);
-    // Return the same value back if we're not going to transform it.
-    return value;
-}
-function wrap(value) {
-    // We sometimes generate multiple promises from a single IDBRequest (eg when cursoring), because
-    // IDB is weird and a single IDBRequest can yield many responses, so these can't be cached.
-    if (value instanceof IDBRequest) return promisifyRequest(value);
-    // If we've already transformed this value before, reuse the transformed value.
-    // This is faster, but it also provides object equality.
-    if (transformCache.has(value)) return transformCache.get(value);
-    const newValue = transformCachableValue(value);
-    // Not all types are transformed.
-    // These may be primitive types, so they can't be WeakMap keys.
-    if (newValue !== value) {
-        transformCache.set(value, newValue);
-        reverseTransformCache.set(newValue, value);
-    }
-    return newValue;
-}
-const unwrap = (value)=>reverseTransformCache.get(value);
-/**
- * Open a database.
- *
- * @param name Name of the database.
- * @param version Schema version.
- * @param callbacks Additional callbacks.
- */ function openDB(name, version, { blocked, upgrade, blocking, terminated } = {}) {
-    const request = indexedDB.open(name, version);
-    const openPromise = wrap(request);
-    if (upgrade) request.addEventListener('upgradeneeded', (event)=>{
-        upgrade(wrap(request.result), event.oldVersion, event.newVersion, wrap(request.transaction), event);
-    });
-    if (blocked) request.addEventListener('blocked', (event)=>blocked(// Casting due to https://github.com/microsoft/TypeScript-DOM-lib-generator/pull/1405
-        event.oldVersion, event.newVersion, event));
-    openPromise.then((db)=>{
-        if (terminated) db.addEventListener('close', ()=>terminated());
-        if (blocking) db.addEventListener('versionchange', (event)=>blocking(event.oldVersion, event.newVersion, event));
-    }).catch(()=>{});
-    return openPromise;
-}
-/**
- * Delete a database.
- *
- * @param name Name of the database.
- */ function deleteDB(name, { blocked } = {}) {
-    const request = indexedDB.deleteDatabase(name);
-    if (blocked) request.addEventListener('blocked', (event)=>blocked(// Casting due to https://github.com/microsoft/TypeScript-DOM-lib-generator/pull/1405
-        event.oldVersion, event));
-    return wrap(request).then(()=>undefined);
-}
-const readMethods = [
-    'get',
-    'getKey',
-    'getAll',
-    'getAllKeys',
-    'count'
-];
-const writeMethods = [
-    'put',
-    'add',
-    'delete',
-    'clear'
-];
-const cachedMethods = new Map();
-function getMethod(target, prop) {
-    if (!(target instanceof IDBDatabase && !(prop in target) && typeof prop === 'string')) return;
-    if (cachedMethods.get(prop)) return cachedMethods.get(prop);
-    const targetFuncName = prop.replace(/FromIndex$/, '');
-    const useIndex = prop !== targetFuncName;
-    const isWrite = writeMethods.includes(targetFuncName);
-    if (// Bail if the target doesn't exist on the target. Eg, getAll isn't in Edge.
-    !(targetFuncName in (useIndex ? IDBIndex : IDBObjectStore).prototype) || !(isWrite || readMethods.includes(targetFuncName))) return;
-    const method = async function(storeName, ...args) {
-        // isWrite ? 'readwrite' : undefined gzipps better, but fails in Edge :(
-        const tx = this.transaction(storeName, isWrite ? 'readwrite' : 'readonly');
-        let target = tx.store;
-        if (useIndex) target = target.index(args.shift());
-        // Must reject if op rejects.
-        // If it's a write operation, must reject if tx.done rejects.
-        // Must reject with op rejection first.
-        // Must resolve with op value.
-        // Must handle both promises (no unhandled rejections)
-        return (await Promise.all([
-            target[targetFuncName](...args),
-            isWrite && tx.done
-        ]))[0];
-    };
-    cachedMethods.set(prop, method);
-    return method;
-}
-replaceTraps((oldTraps)=>({
-        ...oldTraps,
-        get: (target, prop, receiver)=>getMethod(target, prop) || oldTraps.get(target, prop, receiver),
-        has: (target, prop)=>!!getMethod(target, prop) || oldTraps.has(target, prop)
-    }));
-const advanceMethodProps = [
-    'continue',
-    'continuePrimaryKey',
-    'advance'
-];
-const methodMap = {};
-const advanceResults = new WeakMap();
-const ittrProxiedCursorToOriginalProxy = new WeakMap();
-const cursorIteratorTraps = {
-    get (target, prop) {
-        if (!advanceMethodProps.includes(prop)) return target[prop];
-        let cachedFunc = methodMap[prop];
-        if (!cachedFunc) cachedFunc = methodMap[prop] = function(...args) {
-            advanceResults.set(this, ittrProxiedCursorToOriginalProxy.get(this)[prop](...args));
-        };
-        return cachedFunc;
-    }
-};
-async function* iterate(...args) {
-    // tslint:disable-next-line:no-this-assignment
-    let cursor = this;
-    if (!(cursor instanceof IDBCursor)) cursor = await cursor.openCursor(...args);
-    if (!cursor) return;
-    cursor;
-    const proxiedCursor = new Proxy(cursor, cursorIteratorTraps);
-    ittrProxiedCursorToOriginalProxy.set(proxiedCursor, cursor);
-    // Map this double-proxy back to the original, so other cursor methods work.
-    reverseTransformCache.set(proxiedCursor, unwrap(cursor));
-    while(cursor){
-        yield proxiedCursor;
-        // If one of the advancing methods was not called, call continue().
-        cursor = await (advanceResults.get(proxiedCursor) || cursor.continue());
-        advanceResults.delete(proxiedCursor);
-    }
-}
-function isIteratorProp(target, prop) {
-    return prop === Symbol.asyncIterator && instanceOfAny(target, [
-        IDBIndex,
-        IDBObjectStore,
-        IDBCursor
-    ]) || prop === 'iterate' && instanceOfAny(target, [
-        IDBIndex,
-        IDBObjectStore
-    ]);
-}
-replaceTraps((oldTraps)=>({
-        ...oldTraps,
-        get (target, prop, receiver) {
-            if (isIteratorProp(target, prop)) return iterate;
-            return oldTraps.get(target, prop, receiver);
-        },
-        has (target, prop) {
-            return isIteratorProp(target, prop) || oldTraps.has(target, prop);
-        }
-    }));
-
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
+},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
 
 //# sourceMappingURL=analysis.d262e0ca.js.map
