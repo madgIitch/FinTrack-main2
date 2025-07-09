@@ -1453,6 +1453,31 @@ var _auth = require("firebase/auth");
 var _analysisJs = require("./analysis.js");
 console.log("[GROWTH] M\xf3dulo growth.js cargado");
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
+const groupColors = {
+    'Agricultura y Medio Ambiente': '#A8D5BA',
+    "Alimentos y Restauraci\xf3n": '#FFB6B9',
+    'Arte y Cultura': '#FFD3B4',
+    "Automoci\xf3n y Transporte": '#C3B1E1',
+    'Belleza y Cuidado Personal': '#FFDAC1',
+    "Bienes Ra\xedces y Vivienda": '#E2F0CB',
+    'Compras y Retail': '#C0E8F9',
+    "Deportes y Recreaci\xf3n": '#FFC3A0',
+    "Educaci\xf3n y Capacitaci\xf3n": '#B5EAD7',
+    'Entretenimiento y Ocio': '#D5AAFF',
+    'Eventos y Celebraciones': '#FDCBBA',
+    'Finanzas y Seguros': '#D4A5A5',
+    "Gobierno y Servicios P\xfablicos": '#AED9E0',
+    "Hogar y Jard\xedn": '#FFF5BA',
+    'Industrial y Manufactura': '#F1C0E8',
+    'Mascotas y Animales': '#B5B9F8',
+    'Otros': '#D9D9D9',
+    "Religi\xf3n y Comunidad": '#FFCBC1',
+    'Salud y Medicina': '#BEE1E6',
+    'Servicios Profesionales': '#E4BAD4',
+    "Tecnolog\xeda e Internet": '#A2D2FF',
+    "Viajes y Hosteler\xeda": '#FFC9DE',
+    'Loan Payments': '#B0BEC5'
+};
 async function loadGrowth() {
     console.log("[GROWTH] \u2699\uFE0F Iniciando carga de datos para crecimiento");
     const isOnline = navigator.onLine;
@@ -1630,23 +1655,29 @@ function renderCategoryTrendChart(months, categoryData) {
         const data = categoryData.get(m);
         if (data) Object.keys(data).forEach((g)=>allGroups.add(g));
     });
-    const series = Array.from(allGroups).map((group)=>({
+    const sortedGroups = Array.from(allGroups).sort();
+    const series = sortedGroups.map((group)=>({
             name: group,
             data: months.map((m)=>categoryData.get(m)?.[group] || 0)
         }));
     console.log("[GROWTH] \uD83E\uDDE9 Series generadas para gr\xe1fico:", series);
+    const colors = sortedGroups.map((group)=>groupColors[group] || '#D9D9D9');
     const options = {
         chart: {
             type: 'area',
-            height: 300,
+            height: 320,
             stacked: true,
             toolbar: {
                 show: false
             }
         },
         series,
+        colors,
         xaxis: {
-            categories: months
+            categories: months,
+            labels: {
+                rotate: -45
+            }
         },
         yaxis: {
             labels: {
@@ -1659,23 +1690,36 @@ function renderCategoryTrendChart(months, categoryData) {
         stroke: {
             curve: 'smooth'
         },
-        colors: undefined
+        legend: {
+            show: false
+        }
     };
     try {
         const el = document.querySelector('#categoryTrendChart');
+        const legendEl = document.querySelector('#categoryTrendLegend');
         if (!el) {
             console.warn("[GROWTH] \u26A0\uFE0F categoryTrendChart container NO ENCONTRADO");
             return;
         }
-        console.log("[GROWTH] \uD83D\uDCE6 Contenedor encontrado:", el);
-        console.log("[GROWTH] \uD83D\uDCCF Dimensiones del contenedor:", el.getBoundingClientRect());
+        if (!legendEl) {
+            console.warn("[GROWTH] \u26A0\uFE0F categoryTrendLegend container NO ENCONTRADO");
+            return;
+        }
         if (window.categoryTrendChart) {
-            console.log("[GROWTH] \uD83D\uDD01 Destruyendo gr\xe1fico de categor\xedas anterior");
+            console.log("[GROWTH] \uD83D\uDD01 Destruyendo gr\xe1fico anterior");
             window.categoryTrendChart.destroy();
         }
         window.categoryTrendChart = new ApexCharts(el, options);
-        window.categoryTrendChart.render();
-        console.log("[GROWTH] \u2705 categoryTrendChart renderizado correctamente");
+        window.categoryTrendChart.render().then(()=>{
+            console.log("[GROWTH] \u2705 categoryTrendChart renderizado correctamente");
+            // Leyenda: se delega completamente al CSS
+            legendEl.innerHTML = sortedGroups.map((group, i)=>`
+        <div class="legend-item">
+          <div class="legend-color" style="background-color: ${colors[i]}"></div>
+          <span class="legend-label">${group}</span>
+        </div>
+      `).join('');
+        });
     } catch (e) {
         console.error("[GROWTH] \u274C Error al renderizar categoryTrendChart:", e);
     }
@@ -1727,22 +1771,26 @@ function renderCategoryHeatmap(months, categoryData) {
                         {
                             from: 0,
                             to: 100,
-                            color: '#DCE775'
+                            color: '#DCE775',
+                            name: '0 - 100'
                         },
                         {
                             from: 101,
                             to: 500,
-                            color: '#FFF176'
+                            color: '#FFF176',
+                            name: '101 - 500'
                         },
                         {
                             from: 501,
                             to: 1000,
-                            color: '#FFB74D'
+                            color: '#FFB74D',
+                            name: '501 - 1000'
                         },
                         {
                             from: 1001,
-                            to: Infinity,
-                            color: '#F44336'
+                            to: 999999,
+                            color: '#F44336',
+                            name: "\u2265 1001" // 👈 lo importante es este `name`
                         }
                     ]
                 }

@@ -10,6 +10,33 @@ const apiUrl = window.location.hostname === 'localhost'
   ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
   : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 
+  
+const groupColors = {
+  'Agricultura y Medio Ambiente': '#A8D5BA',
+  'Alimentos y Restauración': '#FFB6B9',
+  'Arte y Cultura': '#FFD3B4',
+  'Automoción y Transporte': '#C3B1E1',
+  'Belleza y Cuidado Personal': '#FFDAC1',
+  'Bienes Raíces y Vivienda': '#E2F0CB',
+  'Compras y Retail': '#C0E8F9',
+  'Deportes y Recreación': '#FFC3A0',
+  'Educación y Capacitación': '#B5EAD7',
+  'Entretenimiento y Ocio': '#D5AAFF',
+  'Eventos y Celebraciones': '#FDCBBA',
+  'Finanzas y Seguros': '#D4A5A5',
+  'Gobierno y Servicios Públicos': '#AED9E0',
+  'Hogar y Jardín': '#FFF5BA',
+  'Industrial y Manufactura': '#F1C0E8',
+  'Mascotas y Animales': '#B5B9F8',
+  'Otros': '#D9D9D9',
+  'Religión y Comunidad': '#FFCBC1',
+  'Salud y Medicina': '#BEE1E6',
+  'Servicios Profesionales': '#E4BAD4',
+  'Tecnología e Internet': '#A2D2FF',
+  'Viajes y Hostelería': '#FFC9DE',
+  'Loan Payments': '#B0BEC5'
+};
+
 export async function loadGrowth() {
   console.log('[GROWTH] ⚙️ Iniciando carga de datos para crecimiento');
 
@@ -17,6 +44,8 @@ export async function loadGrowth() {
   const months = getLast12Months();
   const summaryData = [];
   const categoryData = new Map();
+
+
 
   if (!isOnline) {
     console.warn('[GROWTH] ⚠️ Estás offline. No se puede cargar crecimiento desde Firestore.');
@@ -188,22 +217,29 @@ function renderCategoryTrendChart(months, categoryData) {
     if (data) Object.keys(data).forEach(g => allGroups.add(g));
   });
 
-  const series = Array.from(allGroups).map(group => ({
+  const sortedGroups = Array.from(allGroups).sort();
+  const series = sortedGroups.map(group => ({
     name: group,
     data: months.map(m => categoryData.get(m)?.[group] || 0)
   }));
 
   console.log('[GROWTH] 🧩 Series generadas para gráfico:', series);
 
+  const colors = sortedGroups.map(group => groupColors[group] || '#D9D9D9');
+
   const options = {
     chart: {
       type: 'area',
-      height: 300,
+      height: 320,
       stacked: true,
       toolbar: { show: false }
     },
     series,
-    xaxis: { categories: months },
+    colors,
+    xaxis: {
+      categories: months,
+      labels: { rotate: -45 }
+    },
     yaxis: {
       labels: {
         formatter: val => val.toFixed(2)
@@ -211,31 +247,48 @@ function renderCategoryTrendChart(months, categoryData) {
     },
     dataLabels: { enabled: false },
     stroke: { curve: 'smooth' },
-    colors: undefined
+    legend: { show: false }
   };
 
   try {
     const el = document.querySelector('#categoryTrendChart');
+    const legendEl = document.querySelector('#categoryTrendLegend');
+
     if (!el) {
       console.warn('[GROWTH] ⚠️ categoryTrendChart container NO ENCONTRADO');
       return;
     }
 
-    console.log('[GROWTH] 📦 Contenedor encontrado:', el);
-    console.log('[GROWTH] 📏 Dimensiones del contenedor:', el.getBoundingClientRect());
+    if (!legendEl) {
+      console.warn('[GROWTH] ⚠️ categoryTrendLegend container NO ENCONTRADO');
+      return;
+    }
 
     if (window.categoryTrendChart) {
-      console.log('[GROWTH] 🔁 Destruyendo gráfico de categorías anterior');
+      console.log('[GROWTH] 🔁 Destruyendo gráfico anterior');
       window.categoryTrendChart.destroy();
     }
 
     window.categoryTrendChart = new ApexCharts(el, options);
-    window.categoryTrendChart.render();
-    console.log('[GROWTH] ✅ categoryTrendChart renderizado correctamente');
+    window.categoryTrendChart.render().then(() => {
+      console.log('[GROWTH] ✅ categoryTrendChart renderizado correctamente');
+
+      // Leyenda: se delega completamente al CSS
+      legendEl.innerHTML = sortedGroups.map((group, i) => `
+        <div class="legend-item">
+          <div class="legend-color" style="background-color: ${colors[i]}"></div>
+          <span class="legend-label">${group}</span>
+        </div>
+      `).join('');
+    });
+
   } catch (e) {
     console.error('[GROWTH] ❌ Error al renderizar categoryTrendChart:', e);
   }
 }
+
+
+
 
 function renderCategoryHeatmap(months, categoryData) {
   console.log('[GROWTH] 🟡 Generando heatmap por categoría...');
@@ -273,31 +326,52 @@ function renderCategoryHeatmap(months, categoryData) {
 
   // ─── Paso 4: Configuración del gráfico ───────────────────────
   const options = {
-    chart: {
-      height: 350,
-      type: 'heatmap',
-      toolbar: { show: false }
-    },
-    plotOptions: {
-      heatmap: {
-        shadeIntensity: 0.5,
-        colorScale: {
-          ranges: [
-            { from: 0, to: 100, color: '#DCE775' },
-            { from: 101, to: 500, color: '#FFF176' },
-            { from: 501, to: 1000, color: '#FFB74D' },
-            { from: 1001, to: Infinity, color: '#F44336' }
-          ]
-        }
+  chart: {
+    height: 350,
+    type: 'heatmap',
+    toolbar: { show: false }
+  },
+  plotOptions: {
+    heatmap: {
+      shadeIntensity: 0.5,
+      colorScale: {
+        ranges: [
+          {
+            from: 0,
+            to: 100,
+            color: '#DCE775',
+            name: '0 - 100'
+          },
+          {
+            from: 101,
+            to: 500,
+            color: '#FFF176',
+            name: '101 - 500'
+          },
+          {
+            from: 501,
+            to: 1000,
+            color: '#FFB74D',
+            name: '501 - 1000'
+          },
+          {
+            from: 1001,
+            to: 999999, // 👈 usar un to alto en vez de Infinity
+            color: '#F44336',
+            name: '≥ 1001' // 👈 lo importante es este `name`
+          }
+        ]
       }
-    },
-    dataLabels: { enabled: false },
-    xaxis: {
-      type: 'category',
-      categories: months
-    },
-    series // 👈 Muy importante: ahora sí se inyecta la `series`
-  };
+    }
+  },
+  dataLabels: { enabled: false },
+  xaxis: {
+    type: 'category',
+    categories: months
+  },
+  series
+};
+
 
   // ─── Paso 5: Renderizar en el DOM ────────────────────────────
   const el = document.querySelector('#categoryHeatmap');

@@ -1,5 +1,3 @@
-/* analysis.css */
-
 /* Contenedor principal: ocupa todo excepto header y nav */
 .analysis-fullscreen {
   display: flex;
@@ -97,11 +95,11 @@
 
 @media (max-width: 767px) {
   .analysis-fullscreen {
-    padding-bottom: 86px; /* espacio para que respire el último gráfico sobre la barra */
+    padding-bottom: 86px;
   }
 
   #pieChart {
-    margin-bottom: 16px; /* margen específico para separar gráfico de su leyenda */
+    margin-bottom: 16px;
   }
 }
 
@@ -113,7 +111,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 220px;
+  min-height: 300px; /* AUMENTADO */
   height: 100%;
 }
 
@@ -135,18 +133,18 @@
 /* Ajuste responsivo de altura */
 @media (min-width: 600px) {
   .chart-card > div {
-    max-height: 180px;
+    max-height: 220px; /* AUMENTADO desde 180px */
   }
   #pieChart {
-    max-height: 280px;
+    max-height: 320px; /* AUMENTADO desde 280px */
   }
 }
 @media (min-width: 900px) {
   .chart-card > div {
-    max-height: 200px;
+    max-height: 260px; /* AUMENTADO desde 200px */
   }
   #pieChart {
-    max-height: 300px;
+    max-height: 360px; /* AUMENTADO desde 300px */
   }
 }
 
@@ -157,7 +155,6 @@
 .tab-panel.active {
   display: block;
 }
-
 
 /* Contenedor para gráfico de pastel y su leyenda */
 .pie-container {
@@ -170,20 +167,46 @@
 
 /* PieChart más grande */
 #pieChart {
-  height: 260px;
-  width: 260px;
+  height: 280px;
+  width: 280px;
   max-height: none !important;
   max-width: none !important;
 }
 
-/* Leyenda fuera del gráfico, no afecta su altura */
+/* Leyenda fuera del gráfico */
 #pieLegend {
   margin-top: 8px;
-  max-width: 260px;
+  max-width: 280px;
 }
 
-
-#growthChart, #categoryTrendChart {
-  min-height: 280px;
+/* Gráficos específicos */
+#growthChart,
+#categoryTrendChart,
+#categoryHeatmap {
+  min-height: 300px; /* AUMENTADO */
   height: 100%;
+}
+
+#categoryTrendLegend {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 1rem;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
 }

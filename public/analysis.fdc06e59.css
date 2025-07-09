@@ -115,7 +115,7 @@
   justify-content: center;
   align-items: center;
   height: 100%;
-  min-height: 220px;
+  min-height: 300px;
   padding: 8px;
   display: flex;
 }
@@ -135,21 +135,21 @@
 
 @media (width >= 600px) {
   .chart-card > div {
-    max-height: 180px;
+    max-height: 220px;
   }
 
   #pieChart {
-    max-height: 280px;
+    max-height: 320px;
   }
 }
 
 @media (width >= 900px) {
   .chart-card > div {
-    max-height: 200px;
+    max-height: 260px;
   }
 
   #pieChart {
-    max-height: 300px;
+    max-height: 360px;
   }
 }
 
@@ -170,19 +170,43 @@
 }
 
 #pieChart {
-  width: 260px;
-  height: 260px;
+  width: 280px;
+  height: 280px;
   max-width: none !important;
   max-height: none !important;
 }
 
 #pieLegend {
-  max-width: 260px;
+  max-width: 280px;
   margin-top: 8px;
 }
 
-#growthChart, #categoryTrendChart {
+#growthChart, #categoryTrendChart, #categoryHeatmap {
   height: 100%;
-  min-height: 280px;
+  min-height: 300px;
+}
+
+#categoryTrendLegend {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 400px;
+  margin-top: 1rem;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+}
+
+.legend-item {
+  align-items: center;
+  gap: 6px;
+  font-size: .8rem;
+  display: flex;
+}
+
+.legend-color {
+  border-radius: 2px;
+  width: 12px;
+  height: 12px;
 }
 /*# sourceMappingURL=analysis.fdc06e59.css.map */
