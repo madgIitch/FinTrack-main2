@@ -648,14 +648,11 @@ export function loadGeneral(userId, selectedPeriod) {
       console.warn('[TAB] No se encontró el panel-overview'); // [DEBUG]
       return;
     }
-
-    console.log('[TAB] Observando panel-overview con whenVisible'); // [DEBUG]
-    whenVisible(overviewPanel, () => {
-      console.log('[Observer] panel-overview visible → initCharts + renderAnalysis'); // [DEBUG]
-      initCharts();
-      renderAnalysis();
-    });
   });
+
+
+  initCharts();
+  renderAnalysis();
 }
 
 

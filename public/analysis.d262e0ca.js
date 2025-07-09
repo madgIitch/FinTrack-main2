@@ -1429,12 +1429,6 @@ function loadGeneral(userId, selectedPeriod) {
             console.warn("[TAB] No se encontr\xf3 el panel-overview"); // [DEBUG]
             return;
         }
-        console.log('[TAB] Observando panel-overview con whenVisible'); // [DEBUG]
-        whenVisible(overviewPanel, ()=>{
-            console.log("[Observer] panel-overview visible \u2192 initCharts + renderAnalysis"); // [DEBUG]
-            initCharts();
-            renderAnalysis();
-        });
     });
 }
 
