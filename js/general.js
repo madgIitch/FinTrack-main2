@@ -606,11 +606,17 @@ function renderPieFinal(catMap) {
   }
 
   pieChart = new ApexCharts(pieContainer, {
-    chart: { type: 'pie', height: 220, animations: { enabled: false } },
+    chart: {
+      type: 'pie',
+      height: 260,
+      animations: { enabled: false }
+    },
     series: catData,
     labels: catLabels,
     colors: catColors,
-    legend: { position: 'bottom' },
+    legend: {
+      show: false
+    },
     noData: {
       text: 'Sin datos de categorías',
       align: 'center',
@@ -619,11 +625,28 @@ function renderPieFinal(catMap) {
     }
   });
 
+
   pieChart.render().then(() => {
     console.log('[PieChart] Gráfico renderizado correctamente');
-  }).catch(err => {
-    console.error('[PieChart] Error al renderizar gráfico:', err);
+
+    const legendContainer = document.getElementById('pieLegend');
+    if (!legendContainer) return;
+
+    const total = catData.reduce((acc, val) => acc + val, 0);
+
+    legendContainer.innerHTML = catLabels.map((label, idx) => {
+      const value = catData[idx];
+      const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+      return `
+        <div style="display:flex;align-items:center;margin-bottom:4px;font-size:0.85rem">
+          <span style="display:inline-block;width:12px;height:12px;background:${catColors[idx]};margin-right:6px;border-radius:2px;"></span>
+          ${label} (${percentage}%)
+        </div>
+      `;
+    }).join('');
+
   });
+
 }
 
 

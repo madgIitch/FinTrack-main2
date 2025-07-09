@@ -157,3 +157,27 @@
 .tab-panel.active {
   display: block;
 }
+
+
+/* Contenedor para gráfico de pastel y su leyenda */
+.pie-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+}
+
+/* PieChart más grande */
+#pieChart {
+  height: 260px;
+  width: 260px;
+  max-height: none !important;
+  max-width: none !important;
+}
+
+/* Leyenda fuera del gráfico, no afecta su altura */
+#pieLegend {
+  margin-top: 8px;
+  max-width: 260px;
+}

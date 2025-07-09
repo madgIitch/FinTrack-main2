@@ -1380,7 +1380,7 @@ function renderPieFinal(catMap) {
     pieChart = new ApexCharts(pieContainer, {
         chart: {
             type: 'pie',
-            height: 220,
+            height: 260,
             animations: {
                 enabled: false
             }
@@ -1389,7 +1389,7 @@ function renderPieFinal(catMap) {
         labels: catLabels,
         colors: catColors,
         legend: {
-            position: 'bottom'
+            show: false
         },
         noData: {
             text: "Sin datos de categor\xedas",
@@ -1403,8 +1403,19 @@ function renderPieFinal(catMap) {
     });
     pieChart.render().then(()=>{
         console.log("[PieChart] Gr\xe1fico renderizado correctamente");
-    }).catch((err)=>{
-        console.error("[PieChart] Error al renderizar gr\xe1fico:", err);
+        const legendContainer = document.getElementById('pieLegend');
+        if (!legendContainer) return;
+        const total = catData.reduce((acc, val)=>acc + val, 0);
+        legendContainer.innerHTML = catLabels.map((label, idx)=>{
+            const value = catData[idx];
+            const percentage = total > 0 ? (value / total * 100).toFixed(1) : '0.0';
+            return `
+        <div style="display:flex;align-items:center;margin-bottom:4px;font-size:0.85rem">
+          <span style="display:inline-block;width:12px;height:12px;background:${catColors[idx]};margin-right:6px;border-radius:2px;"></span>
+          ${label} (${percentage}%)
+        </div>
+      `;
+        }).join('');
     });
 }
 let lastScrollTop = 0;
