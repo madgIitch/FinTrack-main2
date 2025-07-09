@@ -1430,6 +1430,8 @@ function loadGeneral(userId, selectedPeriod) {
             return;
         }
     });
+    initCharts();
+    renderAnalysis();
 }
 
 },{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"4z1LS":[function(require,module,exports,__globalThis) {
