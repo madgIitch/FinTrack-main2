@@ -10,12 +10,18 @@ console.log('[ANALYSIS] Archivo analysis.js cargado');
 
 // ───── Función utilitaria: render si visible ─────
 function whenVisible(el, callback) {
-  if (!el) return console.warn('[Observer] Elemento no encontrado');
+  if (!el) {
+    console.warn('[Observer] Elemento no encontrado');
+    return;
+  }
+
+  console.log('[Observer] Iniciando observer para', el.id);
 
   const observer = new IntersectionObserver((entries, observer) => {
     entries.forEach(entry => {
+      console.log(`[Observer] entry para ${el.id}: isIntersecting=${entry.isIntersecting}`);
       if (entry.isIntersecting) {
-        console.log('[Observer] Panel visible → ejecutando callback');
+        console.log(`[Observer] Panel ${el.id} visible → ejecutando callback`);
         callback();
         observer.disconnect();
       }
@@ -24,6 +30,7 @@ function whenVisible(el, callback) {
 
   observer.observe(el);
 }
+
 
 // ───── Inicio DOM ─────
 document.addEventListener('DOMContentLoaded', () => {
@@ -47,12 +54,19 @@ document.addEventListener('DOMContentLoaded', () => {
   // Pestañas
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
+      console.log(`[UI] Click en pestaña: ${btn.dataset.filter}`);
+
+      // Reset estado visual
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
 
       const selected = btn.dataset.filter;
       const panel = document.getElementById(`panel-${selected}`);
+      if (!panel) {
+        console.warn(`[UI] Panel no encontrado para ${selected}`);
+        return;
+      }
       panel.classList.add('active');
 
       const periodSelect = document.getElementById('period-select');
@@ -62,29 +76,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
       switch (selected) {
         case 'overview':
+          console.log('[UI] → Cargando pestaña General');
           destroyGrowthCharts();
           await loadGeneral(userUid, selectedPeriod);
           break;
         case 'growth':
+          console.log('[UI] → Cargando pestaña Crecimiento');
           destroyGeneralCharts();
           await loadGrowth();
 
-          // render diferido de las gráficas si visibles
-          whenVisible(document.getElementById('panel-growth'), () => {
-            console.log('[Observer] panel-growth visible → render gráficos crecimiento');
+          const growthEl = document.getElementById('panel-growth');
+          if (!growthEl) {
+            console.warn('[Observer] panel-growth no existe en el DOM');
+            return;
+          }
+
+          whenVisible(growthEl, () => {
+            console.log('[Observer] panel-growth visible → re-render forzado');
             try {
-              window.growthChart?.render();
-              window.categoryTrendChart?.render();
+              if (window.growthChart) {
+                console.log('[Observer] → rendering growthChart');
+                window.growthChart.render();
+              } else {
+                console.warn('[Observer] growthChart no existe');
+              }
+
+              if (window.categoryTrendChart) {
+                console.log('[Observer] → rendering categoryTrendChart');
+                window.categoryTrendChart.render();
+              } else {
+                console.warn('[Observer] categoryTrendChart no existe');
+              }
             } catch (e) {
-              console.warn('[Observer] Error al renderizar gráficos crecimiento:', e);
+              console.error('[Observer] Error al forzar renderización:', e);
             }
           });
           break;
         case 'compare':
-          // Aquí irá loadComparison() más adelante
+          console.log('[UI] → Pestaña Comparación (sin implementación aún)');
           break;
       }
     });
+
   });
 
   // Autenticación

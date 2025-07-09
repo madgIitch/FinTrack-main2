@@ -13,7 +13,7 @@ const STORE_SUMMARY = 'historySummary';
 const STORE_CATEGORIAS = 'historyCategorias';
 
 export async function loadGrowth() {
-  console.log('[GROWTH] Iniciando carga de datos para crecimiento');
+  console.log('[GROWTH] ⚙️ Iniciando carga de datos para crecimiento');
 
   const months = getLast12Months();
   const summaryData = [];
@@ -32,7 +32,7 @@ export async function loadGrowth() {
   });
 
   for (const month of months) {
-    console.log(`[GROWTH] Procesando mes ${month} (${isOnline ? 'online' : 'offline'})`);
+    console.log(`[GROWTH] 🔄 Procesando mes ${month} (${isOnline ? 'online' : 'offline'})`);
     if (isOnline) {
       try {
         const docRef = doc(db, `historySummary/${month}`);
@@ -62,22 +62,25 @@ export async function loadGrowth() {
 
         categoryData.set(month, groupTotals);
         await dbLocal.put(STORE_CATEGORIAS, groupTotals, month);
+        console.log(`[GROWTH] ✅ Datos online guardados en cache para ${month}`);
       } catch (e) {
-        console.error('[GROWTH] Error durante fetch online para', month, e);
+        console.error('[GROWTH] ❌ Error durante fetch online para', month, e);
       }
     } else {
       const resumen = await dbLocal.get(STORE_SUMMARY, month);
       const categorias = await dbLocal.get(STORE_CATEGORIAS, month);
       summaryData.push({ month, ingresos: resumen?.ingresos || 0, gastos: resumen?.gastos || 0 });
       categoryData.set(month, categorias || {});
+      console.log(`[GROWTH] ✅ Datos offline obtenidos de cache para ${month}`);
     }
   }
 
-  console.log('[GROWTH] Datos cargados, generando KPIs y gráficas');
+  console.log('[GROWTH] ✅ Datos finalizados, generando KPIs y gráficas...');
   renderGrowthKPIs(summaryData);
   renderGrowthChart(summaryData);
   renderCategoryTrendChart(months, categoryData);
 }
+
 
 function getLast12Months() {
   const months = [];
@@ -132,14 +135,22 @@ function renderGrowthChart(data) {
   };
 
   try {
-    if (window.growthChart) window.growthChart.destroy();
-    window.growthChart = new ApexCharts(document.querySelector('#growthChart'), options);
+    const el = document.querySelector('#growthChart');
+    if (!el) return console.warn('[GROWTH] ⚠️ growthChart container NO ENCONTRADO');
+
+    if (window.growthChart) {
+      console.log('[GROWTH] 🔁 Destruyendo gráfico anterior');
+      window.growthChart.destroy();
+    }
+
+    window.growthChart = new ApexCharts(el, options);
     window.growthChart.render();
-    console.log('[GROWTH] Gráfico principal renderizado');
+    console.log('[GROWTH] 📈 growthChart renderizado correctamente');
   } catch (e) {
-    console.error('[GROWTH] Error al renderizar growthChart:', e);
+    console.error('[GROWTH] ❌ Error al renderizar growthChart:', e);
   }
 }
+
 
 function renderCategoryTrendChart(months, categoryData) {
   const allGroups = new Set();
@@ -162,11 +173,19 @@ function renderCategoryTrendChart(months, categoryData) {
   };
 
   try {
-    if (window.categoryTrendChart) window.categoryTrendChart.destroy();
-    window.categoryTrendChart = new ApexCharts(document.querySelector('#categoryTrendChart'), options);
+    const el = document.querySelector('#categoryTrendChart');
+    if (!el) return console.warn('[GROWTH] ⚠️ categoryTrendChart container NO ENCONTRADO');
+
+    if (window.categoryTrendChart) {
+      console.log('[GROWTH] 🔁 Destruyendo gráfico de categorías anterior');
+      window.categoryTrendChart.destroy();
+    }
+
+    window.categoryTrendChart = new ApexCharts(el, options);
     window.categoryTrendChart.render();
-    console.log('[GROWTH] Gráfico de categorías renderizado');
+    console.log('[GROWTH] 📊 categoryTrendChart renderizado correctamente');
   } catch (e) {
-    console.error('[GROWTH] Error al renderizar categoryTrendChart:', e);
+    console.error('[GROWTH] ❌ Error al renderizar categoryTrendChart:', e);
   }
 }
+

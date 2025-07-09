@@ -48,12 +48,13 @@ const groupColors = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('[ANALYSIS] DOM cargado');
+  console.log('[ANALYSIS] DOM cargado'); // [DEBUG]
   const sidebar = document.getElementById('sidebar');
   
-
+  // Eventos UI
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      console.log('[DEBUG] Botón de filtro clicado:', btn.textContent);
       document.querySelector('.filter-btn.active')?.classList.remove('active');
       btn.classList.add('active');
     });
@@ -62,20 +63,26 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('period-select').addEventListener('change', e => {
     selectedPeriod = e.target.value;
     localStorage.setItem('selectedPeriod', selectedPeriod);
-    console.log('[ANALYSIS] Periodo seleccionado cambiado a:', selectedPeriod);
-    if (userId) applyPeriodFilter(userId, selectedPeriod);
+    console.log('[ANALYSIS] Periodo seleccionado cambiado a:', selectedPeriod); // [DEBUG]
+    if (userId) {
+      console.log('[DEBUG] Reaplicando filtro tras cambio de periodo'); // [DEBUG]
+      applyPeriodFilter(userId, selectedPeriod);
+    }
   });
 
   onAuthStateChanged(auth, async user => {
     if (user) {
       userId = user.uid;
-      console.log('[ANALYSIS] Usuario autenticado:', userId);
+      console.log('[ANALYSIS] Usuario autenticado:', userId); // [DEBUG]
       const savedPeriod = localStorage.getItem('selectedPeriod') || 'month';
-      document.getElementById('period-select').value = savedPeriod;
       selectedPeriod = savedPeriod;
-      console.log('[ANALYSIS] Periodo restaurado desde localStorage:', selectedPeriod);
+      document.getElementById('period-select').value = savedPeriod;
+      console.log('[DEBUG] Periodo restaurado desde localStorage:', selectedPeriod); // [DEBUG]
       reactiveAnalysis(userId);
-      setTimeout(() => applyPeriodFilter(userId, selectedPeriod), 200);
+      setTimeout(() => {
+        console.log('[DEBUG] Ejecutando applyPeriodFilter tras timeout inicial'); // [DEBUG]
+        applyPeriodFilter(userId, selectedPeriod);
+      }, 200);
     } else {
       console.log('[ANALYSIS] Usuario no autenticado. Redirigiendo...');
       window.location.href = '../index.html';
@@ -84,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function reactiveAnalysis(userId) {
-  console.log('[ANALYSIS] Iniciando suscripciones reactivas para usuario:', userId);
+  console.log('[RENDER] Entrando en renderAnalysis con periodo:', selectedPeriod); // [DEBUG]
 
   const histRef = collection(db, 'users', userId, 'history');
   const sumRef = collection(db, 'users', userId, 'historySummary');
@@ -355,6 +362,9 @@ function renderAnalysis() {
   lastSpend = [...spend];
 
   renderPieChartForCurrentPeriod();
+
+  console.log('[RENDER] renderAnalysis completado.'); // [DEBUG]
+
 }
 
 
@@ -413,13 +423,6 @@ function initCharts() {
   pieChart.render();
 }
 
-
-// ───── Seguimiento de estado por periodo para evitar renders duplicados ─────
-const lastCatMapByPeriod = {
-  week: '',
-  month: '',
-  year: ''
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Devuelve la semana del mes actual ('S1' a 'S5') según el día del mes
@@ -609,13 +612,18 @@ window.addEventListener('scroll', () => {
 
 
 export function loadGeneral(userId, selectedPeriod) {
-  console.log('[GENERAL] Iniciando con periodo:', selectedPeriod);
-  const period = selectedPeriod;
+  console.log('[TAB] → loadGeneral() invocado con:', { userId, selectedPeriod }); // [DEBUG]
 
-  reactiveAnalysis(userId, period).then(() => {
+  reactiveAnalysis(userId, selectedPeriod).then(() => {
     const overviewPanel = document.getElementById('panel-overview');
+    if (!overviewPanel) {
+      console.warn('[TAB] No se encontró el panel-overview'); // [DEBUG]
+      return;
+    }
+
+    console.log('[TAB] Observando panel-overview con whenVisible'); // [DEBUG]
     whenVisible(overviewPanel, () => {
-      console.log('[Observer] panel-overview visible → initCharts + renderAnalysis');
+      console.log('[Observer] panel-overview visible → initCharts + renderAnalysis'); // [DEBUG]
       initCharts();
       renderAnalysis();
     });

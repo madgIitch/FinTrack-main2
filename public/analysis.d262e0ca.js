@@ -671,11 +671,16 @@ let selectedPeriod = localStorage.getItem('selectedPeriod') || 'month';
 console.log('[ANALYSIS] Archivo analysis.js cargado');
 // ───── Función utilitaria: render si visible ─────
 function whenVisible(el, callback) {
-    if (!el) return console.warn('[Observer] Elemento no encontrado');
+    if (!el) {
+        console.warn('[Observer] Elemento no encontrado');
+        return;
+    }
+    console.log('[Observer] Iniciando observer para', el.id);
     const observer = new IntersectionObserver((entries, observer)=>{
         entries.forEach((entry)=>{
+            console.log(`[Observer] entry para ${el.id}: isIntersecting=${entry.isIntersecting}`);
             if (entry.isIntersecting) {
-                console.log("[Observer] Panel visible \u2192 ejecutando callback");
+                console.log(`[Observer] Panel ${el.id} visible \u{2192} ejecutando callback`);
                 callback();
                 observer.disconnect();
             }
@@ -702,35 +707,54 @@ document.addEventListener('DOMContentLoaded', ()=>{
     // Pestañas
     document.querySelectorAll('.filter-btn').forEach((btn)=>{
         btn.addEventListener('click', async ()=>{
+            console.log(`[UI] Click en pesta\xf1a: ${btn.dataset.filter}`);
+            // Reset estado visual
             document.querySelectorAll('.filter-btn').forEach((b)=>b.classList.remove('active'));
             document.querySelectorAll('.tab-panel').forEach((p)=>p.classList.remove('active'));
             btn.classList.add('active');
             const selected = btn.dataset.filter;
             const panel = document.getElementById(`panel-${selected}`);
+            if (!panel) {
+                console.warn(`[UI] Panel no encontrado para ${selected}`);
+                return;
+            }
             panel.classList.add('active');
             const periodSelect = document.getElementById('period-select');
             periodSelect.style.display = selected === 'overview' ? 'block' : 'none';
             if (!userUid) return;
             switch(selected){
                 case 'overview':
+                    console.log("[UI] \u2192 Cargando pesta\xf1a General");
                     destroyGrowthCharts();
                     await (0, _generalJs.loadGeneral)(userUid, selectedPeriod);
                     break;
                 case 'growth':
+                    console.log("[UI] \u2192 Cargando pesta\xf1a Crecimiento");
                     destroyGeneralCharts();
                     await (0, _growthJs.loadGrowth)();
-                    // render diferido de las gráficas si visibles
-                    whenVisible(document.getElementById('panel-growth'), ()=>{
-                        console.log("[Observer] panel-growth visible \u2192 render gr\xe1ficos crecimiento");
+                    const growthEl = document.getElementById('panel-growth');
+                    if (!growthEl) {
+                        console.warn('[Observer] panel-growth no existe en el DOM');
+                        return;
+                    }
+                    whenVisible(growthEl, ()=>{
+                        console.log("[Observer] panel-growth visible \u2192 re-render forzado");
                         try {
-                            window.growthChart?.render();
-                            window.categoryTrendChart?.render();
+                            if (window.growthChart) {
+                                console.log("[Observer] \u2192 rendering growthChart");
+                                window.growthChart.render();
+                            } else console.warn('[Observer] growthChart no existe');
+                            if (window.categoryTrendChart) {
+                                console.log("[Observer] \u2192 rendering categoryTrendChart");
+                                window.categoryTrendChart.render();
+                            } else console.warn('[Observer] categoryTrendChart no existe');
                         } catch (e) {
-                            console.warn("[Observer] Error al renderizar gr\xe1ficos crecimiento:", e);
+                            console.error("[Observer] Error al forzar renderizaci\xf3n:", e);
                         }
                     });
                     break;
                 case 'compare':
+                    console.log("[UI] \u2192 Pesta\xf1a Comparaci\xf3n (sin implementaci\xf3n a\xfan)");
                     break;
             }
         });
@@ -821,10 +845,12 @@ const groupColors = {
     'Loan Payments': '#B0BEC5'
 };
 document.addEventListener('DOMContentLoaded', ()=>{
-    console.log('[ANALYSIS] DOM cargado');
+    console.log('[ANALYSIS] DOM cargado'); // [DEBUG]
     const sidebar = document.getElementById('sidebar');
+    // Eventos UI
     document.querySelectorAll('.filter-btn').forEach((btn)=>{
         btn.addEventListener('click', ()=>{
+            console.log("[DEBUG] Bot\xf3n de filtro clicado:", btn.textContent);
             document.querySelector('.filter-btn.active')?.classList.remove('active');
             btn.classList.add('active');
         });
@@ -832,19 +858,25 @@ document.addEventListener('DOMContentLoaded', ()=>{
     document.getElementById('period-select').addEventListener('change', (e)=>{
         selectedPeriod = e.target.value;
         localStorage.setItem('selectedPeriod', selectedPeriod);
-        console.log('[ANALYSIS] Periodo seleccionado cambiado a:', selectedPeriod);
-        if (userId) applyPeriodFilter(userId, selectedPeriod);
+        console.log('[ANALYSIS] Periodo seleccionado cambiado a:', selectedPeriod); // [DEBUG]
+        if (userId) {
+            console.log('[DEBUG] Reaplicando filtro tras cambio de periodo'); // [DEBUG]
+            applyPeriodFilter(userId, selectedPeriod);
+        }
     });
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
         if (user) {
             userId = user.uid;
-            console.log('[ANALYSIS] Usuario autenticado:', userId);
+            console.log('[ANALYSIS] Usuario autenticado:', userId); // [DEBUG]
             const savedPeriod = localStorage.getItem('selectedPeriod') || 'month';
-            document.getElementById('period-select').value = savedPeriod;
             selectedPeriod = savedPeriod;
-            console.log('[ANALYSIS] Periodo restaurado desde localStorage:', selectedPeriod);
+            document.getElementById('period-select').value = savedPeriod;
+            console.log('[DEBUG] Periodo restaurado desde localStorage:', selectedPeriod); // [DEBUG]
             reactiveAnalysis(userId);
-            setTimeout(()=>applyPeriodFilter(userId, selectedPeriod), 200);
+            setTimeout(()=>{
+                console.log('[DEBUG] Ejecutando applyPeriodFilter tras timeout inicial'); // [DEBUG]
+                applyPeriodFilter(userId, selectedPeriod);
+            }, 200);
         } else {
             console.log('[ANALYSIS] Usuario no autenticado. Redirigiendo...');
             window.location.href = '../index.html';
@@ -852,7 +884,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     });
 });
 async function reactiveAnalysis(userId) {
-    console.log('[ANALYSIS] Iniciando suscripciones reactivas para usuario:', userId);
+    console.log('[RENDER] Entrando en renderAnalysis con periodo:', selectedPeriod); // [DEBUG]
     const histRef = (0, _firestore.collection)(db, 'users', userId, 'history');
     const sumRef = (0, _firestore.collection)(db, 'users', userId, 'historySummary');
     initCharts();
@@ -1099,6 +1131,7 @@ function renderAnalysis() {
         ...spend
     ];
     renderPieChartForCurrentPeriod();
+    console.log('[RENDER] renderAnalysis completado.'); // [DEBUG]
 }
 function arraysEqual(a, b) {
     if (a.length !== b.length) return false;
@@ -1212,12 +1245,6 @@ function initCharts() {
     });
     pieChart.render();
 }
-// ───── Seguimiento de estado por periodo para evitar renders duplicados ─────
-const lastCatMapByPeriod = {
-    week: '',
-    month: '',
-    year: ''
-};
 // ─────────────────────────────────────────────────────────────────────────────
 // Devuelve la semana del mes actual ('S1' a 'S5') según el día del mes
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1383,12 +1410,19 @@ window.addEventListener('scroll', ()=>{
     passive: true
 });
 function loadGeneral(userId, selectedPeriod) {
-    console.log('[GENERAL] Iniciando con periodo:', selectedPeriod);
-    const period = selectedPeriod;
-    reactiveAnalysis(userId, period).then(()=>{
+    console.log("[TAB] \u2192 loadGeneral() invocado con:", {
+        userId,
+        selectedPeriod
+    }); // [DEBUG]
+    reactiveAnalysis(userId, selectedPeriod).then(()=>{
         const overviewPanel = document.getElementById('panel-overview');
+        if (!overviewPanel) {
+            console.warn("[TAB] No se encontr\xf3 el panel-overview"); // [DEBUG]
+            return;
+        }
+        console.log('[TAB] Observando panel-overview con whenVisible'); // [DEBUG]
         whenVisible(overviewPanel, ()=>{
-            console.log("[Observer] panel-overview visible \u2192 initCharts + renderAnalysis");
+            console.log("[Observer] panel-overview visible \u2192 initCharts + renderAnalysis"); // [DEBUG]
             initCharts();
             renderAnalysis();
         });
@@ -1410,7 +1444,7 @@ const DB_VERSION = 1;
 const STORE_SUMMARY = 'historySummary';
 const STORE_CATEGORIAS = 'historyCategorias';
 async function loadGrowth() {
-    console.log('[GROWTH] Iniciando carga de datos para crecimiento');
+    console.log("[GROWTH] \u2699\uFE0F Iniciando carga de datos para crecimiento");
     const months = getLast12Months();
     const summaryData = [];
     const categoryData = new Map();
@@ -1422,7 +1456,7 @@ async function loadGrowth() {
         }
     });
     for (const month of months){
-        console.log(`[GROWTH] Procesando mes ${month} (${isOnline ? 'online' : 'offline'})`);
+        console.log(`[GROWTH] \u{1F504} Procesando mes ${month} (${isOnline ? 'online' : 'offline'})`);
         if (isOnline) try {
             const docRef = (0, _firestore.doc)(db, `historySummary/${month}`);
             const snap = await (0, _firestore.getDocs)((0, _firestore.collection)(docRef, 'weeks'));
@@ -1450,8 +1484,9 @@ async function loadGrowth() {
             });
             categoryData.set(month, groupTotals);
             await dbLocal.put(STORE_CATEGORIAS, groupTotals, month);
+            console.log(`[GROWTH] \u{2705} Datos online guardados en cache para ${month}`);
         } catch (e) {
-            console.error('[GROWTH] Error durante fetch online para', month, e);
+            console.error("[GROWTH] \u274C Error durante fetch online para", month, e);
         }
         else {
             const resumen = await dbLocal.get(STORE_SUMMARY, month);
@@ -1462,9 +1497,10 @@ async function loadGrowth() {
                 gastos: resumen?.gastos || 0
             });
             categoryData.set(month, categorias || {});
+            console.log(`[GROWTH] \u{2705} Datos offline obtenidos de cache para ${month}`);
         }
     }
-    console.log("[GROWTH] Datos cargados, generando KPIs y gr\xe1ficas");
+    console.log("[GROWTH] \u2705 Datos finalizados, generando KPIs y gr\xe1ficas...");
     renderGrowthKPIs(summaryData);
     renderGrowthChart(summaryData);
     renderCategoryTrendChart(months, categoryData);
@@ -1540,12 +1576,17 @@ function renderGrowthChart(data) {
         ]
     };
     try {
-        if (window.growthChart) window.growthChart.destroy();
-        window.growthChart = new ApexCharts(document.querySelector('#growthChart'), options);
+        const el = document.querySelector('#growthChart');
+        if (!el) return console.warn("[GROWTH] \u26A0\uFE0F growthChart container NO ENCONTRADO");
+        if (window.growthChart) {
+            console.log("[GROWTH] \uD83D\uDD01 Destruyendo gr\xe1fico anterior");
+            window.growthChart.destroy();
+        }
+        window.growthChart = new ApexCharts(el, options);
         window.growthChart.render();
-        console.log("[GROWTH] Gr\xe1fico principal renderizado");
+        console.log("[GROWTH] \uD83D\uDCC8 growthChart renderizado correctamente");
     } catch (e) {
-        console.error('[GROWTH] Error al renderizar growthChart:', e);
+        console.error("[GROWTH] \u274C Error al renderizar growthChart:", e);
     }
 }
 function renderCategoryTrendChart(months, categoryData) {
@@ -1576,12 +1617,17 @@ function renderCategoryTrendChart(months, categoryData) {
         }
     };
     try {
-        if (window.categoryTrendChart) window.categoryTrendChart.destroy();
-        window.categoryTrendChart = new ApexCharts(document.querySelector('#categoryTrendChart'), options);
+        const el = document.querySelector('#categoryTrendChart');
+        if (!el) return console.warn("[GROWTH] \u26A0\uFE0F categoryTrendChart container NO ENCONTRADO");
+        if (window.categoryTrendChart) {
+            console.log("[GROWTH] \uD83D\uDD01 Destruyendo gr\xe1fico de categor\xedas anterior");
+            window.categoryTrendChart.destroy();
+        }
+        window.categoryTrendChart = new ApexCharts(el, options);
         window.categoryTrendChart.render();
-        console.log("[GROWTH] Gr\xe1fico de categor\xedas renderizado");
+        console.log("[GROWTH] \uD83D\uDCCA categoryTrendChart renderizado correctamente");
     } catch (e) {
-        console.error('[GROWTH] Error al renderizar categoryTrendChart:', e);
+        console.error("[GROWTH] \u274C Error al renderizar categoryTrendChart:", e);
     }
 }
 
