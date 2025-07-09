@@ -12,6 +12,33 @@ const DB_VERSION = 1;
 const STORE_SUMMARY = 'historySummary';
 const STORE_CATEGORIAS = 'historyCategorias';
 
+export function whenVisible(el, callback) {
+  if (!el) {
+    console.warn('[Observer] Elemento no encontrado');
+    return;
+  }
+
+  console.log('[Observer] Observando visibilidad de', el.id);
+
+  const observer = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      const isVisible = entry.isIntersecting && getComputedStyle(el).display !== 'none' && el.classList.contains('active');
+
+      console.log(`[Observer] entry para ${el.id} → isIntersecting=${entry.isIntersecting}, display=${getComputedStyle(el).display}, active=${el.classList.contains('active')}`);
+
+      if (isVisible) {
+        console.log(`[Observer] ${el.id} visible y activo → ejecutando callback`);
+        callback();
+        obs.disconnect();
+      }
+    });
+  });
+
+  observer.observe(el);
+}
+
+
+
 export async function loadGrowth() {
   console.log('[GROWTH] ⚙️ Iniciando carga de datos para crecimiento');
 

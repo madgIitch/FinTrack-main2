@@ -2,7 +2,6 @@ import {auth, app } from './firebase.js';
 import { getFirestore, collection, onSnapshot, doc } from 'firebase/firestore';
 import { getDoc, doc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { whenVisible } from './analysis.js';
 
 
 console.log('[ANALYSIS] Archivo analysis.js cargado');
@@ -90,6 +89,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+// ───── Utilidad: Ejecutar cuando visible ─────
+export function whenVisible(el, callback) {
+  if (!el) {
+    console.warn('[Observer] Elemento no encontrado');
+    return;
+  }
+
+  console.log('[Observer] Observando visibilidad de', el.id);
+
+  const observer = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      const isVisible = entry.isIntersecting && getComputedStyle(el).display !== 'none' && el.classList.contains('active');
+
+      console.log(`[Observer] entry para ${el.id} → isIntersecting=${entry.isIntersecting}, display=${getComputedStyle(el).display}, active=${el.classList.contains('active')}`);
+
+      if (isVisible) {
+        console.log(`[Observer] ${el.id} visible y activo → ejecutando callback`);
+        callback();
+        obs.disconnect();
+      }
+    });
+  });
+
+  observer.observe(el);
+}
+
+
 
 async function reactiveAnalysis(userId) {
   console.log('[RENDER] Entrando en renderAnalysis con periodo:', selectedPeriod); // [DEBUG]

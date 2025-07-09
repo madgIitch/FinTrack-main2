@@ -19,9 +19,12 @@ export function whenVisible(el, callback) {
 
   const observer = new IntersectionObserver((entries, obs) => {
     entries.forEach(entry => {
-      console.log(`[Observer] entry para ${el.id} → isIntersecting=${entry.isIntersecting}`);
-      if (entry.isIntersecting) {
-        console.log(`[Observer] ${el.id} visible → ejecutando callback`);
+      const isVisible = entry.isIntersecting && getComputedStyle(el).display !== 'none' && el.classList.contains('active');
+
+      console.log(`[Observer] entry para ${el.id} → isIntersecting=${entry.isIntersecting}, display=${getComputedStyle(el).display}, active=${el.classList.contains('active')}`);
+
+      if (isVisible) {
+        console.log(`[Observer] ${el.id} visible y activo → ejecutando callback`);
         callback();
         obs.disconnect();
       }
@@ -30,6 +33,7 @@ export function whenVisible(el, callback) {
 
   observer.observe(el);
 }
+
 
 // ───── Inicio DOM ─────
 document.addEventListener('DOMContentLoaded', () => {
@@ -75,8 +79,15 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'overview':
           console.log('[UI] → Mostrando pestaña General');
           destroyGrowthCharts();
-          await loadGeneral(userUid, selectedPeriod);
+
+          const panel = document.getElementById('panel-overview');
+          if (panel) {
+            initCharts();
+            renderAnalysis();
+          }
+
           break;
+
 
         case 'growth':
           console.log('[UI] → Mostrando pestaña Crecimiento');

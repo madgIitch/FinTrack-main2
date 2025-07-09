@@ -662,6 +662,10 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"l1WLd":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+// ───── Utilidad: Ejecutar cuando visible ─────
+parcelHelpers.export(exports, "whenVisible", ()=>whenVisible);
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
 var _generalJs = require("./general.js");
@@ -669,7 +673,6 @@ var _growthJs = require("./growth.js");
 let userUid = null;
 let selectedPeriod = localStorage.getItem('selectedPeriod') || 'month';
 console.log('[ANALYSIS] Archivo analysis.js cargado');
-// ───── Utilidad: Ejecutar cuando visible ─────
 function whenVisible(el, callback) {
     if (!el) {
         console.warn('[Observer] Elemento no encontrado');
@@ -678,11 +681,12 @@ function whenVisible(el, callback) {
     console.log('[Observer] Observando visibilidad de', el.id);
     const observer = new IntersectionObserver((entries, obs)=>{
         entries.forEach((entry)=>{
-            console.log(`[Observer] entry para ${el.id} \u{2192} isIntersecting=${entry.isIntersecting}`);
-            if (entry.isIntersecting) {
-                console.log(`[Observer] ${el.id} visible \u{2192} ejecutando callback`);
+            const isVisible = entry.isIntersecting && getComputedStyle(el).display !== 'none' && el.classList.contains('active');
+            console.log(`[Observer] entry para ${el.id} \u{2192} isIntersecting=${entry.isIntersecting}, display=${getComputedStyle(el).display}, active=${el.classList.contains('active')}`);
+            if (isVisible) {
+                console.log(`[Observer] ${el.id} visible y activo \u{2192} ejecutando callback`);
                 callback();
-                obs.disconnect(); // Solo una vez por visibilidad
+                obs.disconnect();
             }
         });
     });
@@ -699,13 +703,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
         await (0, _auth.signOut)((0, _firebaseJs.auth));
         window.location.href = '../index.html';
     });
-    // Cambio de periodo en pestaña General
     periodSelect.addEventListener('change', (e)=>{
         selectedPeriod = e.target.value;
         localStorage.setItem('selectedPeriod', selectedPeriod);
         if (userUid) (0, _generalJs.loadGeneral)(userUid, selectedPeriod);
     });
-    // ───── Pestañas ─────
     document.querySelectorAll('.filter-btn').forEach((btn)=>{
         btn.addEventListener('click', async ()=>{
             const selected = btn.dataset.filter;
@@ -715,24 +717,26 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 console.warn(`[UI] No se encontr\xf3 panel para: ${selected}`);
                 return;
             }
-            // Reset visual
             document.querySelectorAll('.filter-btn').forEach((b)=>b.classList.remove('active'));
             document.querySelectorAll('.tab-panel').forEach((p)=>p.classList.remove('active'));
             btn.classList.add('active');
             panel.classList.add('active');
-            // Mostrar/ocultar selector de periodo
             periodSelect.style.display = selected === 'overview' ? 'block' : 'none';
             if (!userUid) return;
             switch(selected){
                 case 'overview':
                     console.log("[UI] \u2192 Mostrando pesta\xf1a General");
                     destroyGrowthCharts();
-                    await (0, _generalJs.loadGeneral)(userUid, selectedPeriod);
+                    const panel1 = document.getElementById('panel-overview');
+                    if (panel1) {
+                        initCharts();
+                        renderAnalysis();
+                    }
                     break;
                 case 'growth':
                     console.log("[UI] \u2192 Mostrando pesta\xf1a Crecimiento");
                     destroyGeneralCharts();
-                    whenVisible(panel, async ()=>{
+                    whenVisible(panel1, async ()=>{
                         console.log("[Observer] panel-growth visible \u2192 ejecutando loadGrowth");
                         try {
                             await (0, _growthJs.loadGrowth)();
@@ -747,7 +751,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
             }
         });
     });
-    // ───── Autenticación ─────
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
         if (user) {
             userUid = user.uid;
@@ -755,40 +758,39 @@ document.addEventListener('DOMContentLoaded', ()=>{
             const savedPeriod = localStorage.getItem('selectedPeriod') || 'month';
             document.getElementById('period-select').value = savedPeriod;
             selectedPeriod = savedPeriod;
-            // Activar pestaña por defecto
             document.querySelector('.filter-btn[data-filter="overview"]').click();
         } else window.location.href = '../index.html';
     });
 });
-// ───── Destrucción de gráficas ─────
-function destroyGeneralCharts() {
-    try {
-        window.trendChart?.destroy();
-        window.barChart?.destroy();
-        window.pieChart?.destroy();
-        window.trendChart = null;
-        window.barChart = null;
-        window.pieChart = null;
-        console.log("[CLEAN] Gr\xe1ficas generales destruidas");
+// ───── Destrucción segura de gráficas ─────
+function destroyChart(instance, name) {
+    if (instance && typeof instance.destroy === 'function') try {
+        instance.destroy();
+        console.log(`[CLEAN] ${name} destruido`);
     } catch (e) {
-        console.warn("[CLEAN] Error al destruir gr\xe1ficas generales:", e);
+        console.warn(`[CLEAN] Error al destruir ${name}:`, e);
     }
+}
+function destroyGeneralCharts() {
+    destroyChart(window.trendChart, 'trendChart');
+    destroyChart(window.barChart, 'barChart');
+    destroyChart(window.pieChart, 'pieChart');
+    window.trendChart = null;
+    window.barChart = null;
+    window.pieChart = null;
 }
 function destroyGrowthCharts() {
-    try {
-        window.growthChart?.destroy();
-        window.categoryTrendChart?.destroy();
-        window.growthChart = null;
-        window.categoryTrendChart = null;
-        console.log("[CLEAN] Gr\xe1ficas crecimiento destruidas");
-    } catch (e) {
-        console.warn("[CLEAN] Error al destruir gr\xe1ficas de crecimiento:", e);
-    }
+    destroyChart(window.growthChart, 'growthChart');
+    destroyChart(window.categoryTrendChart, 'categoryTrendChart');
+    window.growthChart = null;
+    window.categoryTrendChart = null;
 }
 
-},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","./general.js":"lGg7R","./growth.js":"4z1LS"}],"lGg7R":[function(require,module,exports,__globalThis) {
+},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","./general.js":"lGg7R","./growth.js":"4z1LS","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"lGg7R":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
+// ───── Utilidad: Ejecutar cuando visible ─────
+parcelHelpers.export(exports, "whenVisible", ()=>whenVisible);
 parcelHelpers.export(exports, "loadGeneral", ()=>loadGeneral);
 var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
@@ -871,6 +873,25 @@ document.addEventListener('DOMContentLoaded', ()=>{
         }
     });
 });
+function whenVisible(el, callback) {
+    if (!el) {
+        console.warn('[Observer] Elemento no encontrado');
+        return;
+    }
+    console.log('[Observer] Observando visibilidad de', el.id);
+    const observer = new IntersectionObserver((entries, obs)=>{
+        entries.forEach((entry)=>{
+            const isVisible = entry.isIntersecting && getComputedStyle(el).display !== 'none' && el.classList.contains('active');
+            console.log(`[Observer] entry para ${el.id} \u{2192} isIntersecting=${entry.isIntersecting}, display=${getComputedStyle(el).display}, active=${el.classList.contains('active')}`);
+            if (isVisible) {
+                console.log(`[Observer] ${el.id} visible y activo \u{2192} ejecutando callback`);
+                callback();
+                obs.disconnect();
+            }
+        });
+    });
+    observer.observe(el);
+}
 async function reactiveAnalysis(userId) {
     console.log('[RENDER] Entrando en renderAnalysis con periodo:', selectedPeriod); // [DEBUG]
     const histRef = (0, _firestore.collection)(db, 'users', userId, 'history');
@@ -1421,6 +1442,7 @@ function loadGeneral(userId, selectedPeriod) {
 // growth.js – Pestaña de Crecimiento
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "whenVisible", ()=>whenVisible);
 parcelHelpers.export(exports, "loadGrowth", ()=>loadGrowth);
 var _firestore = require("firebase/firestore");
 var _idb = require("idb");
@@ -1431,6 +1453,25 @@ const DB_NAME = 'growth-cache';
 const DB_VERSION = 1;
 const STORE_SUMMARY = 'historySummary';
 const STORE_CATEGORIAS = 'historyCategorias';
+function whenVisible(el, callback) {
+    if (!el) {
+        console.warn('[Observer] Elemento no encontrado');
+        return;
+    }
+    console.log('[Observer] Observando visibilidad de', el.id);
+    const observer = new IntersectionObserver((entries, obs)=>{
+        entries.forEach((entry)=>{
+            const isVisible = entry.isIntersecting && getComputedStyle(el).display !== 'none' && el.classList.contains('active');
+            console.log(`[Observer] entry para ${el.id} \u{2192} isIntersecting=${entry.isIntersecting}, display=${getComputedStyle(el).display}, active=${el.classList.contains('active')}`);
+            if (isVisible) {
+                console.log(`[Observer] ${el.id} visible y activo \u{2192} ejecutando callback`);
+                callback();
+                obs.disconnect();
+            }
+        });
+    });
+    observer.observe(el);
+}
 async function loadGrowth() {
     console.log("[GROWTH] \u2699\uFE0F Iniciando carga de datos para crecimiento");
     const months = getLast12Months();
