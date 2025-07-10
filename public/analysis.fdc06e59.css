@@ -127,25 +127,12 @@
   height: 100% !important;
 }
 
-.chart-card.trend-chart {
-  padding-bottom: 36px;
-}
-
 #trendChart .apexcharts-legend {
   margin-top: 12px;
 }
 
 #trendChart .apexcharts-inner {
   transform: translateY(12px);
-}
-
-#trendLegend {
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 16px;
-  margin-top: 8px;
-  font-size: .8rem;
-  display: flex;
 }
 
 #trendLegend .legend-item {
@@ -231,5 +218,25 @@
 
 .tab-panel.active {
   display: block;
+}
+
+.chart-card.trend-chart {
+  padding: 8px;
+}
+
+.chart-card.trend-chart .trend-container {
+  flex-direction: column;
+  flex: 1;
+  align-items: center;
+  display: flex;
+}
+
+#trendLegend {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: .8rem;
+  display: flex;
 }
 /*# sourceMappingURL=analysis.fdc06e59.css.map */

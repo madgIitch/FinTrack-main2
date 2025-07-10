@@ -145,8 +145,9 @@
 }
 
 .chart-card.trend-chart {
-  padding-bottom: 36px;
+  padding: 8px;
 }
+
 
 #trendChart .apexcharts-legend {
   margin-top: 12px;
@@ -261,4 +262,25 @@
 
 .tab-panel.active {
   display: block;
+}
+
+
+.chart-card.trend-chart {
+  padding: 8px;
+}
+
+.chart-card.trend-chart .trend-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#trendLegend {
+  margin-top: 12px;
+  font-size: 0.8rem;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
