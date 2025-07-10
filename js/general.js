@@ -411,12 +411,58 @@ function arraysEqual(a, b) {
 export function initCharts() {
   console.log('[ANALYSIS] Inicializando gráficos');
   trendChart = new ApexCharts(document.querySelector('#trendChart'), {
-    chart: { type: 'line', height: 240, toolbar: { show: false } },
-    series: [], xaxis: { categories: [] },
-    yaxis: { labels: { formatter: val => Math.round(val) } },
-    colors: ['#4ADE80', '#F87171'], stroke: { curve: 'smooth', width: 2 }, grid: { borderColor: '#eee' }
+    chart: {
+      type: 'line',
+      height: 240,
+      toolbar: { show: false }
+    },
+    series: [],
+    xaxis: {
+      categories: [],
+      tickPlacement: 'between', // Alineación centrada entre ticks
+      labels: {
+        style: {
+          fontSize: '12px'
+        }
+      }
+    },
+    yaxis: {
+      labels: {
+        formatter: val => Math.round(val)
+      }
+    },
+    colors: ['#4ADE80', '#F87171'], // Ingresos (verde), Gastos (rojo)
+    stroke: {
+      curve: 'smooth',
+      width: 2
+    },
+    grid: {
+      borderColor: '#eee',
+      padding: {
+        left: 20,  // 👈 Añadido margen para que no se corte el primer valor
+        right: 10
+      }
+    },
+    legend: {
+      show: false
+    }
   });
+
+
+
   trendChart.render();
+
+  const trendLegend = document.getElementById('trendLegend');
+    if (trendLegend) {
+      trendLegend.innerHTML = `
+        <div class="legend-item">
+          <span class="legend-color" style="background:#4ADE80"></span> Ingresos
+        </div>
+        <div class="legend-item">
+          <span class="legend-color" style="background:#F87171"></span> Gastos
+        </div>
+      `;
+    }
 
   barChart = new ApexCharts(document.querySelector('#barChart'), {
     chart: { type: 'bar', height: 200, toolbar: { show: false } },

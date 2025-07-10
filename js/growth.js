@@ -170,29 +170,82 @@ function renderGrowthChart(data) {
   const options = {
     chart: {
       type: 'line',
-      height: 300,
-      toolbar: { show: false }
+      height: 320,
+      toolbar: { show: false },
+      animations: { enabled: false },
+      padding: {
+        bottom: 60 // Suficiente para leyenda + etiquetas X
+      }
     },
     series: [
       { name: 'Ingresos', data: incomes },
       { name: 'Gastos', data: expenses },
       { name: 'Ahorro', data: savings }
     ],
-    xaxis: { categories },
-    yaxis: {
+    xaxis: {
+      categories,
       labels: {
-        formatter: value => value.toFixed(2)
+        rotate: -45,
+        style: {
+          fontSize: '11px'
+        }
       }
     },
-    stroke: { curve: 'smooth' },
-    markers: { size: 4 },
-    dataLabels: { enabled: false },
-    colors: ['#00C49F', '#FF4C4C', '#0074D9']
+    yaxis: {
+      labels: {
+        formatter: value => value.toFixed(2),
+        style: {
+          fontSize: '11px'
+        }
+      }
+    },
+    stroke: {
+      curve: 'smooth',
+      width: 3
+    },
+    markers: {
+      size: 4
+    },
+    dataLabels: {
+      enabled: false
+    },
+    colors: ['#00C49F', '#FF4C4C', '#0074D9'],
+    legend: {
+      show: true,
+      position: 'bottom',
+      fontSize: '12px',
+      horizontalAlign: 'center',
+      markers: {
+        width: 10,
+        height: 10
+      },
+      itemMargin: {
+        horizontal: 8,
+        vertical: 4
+      }
+    },
+    grid: {
+      padding: {
+        bottom: 0
+      }
+    },
+    noData: {
+      text: 'No hay datos disponibles',
+      align: 'center',
+      verticalAlign: 'middle',
+      style: {
+        color: '#999',
+        fontSize: '14px'
+      }
+    }
   };
 
   try {
     const el = document.querySelector('#growthChart');
-    if (!el) return console.warn('[GROWTH] ⚠️ growthChart container NO ENCONTRADO');
+    if (!el) {
+      console.warn('[GROWTH] ⚠️ growthChart container NO ENCONTRADO');
+      return;
+    }
 
     if (window.growthChart) {
       console.log('[GROWTH] 🔁 Destruyendo gráfico anterior');
@@ -206,6 +259,8 @@ function renderGrowthChart(data) {
     console.error('[GROWTH] ❌ Error al renderizar growthChart:', e);
   }
 }
+
+
 
 function renderCategoryTrendChart(months, categoryData) {
   console.log('[GROWTH] 🔍 Iniciando renderCategoryTrendChart...');
@@ -224,7 +279,7 @@ function renderCategoryTrendChart(months, categoryData) {
     data: months.map(m => categoryData.get(m)?.[group] || 0)
   }));
 
-  console.log('[GROWTH] 🧩 Series generadas para gráfico:', series);
+  console.log('[GROWTH] 🧩 Series generadas:', series);
 
   const colors = sortedGroups.map(group => groupColors[group] || '#D9D9D9');
 
@@ -233,7 +288,8 @@ function renderCategoryTrendChart(months, categoryData) {
       type: 'area',
       height: 320,
       stacked: true,
-      toolbar: { show: false }
+      toolbar: { show: false },
+      animations: { enabled: false }
     },
     series,
     colors,
@@ -246,24 +302,26 @@ function renderCategoryTrendChart(months, categoryData) {
         formatter: val => val.toFixed(2)
       }
     },
+    stroke: { curve: 'smooth', width: 2 },
     dataLabels: { enabled: false },
-    stroke: { curve: 'smooth' },
-    legend: { show: false }
+    legend: { show: false }, // leyenda externa
+    noData: {
+      text: 'No hay datos disponibles',
+      align: 'center',
+      verticalAlign: 'middle',
+      style: {
+        color: '#999',
+        fontSize: '14px'
+      }
+    }
   };
 
   try {
     const el = document.querySelector('#categoryTrendChart');
     const legendEl = document.querySelector('#categoryTrendLegend');
 
-    if (!el) {
-      console.warn('[GROWTH] ⚠️ categoryTrendChart container NO ENCONTRADO');
-      return;
-    }
-
-    if (!legendEl) {
-      console.warn('[GROWTH] ⚠️ categoryTrendLegend container NO ENCONTRADO');
-      return;
-    }
+    if (!el) return console.warn('[GROWTH] ⚠️ categoryTrendChart container NO ENCONTRADO');
+    if (!legendEl) return console.warn('[GROWTH] ⚠️ categoryTrendLegend container NO ENCONTRADO');
 
     if (window.categoryTrendChart) {
       console.log('[GROWTH] 🔁 Destruyendo gráfico anterior');
@@ -274,7 +332,7 @@ function renderCategoryTrendChart(months, categoryData) {
     window.categoryTrendChart.render().then(() => {
       console.log('[GROWTH] ✅ categoryTrendChart renderizado correctamente');
 
-      // Leyenda: se delega completamente al CSS
+      // Leyenda externa renderizada manualmente
       legendEl.innerHTML = sortedGroups.map((group, i) => `
         <div class="legend-item">
           <div class="legend-color" style="background-color: ${colors[i]}"></div>
@@ -287,8 +345,6 @@ function renderCategoryTrendChart(months, categoryData) {
     console.error('[GROWTH] ❌ Error al renderizar categoryTrendChart:', e);
   }
 }
-
-
 
 
 function renderCategoryHeatmap(months, categoryData) {

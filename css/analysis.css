@@ -1,4 +1,6 @@
-/* Contenedor principal: ocupa todo excepto header y nav */
+/* ────────────────────────────────────────────────────────────── */
+/* Layout general                                                */
+/* ────────────────────────────────────────────────────────────── */
 .analysis-fullscreen {
   display: flex;
   flex-direction: column;
@@ -8,7 +10,15 @@
   overflow-y: auto;
 }
 
-/* Filtro */
+@media (max-width: 767px) {
+  .analysis-fullscreen {
+    padding-bottom: 86px;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/* Filtro superior                                               */
+/* ────────────────────────────────────────────────────────────── */
 .filter-card {
   display: flex;
   justify-content: space-between;
@@ -18,10 +28,12 @@
   border-radius: 8px;
   box-shadow: var(--shadow-sm);
 }
+
 .filters {
   display: flex;
   gap: 8px;
 }
+
 .filter-btn {
   background: transparent;
   border: none;
@@ -31,16 +43,19 @@
   cursor: pointer;
   transition: background 0.2s;
 }
+
 .filter-btn.active,
 .filter-btn:hover {
   background: var(--primary);
   color: #fff;
 }
+
 .period-select-wrapper {
   background: var(--grey-light);
   padding: 4px 8px;
   border-radius: 16px;
 }
+
 .period-select {
   border: none;
   background: transparent;
@@ -48,13 +63,16 @@
   outline: none;
 }
 
-/* KPIs */
+/* ────────────────────────────────────────────────────────────── */
+/* KPIs                                                          */
+/* ────────────────────────────────────────────────────────────── */
 .kpi-row {
   display: flex;
   gap: 12px;
   justify-content: center;
   flex-wrap: wrap;
 }
+
 .kpi-card {
   flex: 1 1 150px;
   max-width: 200px;
@@ -64,140 +82,163 @@
   border-radius: 8px;
   box-shadow: var(--shadow-sm);
 }
+
 .kpi-card h2 {
   font-size: 0.9rem;
   margin-bottom: 4px;
   color: var(--text-muted);
 }
+
 .kpi-value {
   font-size: 1.3rem;
   margin-bottom: 2px;
   color: var(--text);
 }
+
 .kpi-change {
   font-size: 0.75rem;
   color: var(--text-muted);
 }
 
-/* Gráficas: columna en móvil, fila de 3 en escritorio */
+/* ────────────────────────────────────────────────────────────── */
+/* Distribución de gráficas                                      */
+/* ────────────────────────────────────────────────────────────── */
 .charts-row {
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
+
 @media (min-width: 768px) {
   .charts-row {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
+    align-items: start; /* 🔥 Fuerza alineación superior */
   }
 }
 
-@media (max-width: 767px) {
-  .analysis-fullscreen {
-    padding-bottom: 86px;
-  }
-
-  #pieChart {
-    margin-bottom: 16px;
-  }
-}
-
+/* ────────────────────────────────────────────────────────────── */
+/* Tarjetas de gráficos                                          */
+/* ────────────────────────────────────────────────────────────── */
 .chart-card {
-  background: var(--surface);
-  padding: 8px;
-  border-radius: 8px;
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 300px; /* AUMENTADO */
-  height: 100%;
-}
-
-/* Estilo base para gráficos Apex */
-.chart-card > div {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* Estilo específico para el gráfico de tarta */
-#pieChart {
-  height: 100%;
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-/* Ajuste responsivo de altura */
-@media (min-width: 600px) {
-  .chart-card > div {
-    max-height: 220px; /* AUMENTADO desde 180px */
-  }
-  #pieChart {
-    max-height: 320px; /* AUMENTADO desde 280px */
-  }
-}
-@media (min-width: 900px) {
-  .chart-card > div {
-    max-height: 260px; /* AUMENTADO desde 200px */
-  }
-  #pieChart {
-    max-height: 360px; /* AUMENTADO desde 300px */
-  }
-}
-
-/* Ocultar paneles no activos */
-.tab-panel {
-  display: none;
-}
-.tab-panel.active {
-  display: block;
-}
-
-/* Contenedor para gráfico de pastel y su leyenda */
-.pie-container {
+  height: 420px;
+  max-height: 420px;
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   align-items: center;
-  height: 100%;
-  width: 100%;
+  padding: 8px;
+  background: var(--surface);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
-/* PieChart más grande */
-#pieChart {
-  height: 280px;
-  width: 280px;
-  max-height: none !important;
-  max-width: none !important;
+.chart-card > div,
+.chart-card .apexcharts-canvas {
+  flex: 1;
+  width: 100% !important;
+  height: 100% !important;
+  display: flex;
+  justify-content: center;
+  align-items: center !important;
 }
 
-/* Leyenda fuera del gráfico */
-#pieLegend {
+.chart-card.trend-chart {
+  padding-bottom: 36px;
+}
+
+#trendChart .apexcharts-legend {
+  margin-top: 12px;
+}
+
+#trendChart .apexcharts-inner {
+  transform: translateY(12px);
+}
+
+#trendLegend {
   margin-top: 8px;
-  max-width: 280px;
+  font-size: 0.8rem;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+#trendLegend .legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#trendLegend .legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
 }
 
-/* Gráficos específicos */
+/* ────────────────────────────────────────────────────────────── */
+/* Gráficos específicos                                          */
+/* ────────────────────────────────────────────────────────────── */
 #growthChart,
 #categoryTrendChart,
+#categoryHeatmap,
+#trendChart,
+#barChart,
+#pieChart {
+  height: 100% !important;
+  width: 100% !important;
+  min-height: unset !important;
+  max-height: unset !important;
+}
+
 #categoryHeatmap {
-  min-height: 300px; /* AUMENTADO */
-  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#categoryTrendChart {
+  flex: 1;
+  width: 100%;
+  min-height: 200px;
+  height: 300px !important;
 }
 
 #categoryTrendLegend {
+  flex-shrink: 0;
+  margin-top: 8px;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  margin-top: 1rem;
-  max-width: 400px;
-  margin-left: auto;
-  margin-right: auto;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 12px;
+  font-size: 0.75rem;
 }
 
+/* Pie chart contenedor */
+.chart-card.pie-chart {
+  height: 420px;
+  padding: 12px;
+}
+
+.chart-card.pie-chart .pie-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#pieLegend {
+  margin-top: 12px;
+  max-height: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 12px;
+  font-size: 0.75rem;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/* Leyendas y elementos comunes                                  */
+/* ────────────────────────────────────────────────────────────── */
 .legend-item {
   display: flex;
   align-items: center;
@@ -209,4 +250,15 @@
   width: 12px;
   height: 12px;
   border-radius: 2px;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/* Tabs                                                          */
+/* ────────────────────────────────────────────────────────────── */
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
 }

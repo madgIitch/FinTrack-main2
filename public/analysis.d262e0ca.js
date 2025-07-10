@@ -1157,7 +1157,13 @@ function initCharts() {
         },
         series: [],
         xaxis: {
-            categories: []
+            categories: [],
+            tickPlacement: 'between',
+            labels: {
+                style: {
+                    fontSize: '12px'
+                }
+            }
         },
         yaxis: {
             labels: {
@@ -1173,10 +1179,26 @@ function initCharts() {
             width: 2
         },
         grid: {
-            borderColor: '#eee'
+            borderColor: '#eee',
+            padding: {
+                left: 20,
+                right: 10
+            }
+        },
+        legend: {
+            show: false
         }
     });
     trendChart.render();
+    const trendLegend = document.getElementById('trendLegend');
+    if (trendLegend) trendLegend.innerHTML = `
+        <div class="legend-item">
+          <span class="legend-color" style="background:#4ADE80"></span> Ingresos
+        </div>
+        <div class="legend-item">
+          <span class="legend-color" style="background:#F87171"></span> Gastos
+        </div>
+      `;
     barChart = new ApexCharts(document.querySelector('#barChart'), {
         chart: {
             type: 'bar',
@@ -1590,9 +1612,15 @@ function renderGrowthChart(data) {
     const options = {
         chart: {
             type: 'line',
-            height: 300,
+            height: 320,
             toolbar: {
                 show: false
+            },
+            animations: {
+                enabled: false
+            },
+            padding: {
+                bottom: 60 // Suficiente para leyenda + etiquetas X
             }
         },
         series: [
@@ -1610,15 +1638,25 @@ function renderGrowthChart(data) {
             }
         ],
         xaxis: {
-            categories
+            categories,
+            labels: {
+                rotate: -45,
+                style: {
+                    fontSize: '11px'
+                }
+            }
         },
         yaxis: {
             labels: {
-                formatter: (value)=>value.toFixed(2)
+                formatter: (value)=>value.toFixed(2),
+                style: {
+                    fontSize: '11px'
+                }
             }
         },
         stroke: {
-            curve: 'smooth'
+            curve: 'smooth',
+            width: 3
         },
         markers: {
             size: 4
@@ -1630,11 +1668,42 @@ function renderGrowthChart(data) {
             '#00C49F',
             '#FF4C4C',
             '#0074D9'
-        ]
+        ],
+        legend: {
+            show: true,
+            position: 'bottom',
+            fontSize: '12px',
+            horizontalAlign: 'center',
+            markers: {
+                width: 10,
+                height: 10
+            },
+            itemMargin: {
+                horizontal: 8,
+                vertical: 4
+            }
+        },
+        grid: {
+            padding: {
+                bottom: 0
+            }
+        },
+        noData: {
+            text: 'No hay datos disponibles',
+            align: 'center',
+            verticalAlign: 'middle',
+            style: {
+                color: '#999',
+                fontSize: '14px'
+            }
+        }
     };
     try {
         const el = document.querySelector('#growthChart');
-        if (!el) return console.warn("[GROWTH] \u26A0\uFE0F growthChart container NO ENCONTRADO");
+        if (!el) {
+            console.warn("[GROWTH] \u26A0\uFE0F growthChart container NO ENCONTRADO");
+            return;
+        }
         if (window.growthChart) {
             console.log("[GROWTH] \uD83D\uDD01 Destruyendo gr\xe1fico anterior");
             window.growthChart.destroy();
@@ -1660,7 +1729,7 @@ function renderCategoryTrendChart(months, categoryData) {
             name: group,
             data: months.map((m)=>categoryData.get(m)?.[group] || 0)
         }));
-    console.log("[GROWTH] \uD83E\uDDE9 Series generadas para gr\xe1fico:", series);
+    console.log("[GROWTH] \uD83E\uDDE9 Series generadas:", series);
     const colors = sortedGroups.map((group)=>groupColors[group] || '#D9D9D9');
     const options = {
         chart: {
@@ -1669,6 +1738,9 @@ function renderCategoryTrendChart(months, categoryData) {
             stacked: true,
             toolbar: {
                 show: false
+            },
+            animations: {
+                enabled: false
             }
         },
         series,
@@ -1684,27 +1756,31 @@ function renderCategoryTrendChart(months, categoryData) {
                 formatter: (val)=>val.toFixed(2)
             }
         },
+        stroke: {
+            curve: 'smooth',
+            width: 2
+        },
         dataLabels: {
             enabled: false
         },
-        stroke: {
-            curve: 'smooth'
-        },
         legend: {
             show: false
+        },
+        noData: {
+            text: 'No hay datos disponibles',
+            align: 'center',
+            verticalAlign: 'middle',
+            style: {
+                color: '#999',
+                fontSize: '14px'
+            }
         }
     };
     try {
         const el = document.querySelector('#categoryTrendChart');
         const legendEl = document.querySelector('#categoryTrendLegend');
-        if (!el) {
-            console.warn("[GROWTH] \u26A0\uFE0F categoryTrendChart container NO ENCONTRADO");
-            return;
-        }
-        if (!legendEl) {
-            console.warn("[GROWTH] \u26A0\uFE0F categoryTrendLegend container NO ENCONTRADO");
-            return;
-        }
+        if (!el) return console.warn("[GROWTH] \u26A0\uFE0F categoryTrendChart container NO ENCONTRADO");
+        if (!legendEl) return console.warn("[GROWTH] \u26A0\uFE0F categoryTrendLegend container NO ENCONTRADO");
         if (window.categoryTrendChart) {
             console.log("[GROWTH] \uD83D\uDD01 Destruyendo gr\xe1fico anterior");
             window.categoryTrendChart.destroy();
@@ -1712,7 +1788,7 @@ function renderCategoryTrendChart(months, categoryData) {
         window.categoryTrendChart = new ApexCharts(el, options);
         window.categoryTrendChart.render().then(()=>{
             console.log("[GROWTH] \u2705 categoryTrendChart renderizado correctamente");
-            // Leyenda: se delega completamente al CSS
+            // Leyenda externa renderizada manualmente
             legendEl.innerHTML = sortedGroups.map((group, i)=>`
         <div class="legend-item">
           <div class="legend-color" style="background-color: ${colors[i]}"></div>
