@@ -170,7 +170,7 @@ function renderGrowthChart(data) {
   const options = {
     chart: {
       type: 'line',
-      height: 320,
+      height: 420,
       toolbar: { show: false },
       animations: { enabled: false }
     },
