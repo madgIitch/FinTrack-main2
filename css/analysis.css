@@ -205,14 +205,28 @@
 }
 
 #categoryTrendLegend {
-  flex-shrink: 0;
-  margin-top: 8px;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px 12px;
-  font-size: 0.75rem;
+  flex-wrap: wrap;         /* ✅ permite saltar de línea */
+  gap: 8px 12px;           /* Espaciado entre elementos */
+  margin-top: 12px;
+  justify-content: center; /* Centrado horizontal */
+  max-width: 100%;
+  overflow: visible;       /* ✅ evita scroll */
 }
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+}
+
+.legend-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
 
 /* Pie chart contenedor */
 .chart-card.pie-chart {

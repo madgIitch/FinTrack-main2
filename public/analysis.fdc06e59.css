@@ -169,12 +169,25 @@
 
 #categoryTrendLegend {
   flex-wrap: wrap;
-  flex-shrink: 0;
   justify-content: center;
-  gap: 6px 12px;
-  margin-top: 8px;
-  font-size: .75rem;
+  gap: 8px 12px;
+  max-width: 100%;
+  margin-top: 12px;
   display: flex;
+  overflow: visible;
+}
+
+.legend-item {
+  align-items: center;
+  font-size: 12px;
+  display: flex;
+}
+
+.legend-color {
+  border-radius: 50%;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
 }
 
 .chart-card.pie-chart {

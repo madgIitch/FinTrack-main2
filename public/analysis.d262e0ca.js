@@ -1618,9 +1618,6 @@ function renderGrowthChart(data) {
             },
             animations: {
                 enabled: false
-            },
-            padding: {
-                bottom: 60 // Suficiente para leyenda + etiquetas X
             }
         },
         series: [
@@ -1639,6 +1636,7 @@ function renderGrowthChart(data) {
         ],
         xaxis: {
             categories,
+            tickPlacement: 'between',
             labels: {
                 rotate: -45,
                 style: {
@@ -1648,7 +1646,7 @@ function renderGrowthChart(data) {
         },
         yaxis: {
             labels: {
-                formatter: (value)=>value.toFixed(2),
+                formatter: (val)=>Math.round(val),
                 style: {
                     fontSize: '11px'
                 }
@@ -1656,7 +1654,7 @@ function renderGrowthChart(data) {
         },
         stroke: {
             curve: 'smooth',
-            width: 3
+            width: 2
         },
         markers: {
             size: 4
@@ -1684,8 +1682,11 @@ function renderGrowthChart(data) {
             }
         },
         grid: {
+            borderColor: '#eee',
             padding: {
-                bottom: 0
+                left: 20,
+                right: 10,
+                bottom: 100 // ✅ Añadimos espacio para leyenda y etiquetas X
             }
         },
         noData: {

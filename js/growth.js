@@ -172,10 +172,7 @@ function renderGrowthChart(data) {
       type: 'line',
       height: 320,
       toolbar: { show: false },
-      animations: { enabled: false },
-      padding: {
-        bottom: 60 // Suficiente para leyenda + etiquetas X
-      }
+      animations: { enabled: false }
     },
     series: [
       { name: 'Ingresos', data: incomes },
@@ -184,6 +181,7 @@ function renderGrowthChart(data) {
     ],
     xaxis: {
       categories,
+      tickPlacement: 'between',
       labels: {
         rotate: -45,
         style: {
@@ -193,7 +191,7 @@ function renderGrowthChart(data) {
     },
     yaxis: {
       labels: {
-        formatter: value => value.toFixed(2),
+        formatter: val => Math.round(val),
         style: {
           fontSize: '11px'
         }
@@ -201,7 +199,7 @@ function renderGrowthChart(data) {
     },
     stroke: {
       curve: 'smooth',
-      width: 3
+      width: 2
     },
     markers: {
       size: 4
@@ -209,7 +207,7 @@ function renderGrowthChart(data) {
     dataLabels: {
       enabled: false
     },
-    colors: ['#00C49F', '#FF4C4C', '#0074D9'],
+    colors: ['#00C49F', '#FF4C4C', '#0074D9'], // Ingresos, Gastos, Ahorro
     legend: {
       show: true,
       position: 'bottom',
@@ -225,8 +223,11 @@ function renderGrowthChart(data) {
       }
     },
     grid: {
+      borderColor: '#eee',
       padding: {
-        bottom: 0
+        left: 20,
+        right: 10,
+        bottom: 100 // ✅ Añadimos espacio para leyenda y etiquetas X
       }
     },
     noData: {
@@ -259,6 +260,7 @@ function renderGrowthChart(data) {
     console.error('[GROWTH] ❌ Error al renderizar growthChart:', e);
   }
 }
+
 
 
 
