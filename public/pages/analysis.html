@@ -96,7 +96,6 @@
             </div>
           </div>
         </section>
-
       </div>
 
       <!-- Panel: Crecimiento -->
@@ -128,7 +127,46 @@
 
       <!-- Panel: Comparación -->
       <div id="panel-compare" class="tab-panel">
-        <p style="padding: 1rem">Próximamente: comparación de meses.</p>
+        <!-- Selectores de meses -->
+        <div class="comparison-selectors">
+          <div class="select-group">
+            <label for="compare-month-a">Mes A:</label>
+            <select id="compare-month-a" class="period-select"></select>
+          </div>
+          <div class="select-group">
+            <label for="compare-month-b">Mes B:</label>
+            <select id="compare-month-b" class="period-select"></select>
+          </div>
+        </div>
+
+        <!-- KPIs -->
+        <section class="kpi-row">
+          <div class="card kpi-card">
+            <h2>Comparativa Ingresos</h2>
+            <p id="kpi-compare-revenue" class="kpi-value">€0</p>
+            <p id="kpi-compare-revenue-diff" class="kpi-change">+0% vs Mes A</p>
+          </div>
+          <div class="card kpi-card">
+            <h2>Comparativa Gastos</h2>
+            <p id="kpi-compare-spend" class="kpi-value">€0</p>
+            <p id="kpi-compare-spend-diff" class="kpi-change">+0% vs Mes A</p>
+          </div>
+          <div class="card kpi-card">
+            <h2>Ahorro Neto</h2>
+            <p id="kpi-compare-savings" class="kpi-value">€0</p>
+            <p id="kpi-compare-savings-diff" class="kpi-change">+0% vs Mes A</p>
+          </div>
+        </section>
+
+        <!-- Gráficos comparativos -->
+        <section class="charts-row">
+          <div class="chart-card">
+            <div id="compareBarChart"></div>
+          </div>
+          <div class="chart-card">
+            <div id="compareRadarChart"></div>
+          </div>
+        </section>
       </div>
     </main>
 

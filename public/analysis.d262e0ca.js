@@ -674,6 +674,7 @@ var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
 var _generalJs = require("./general.js");
 var _growthJs = require("./growth.js");
+var _comparisonJs = require("./comparison.js"); // 👈 Nuevo
 let userUid = null;
 let selectedPeriod = localStorage.getItem('selectedPeriod') || 'month';
 console.log('[ANALYSIS] Archivo analysis.js cargado');
@@ -737,21 +738,30 @@ document.addEventListener('DOMContentLoaded', ()=>{
             switch(selected){
                 case 'overview':
                     console.log("[UI] \u2192 Mostrando pesta\xf1a General");
-                    destroyGrowthCharts(); // limpio si vengo de crecimiento
-                    (0, _generalJs.initCharts)(); // inicializo contenedores de gráficos
-                    (0, _generalJs.renderAnalysis)(); // cargo KPIs + gráficas
+                    destroyGrowthCharts();
+                    destroyComparisonCharts();
+                    (0, _generalJs.initCharts)();
+                    (0, _generalJs.renderAnalysis)();
                     break;
                 case 'growth':
                     console.log("[UI] \u2192 Mostrando pesta\xf1a Crecimiento");
-                    destroyGeneralCharts(); // limpio si vengo de otra pestaña
+                    destroyGeneralCharts();
+                    destroyComparisonCharts();
                     try {
-                        await (0, _growthJs.loadGrowth)(); // renderizo datos de crecimiento
+                        await (0, _growthJs.loadGrowth)();
                     } catch (e) {
                         console.error('[GROWTH] Error al cargar crecimiento:', e);
                     }
                     break;
                 case 'compare':
-                    console.log("[UI] \u2192 Mostrando pesta\xf1a Comparaci\xf3n (sin l\xf3gica a\xfan)");
+                    console.log("[UI] \u2192 Mostrando pesta\xf1a Comparaci\xf3n");
+                    destroyGeneralCharts();
+                    destroyGrowthCharts();
+                    try {
+                        await (0, _comparisonJs.loadComparison)(userUid, selectedPeriod);
+                    } catch (e) {
+                        console.error("[COMPARE] Error al cargar comparaci\xf3n:", e);
+                    }
                     break;
             }
         });
@@ -764,9 +774,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
             const savedPeriod = localStorage.getItem('selectedPeriod') || 'month';
             document.getElementById('period-select').value = savedPeriod;
             selectedPeriod = savedPeriod;
-            // Forzo click en la pestaña General para iniciar render por defecto
-            document.querySelector('.filter-btn[data-filter="overview"]').click();
-        } else window.location.href = '../index.html'; // Si no está logueado, lo saco
+            document.querySelector('.filter-btn[data-filter="overview"]').click(); // inicia en General
+        } else window.location.href = '../index.html';
     });
 });
 // ───── Destrucción de gráficas anteriores para evitar overlays ─────
@@ -791,13 +800,18 @@ function destroyGeneralCharts() {
 function destroyGrowthCharts() {
     destroyChart(window.growthChart, 'growthChart');
     destroyChart(window.categoryTrendChart, 'categoryTrendChart');
-    destroyChart(window.categoryHeatmap, 'categoryHeatmap'); // importante: esto se renderiza al final
+    destroyChart(window.categoryHeatmap, 'categoryHeatmap');
     window.growthChart = null;
     window.categoryTrendChart = null;
     window.categoryHeatmap = null;
 }
+// Gráfica de la pestaña Comparación
+function destroyComparisonCharts() {
+    destroyChart(window.compareBarChart, 'compareBarChart');
+    window.compareBarChart = null;
+}
 
-},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","./general.js":"lGg7R","./growth.js":"4z1LS","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"lGg7R":[function(require,module,exports,__globalThis) {
+},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","./general.js":"lGg7R","./growth.js":"4z1LS","./comparison.js":"1xXBN","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"lGg7R":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 // ───── Utilidad: Ejecutar una función cuando un elemento sea visible en el viewport ─────
@@ -1969,6 +1983,273 @@ function renderCategoryHeatmap(months, categoryData) {
     console.log("[GROWTH] \u2705 Heatmap renderizado correctamente");
 }
 
-},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","./analysis.js":"l1WLd","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
+},{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","./analysis.js":"l1WLd","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1xXBN":[function(require,module,exports,__globalThis) {
+// ───── Archivo: comparison.js ─────
+// Pestaña "Comparación" – compara dos meses seleccionables (ingresos, gastos y categorías)
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "loadComparison", ()=>loadComparison);
+var _analysisJs = require("./analysis.js");
+console.log("[COMPARE] M\xf3dulo comparison.js cargado");
+const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
+let summaryData = {};
+let categoryData = {};
+async function loadComparison(userId) {
+    console.log("[COMPARE] \u2699\uFE0F Cargando comparaci\xf3n...");
+    if (!navigator.onLine) {
+        console.warn("[COMPARE] \u26A0\uFE0F Est\xe1s offline. No se puede comparar sin conexi\xf3n");
+        return;
+    }
+    try {
+        const [summaryResp, categoryResp] = await Promise.all([
+            fetch(`${apiUrl}/plaid/get_growth_history`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId
+                })
+            }).then((res)=>res.json()),
+            fetch(`${apiUrl}/plaid/get_category_trends`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId
+                })
+            }).then((res)=>res.json())
+        ]);
+        summaryData = summaryResp.summary || {};
+        categoryData = categoryResp.categoryTrends || {};
+        const months = Object.keys(summaryData).sort().reverse();
+        console.log("[COMPARE] \uD83D\uDDD3\uFE0F Meses disponibles:", months);
+        populateMonthSelectors(months);
+        setupEventListeners();
+        // Inicial por defecto: comparar dos últimos meses
+        if (months.length >= 2) renderComparison(months[0], months[1]);
+    } catch (e) {
+        console.error("[COMPARE] \u274C Error al obtener datos:", e);
+    }
+}
+// ───── Pinta opciones en los dropdowns del DOM ─────
+function populateMonthSelectors(months) {
+    const selectA = document.getElementById('compare-month-a');
+    const selectB = document.getElementById('compare-month-b');
+    if (!selectA || !selectB) {
+        console.warn('[COMPARE] No se encontraron los selectores de mes');
+        return;
+    }
+    months.forEach((month)=>{
+        const optA = document.createElement('option');
+        const optB = document.createElement('option');
+        optA.value = optB.value = month;
+        optA.textContent = optB.textContent = formatMonthLabel(month);
+        selectA.appendChild(optA);
+        selectB.appendChild(optB);
+    });
+    selectA.selectedIndex = 0;
+    selectB.selectedIndex = 1;
+}
+// ───── Vincula eventos para cambiar comparación ─────
+function setupEventListeners() {
+    const selectA = document.getElementById('compare-month-a');
+    const selectB = document.getElementById('compare-month-b');
+    if (!selectA || !selectB) return;
+    selectA.addEventListener('change', ()=>{
+        renderComparison(selectA.value, selectB.value);
+    });
+    selectB.addEventListener('change', ()=>{
+        renderComparison(selectA.value, selectB.value);
+    });
+}
+// ───── Dibuja KPIs y gráfico con dos meses concretos ─────
+function renderComparison(monthA, monthB) {
+    console.log(`[COMPARE] Comparando ${monthB} vs ${monthA}`);
+    const dataA = summaryData[monthA] || {
+        totalIncomes: 0,
+        totalExpenses: 0
+    };
+    const dataB = summaryData[monthB] || {
+        totalIncomes: 0,
+        totalExpenses: 0
+    };
+    renderKPIs(dataB, dataA, monthA);
+    renderCompareBarChart(categoryData[monthB] || {}, categoryData[monthA] || {}, monthB, monthA);
+    renderCompareRadarChart(categoryData[monthB] || {}, categoryData[monthA] || {}, monthB, monthA);
+}
+// ───── Renderizado de KPIs ─────
+function renderKPIs(actual, anterior, labelAnterior) {
+    const ingresos = actual.totalIncomes || 0;
+    const gastos = actual.totalExpenses || 0;
+    const ahorro = ingresos - gastos;
+    const ingresosPrev = anterior.totalIncomes || 0;
+    const gastosPrev = anterior.totalExpenses || 0;
+    const ahorroPrev = ingresosPrev - gastosPrev;
+    setKPI('compare-revenue', ingresos, ingresosPrev, labelAnterior);
+    setKPI('compare-spend', gastos, gastosPrev, labelAnterior);
+    setKPI('compare-savings', ahorro, ahorroPrev, labelAnterior);
+}
+function setKPI(id, actual, anterior, labelAnterior) {
+    const valorEl = document.getElementById(`kpi-${id}`);
+    const diffEl = document.getElementById(`kpi-${id}-diff`);
+    if (!valorEl || !diffEl) return;
+    valorEl.textContent = `\u{20AC}${actual.toFixed(2)}`;
+    const diferencia = actual - anterior;
+    const porcentaje = anterior === 0 ? 100 : diferencia / anterior * 100;
+    const texto = `${diferencia >= 0 ? '+' : ''}${porcentaje.toFixed(1)}% vs ${labelAnterior}`;
+    diffEl.textContent = texto;
+    diffEl.style.color = diferencia >= 0 ? '#4ADE80' : '#F87171';
+}
+// ───── Gráfico comparativo de barras por categoría ─────
+function renderCompareBarChart(currentMap, prevMap, labelActual, labelAnterior) {
+    const allKeys = new Set([
+        ...Object.keys(currentMap),
+        ...Object.keys(prevMap)
+    ]);
+    const categories = Array.from(allKeys).sort();
+    const dataActual = categories.map((k)=>currentMap[k] || 0);
+    const dataAnterior = categories.map((k)=>prevMap[k] || 0);
+    const options = {
+        chart: {
+            type: 'bar',
+            height: 300,
+            toolbar: {
+                show: false
+            }
+        },
+        series: [
+            {
+                name: labelAnterior,
+                data: dataAnterior
+            },
+            {
+                name: labelActual,
+                data: dataActual
+            }
+        ],
+        xaxis: {
+            categories,
+            labels: {
+                rotate: -45,
+                style: {
+                    fontSize: '12px'
+                }
+            }
+        },
+        plotOptions: {
+            bar: {
+                horizontal: false,
+                columnWidth: '40%'
+            }
+        },
+        dataLabels: {
+            enabled: false
+        },
+        legend: {
+            position: 'top'
+        },
+        colors: [
+            '#FBBF24',
+            '#60A5FA'
+        ],
+        grid: {
+            borderColor: '#eee',
+            padding: {
+                left: 20,
+                right: 10
+            }
+        }
+    };
+    if (window.compareBarChart) try {
+        window.compareBarChart.destroy();
+        console.log("[COMPARE] \uD83D\uDD04 Gr\xe1fico anterior destruido");
+    } catch (err) {
+        console.warn("[COMPARE] Error al destruir gr\xe1fico previo:", err);
+    }
+    window.compareBarChart = new ApexCharts(document.querySelector('#compareBarChart'), options);
+    window.compareBarChart.render();
+    console.log("[COMPARE] \uD83D\uDCCA Gr\xe1fico de comparaci\xf3n renderizado");
+}
+// ───── Gráfico comparativo tipo Radar ─────
+function renderCompareRadarChart(currentMap, prevMap, labelActual, labelAnterior) {
+    const allKeys = new Set([
+        ...Object.keys(currentMap),
+        ...Object.keys(prevMap)
+    ]);
+    const categories = Array.from(allKeys).sort();
+    const dataActual = categories.map((k)=>currentMap[k] || 0);
+    const dataAnterior = categories.map((k)=>prevMap[k] || 0);
+    const options = {
+        chart: {
+            type: 'radar',
+            height: 650,
+            dropShadow: {
+                enabled: true,
+                blur: 1,
+                left: 1,
+                top: 1
+            },
+            toolbar: {
+                show: false
+            }
+        },
+        series: [
+            {
+                name: labelAnterior,
+                data: dataAnterior
+            },
+            {
+                name: labelActual,
+                data: dataActual
+            }
+        ],
+        labels: categories,
+        title: {
+            text: "Distribuci\xf3n por categor\xeda"
+        },
+        stroke: {
+            width: 2,
+            colors: [
+                '#FBBF24',
+                '#60A5FA'
+            ] // azul y amarillo 
+        },
+        fill: {
+            opacity: 0.15
+        },
+        markers: {
+            size: 0
+        },
+        legend: {
+            position: 'top'
+        },
+        colors: [
+            '#FBBF2480',
+            '#60A5FA80'
+        ] // con opacidad 
+    };
+    if (window.compareRadarChart) try {
+        window.compareRadarChart.destroy();
+        console.log("[COMPARE] \uD83E\uDDE8 Radar chart anterior destruido");
+    } catch (err) {
+        console.warn('[COMPARE] Error al destruir radar chart previo:', err);
+    }
+    window.compareRadarChart = new ApexCharts(document.querySelector('#compareRadarChart'), options);
+    window.compareRadarChart.render();
+    console.log("[COMPARE] \uD83D\uDD78\uFE0F Radar chart de comparaci\xf3n renderizado");
+}
+// ───── Utilidad para formatear "2025-07" como "julio 2025" ─────
+function formatMonthLabel(key) {
+    const [y, m] = key.split('-');
+    const date = new Date(`${y}-${m || '01'}-01`);
+    return date.toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: 'long'
+    });
+}
+
+},{"./analysis.js":"l1WLd","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["2n8kV","l1WLd"], "l1WLd", "parcelRequire94c2")
 
 //# sourceMappingURL=analysis.d262e0ca.js.map

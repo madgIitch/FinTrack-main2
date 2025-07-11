@@ -7,6 +7,7 @@ import { auth, app } from './firebase.js';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { loadGeneral, initCharts, renderAnalysis } from './general.js';
 import { loadGrowth } from './growth.js';
+import { loadComparison } from './comparison.js'; // 👈 Nuevo
 
 let userUid = null;
 let selectedPeriod = localStorage.getItem('selectedPeriod') || 'month';
@@ -92,23 +93,32 @@ document.addEventListener('DOMContentLoaded', () => {
       switch (selected) {
         case 'overview':
           console.log('[UI] → Mostrando pestaña General');
-          destroyGrowthCharts();       // limpio si vengo de crecimiento
-          initCharts();                // inicializo contenedores de gráficos
-          renderAnalysis();            // cargo KPIs + gráficas
+          destroyGrowthCharts();
+          destroyComparisonCharts();
+          initCharts();
+          renderAnalysis();
           break;
 
         case 'growth':
           console.log('[UI] → Mostrando pestaña Crecimiento');
-          destroyGeneralCharts();      // limpio si vengo de otra pestaña
+          destroyGeneralCharts();
+          destroyComparisonCharts();
           try {
-            await loadGrowth();        // renderizo datos de crecimiento
+            await loadGrowth();
           } catch (e) {
             console.error('[GROWTH] Error al cargar crecimiento:', e);
           }
           break;
 
         case 'compare':
-          console.log('[UI] → Mostrando pestaña Comparación (sin lógica aún)');
+          console.log('[UI] → Mostrando pestaña Comparación');
+          destroyGeneralCharts();
+          destroyGrowthCharts();
+          try {
+            await loadComparison(userUid, selectedPeriod);
+          } catch (e) {
+            console.error('[COMPARE] Error al cargar comparación:', e);
+          }
           break;
       }
     });
@@ -124,10 +134,9 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('period-select').value = savedPeriod;
       selectedPeriod = savedPeriod;
 
-      // Forzo click en la pestaña General para iniciar render por defecto
-      document.querySelector('.filter-btn[data-filter="overview"]').click();
+      document.querySelector('.filter-btn[data-filter="overview"]').click(); // inicia en General
     } else {
-      window.location.href = '../index.html'; // Si no está logueado, lo saco
+      window.location.href = '../index.html';
     }
   });
 });
@@ -158,8 +167,14 @@ function destroyGeneralCharts() {
 function destroyGrowthCharts() {
   destroyChart(window.growthChart, 'growthChart');
   destroyChart(window.categoryTrendChart, 'categoryTrendChart');
-  destroyChart(window.categoryHeatmap, 'categoryHeatmap');  // importante: esto se renderiza al final
+  destroyChart(window.categoryHeatmap, 'categoryHeatmap');
   window.growthChart = null;
   window.categoryTrendChart = null;
   window.categoryHeatmap = null;
+}
+
+// Gráfica de la pestaña Comparación
+function destroyComparisonCharts() {
+  destroyChart(window.compareBarChart, 'compareBarChart');
+  window.compareBarChart = null;
 }
