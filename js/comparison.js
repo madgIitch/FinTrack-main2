@@ -214,7 +214,7 @@ function renderCompareRadarChart(currentMap, prevMap, labelActual, labelAnterior
   const options = {
     chart: {
       type: 'radar',
-      height: 680,
+      height: 620,
       dropShadow: {
         enabled: true,
         blur: 1,
@@ -228,9 +228,6 @@ function renderCompareRadarChart(currentMap, prevMap, labelActual, labelAnterior
       { name: labelActual, data: dataActual }
     ],
     labels: categories,
-    title: {
-      text: 'Distribución por categoría'
-    },
     stroke: {
       width: 2,
       colors: ['#FBBF24', '#60A5FA'] // azul y amarillo 

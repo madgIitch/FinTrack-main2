@@ -2184,7 +2184,7 @@ function renderCompareRadarChart(currentMap, prevMap, labelActual, labelAnterior
     const options = {
         chart: {
             type: 'radar',
-            height: 680,
+            height: 620,
             dropShadow: {
                 enabled: true,
                 blur: 1,
@@ -2206,9 +2206,6 @@ function renderCompareRadarChart(currentMap, prevMap, labelActual, labelAnterior
             }
         ],
         labels: categories,
-        title: {
-            text: "Distribuci\xf3n por categor\xeda"
-        },
         stroke: {
             width: 2,
             colors: [
