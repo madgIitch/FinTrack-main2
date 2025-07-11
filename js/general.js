@@ -6,21 +6,24 @@ import { onAuthStateChanged } from 'firebase/auth';
 
 console.log('[ANALYSIS] Archivo analysis.js cargado');
 
+// ───── Inicializo Firestore y declaro variables globales ─────
 const db = getFirestore(app);
-let trendChart, barChart, pieChart;
-let userId = null;
-let selectedPeriod = 'month';
-const monthsSet = new Set();
-let unsubscribeFns = [];
-const catByMonth = new Map();
-const daysOfCurrentWeek = new Map();
-const subscribedWeeks = new Set();
-let lastRevenue = [];
-let lastSpend = [];
-let lastCatMapStr = '';
-let summaryByMonth = new Map(); 
+let trendChart, barChart, pieChart; // Instancias de gráficos
+let userId = null; // UID del usuario actual
+let selectedPeriod = 'month'; // Periodo actual seleccionado
 
+// Estructuras auxiliares para caching y control
+const monthsSet = new Set();                    // Guarda los meses ya procesados
+let unsubscribeFns = [];                        // Para cancelar listeners de Firebase cuando haga falta
+const catByMonth = new Map();                   // Map mes → categorías con gasto
+const daysOfCurrentWeek = new Map();            // Para análisis por día en la semana actual
+const subscribedWeeks = new Set();              // Para evitar múltiples subscripciones a la misma semana
+let lastRevenue = [];                           // Ingresos anteriores para comparar
+let lastSpend = [];                             // Gastos anteriores para comparar
+let lastCatMapStr = '';                         // Stringified de último mapa de categorías (para evitar renders redundantes)
+let summaryByMonth = new Map();                 // Map mes → resumen de ingresos/gastos
 
+// ───── Colores de cada grupo de categoría para las gráficas ─────
 const groupColors = {
   'Agricultura y Medio Ambiente': '#A8D5BA', // Verde menta
   'Alimentos y Restauración': '#FFB6B9',     // Rosa salmón suave
@@ -48,12 +51,12 @@ const groupColors = {
 };
 
 
-
+// ───── Inicio del DOM: Configuro eventos y autenticación ─────
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[ANALYSIS] DOM cargado'); // [DEBUG]
   const sidebar = document.getElementById('sidebar');
   
-  // Eventos UI
+  // Evento: marcar botón de filtro activo visualmente
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       console.log('[DEBUG] Botón de filtro clicado:', btn.textContent);
@@ -62,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Evento: cambio de periodo (semana, mes, año)
   document.getElementById('period-select').addEventListener('change', e => {
     selectedPeriod = e.target.value;
     localStorage.setItem('selectedPeriod', selectedPeriod);
@@ -72,17 +76,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Evento: cuando el estado de auth cambia (login/logout)
   onAuthStateChanged(auth, async user => {
     if (user) {
       userId = user.uid;
       console.log('[ANALYSIS] Usuario autenticado:', userId); // [DEBUG]
+
+      // Restaura el periodo guardado en localStorage
       const savedPeriod = localStorage.getItem('selectedPeriod') || 'month';
       selectedPeriod = savedPeriod;
       document.getElementById('period-select').value = savedPeriod;
-      console.log('[DEBUG] Periodo restaurado desde localStorage:', selectedPeriod); // [DEBUG]
+      console.log('[DEBUG] Periodo restaurado desde localStorage:', selectedPeriod);
+
+      // Inicio del sistema reactivo
       reactiveAnalysis(userId);
+
+      // Aplico filtro tras un pequeño timeout para asegurar que los datos ya están renderizados
       setTimeout(() => {
-        console.log('[DEBUG] Ejecutando applyPeriodFilter tras timeout inicial'); // [DEBUG]
+        console.log('[DEBUG] Ejecutando applyPeriodFilter tras timeout inicial');
         applyPeriodFilter(userId, selectedPeriod);
       }, 200);
     } else {
@@ -92,7 +103,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// ───── Utilidad: Ejecutar cuando visible ─────
+// ───── Utilidad: Ejecutar una función cuando un elemento sea visible en el viewport ─────
+// La uso para asegurar que los gráficos se renderizan solo cuando la pestaña está activa
 export function whenVisible(el, callback) {
   if (!el) {
     console.warn('[Observer] Elemento no encontrado');
@@ -110,7 +122,7 @@ export function whenVisible(el, callback) {
       if (isVisible) {
         console.log(`[Observer] ${el.id} visible y activo → ejecutando callback`);
         callback();
-        obs.disconnect();
+        obs.disconnect(); // Una vez que se ve, dejo de observarlo
       }
     });
   });
@@ -119,45 +131,57 @@ export function whenVisible(el, callback) {
 }
 
 
-
+// ───── Función principal reactiva: suscribe a history e historySummary ─────
 async function reactiveAnalysis(userId) {
   console.log('[RENDER] Entrando en renderAnalysis con periodo:', selectedPeriod); // [DEBUG]
 
   const histRef = collection(db, 'users', userId, 'history');
   const sumRef = collection(db, 'users', userId, 'historySummary');
 
+  // Inicializo las instancias de los gráficos (los vacía si ya existen)
   initCharts();
 
+  // Marcadores para saber cuándo ambos listeners han respondido al menos una vez
   let sourcesReady = { history: false, summary: false };
 
   return new Promise((resolve) => {
+    // Función que se ejecuta cada vez que uno de los dos listeners responde
     const checkIfReadyToRender = () => {
       if (sourcesReady.history && sourcesReady.summary) {
         console.log('[ANALYSIS] Datos cargados. Aplicando filtro de periodo...');
-        applyPeriodFilter(userId, selectedPeriod);
-        resolve();  // <- Ahora sí podemos continuar
+        applyPeriodFilter(userId, selectedPeriod); //Se renderiza solo cuando tengo ambos conjuntos
+        resolve(); // Marco la promesa como completada
       }
     };
-
+    
+    // Utilidad para manejar un snapshot recibido (ya sea de history o de summary)
     const updateSubscriptionsFromSnapshot = (type, snap) => {
       const newMonths = new Set();
+
+      // Si es de summary, limpio el mapa actual
       if (type === 'summary') summaryByMonth.clear();
 
       snap.docs.forEach(doc => {
         newMonths.add(doc.id);
+
+        // Si es summary, guardo el documento completo para KPIs
         if (type === 'summary') summaryByMonth.set(doc.id, doc.data());
       });
 
+      // Guardo en el conjunto global de meses detectados
       newMonths.forEach(m => monthsSet.add(m));
       sourcesReady[type] = true;
+
       checkIfReadyToRender();
     };
 
+    // Suscripción reactiva al historial de transacciones (estructura base)
     onSnapshot(histRef, snap => {
       console.log('[ANALYSIS] Snapshot recibido para history:', snap.docs.length);
       updateSubscriptionsFromSnapshot('history', snap);
     });
 
+    // Suscripción reactiva al resumen mensual (estructura agregada)
     onSnapshot(sumRef, snap => {
       console.log('[ANALYSIS] Snapshot recibido para summary:', snap.docs.length);
       updateSubscriptionsFromSnapshot('summary', snap);
@@ -165,89 +189,121 @@ async function reactiveAnalysis(userId) {
   });
 }
 
-
-
-
+// ───── Filtro según el periodo seleccionado (semana, mes, año) ─────
 function applyPeriodFilter(userId, period) {
   console.log('[ANALYSIS] Aplicando filtro para periodo:', period);
+
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const prefix = `${year}-${month}`;
   let monthsToSubscribe = [];
 
+  // Si el periodo es semana o mes, solo me interesa el mes actual
   if (period === 'week' || period === 'month') {
     monthsToSubscribe = Array.from(monthsSet).filter(m => m.startsWith(prefix));
-  } else if (period === 'year') {
+  }
+
+  // Si es año, me quedo con todos los meses del año actual
+  else if (period === 'year') {
     monthsToSubscribe = Array.from(monthsSet).filter(m => m.startsWith(`${year}-`));
   }
 
   console.log('[ANALYSIS] Meses a suscribirse:', monthsToSubscribe);
+
+  // 🔁 Actualizo las suscripciones con los meses pertinentes
   refreshSubscriptions(monthsToSubscribe, userId);
 }
 
+// ───── Se encarga de limpiar y volver a suscribirse a los datos por mes y semana ─────
 function refreshSubscriptions(months, userId) {
   console.log('[ANALYSIS] Refrescando suscripciones...');
+
+  // Elimina listeners antiguos para evitar fugas de memoria y duplicados
   clearPreviousSubscriptions();
 
   months.forEach(mon => {
+    // Suscribo a los datos de categorías para este mes
     subscribeToMonth(mon, userId);
 
+    // Si el periodo es semana o mes, también me suscribo a los datos diarios de cada semana
     if (selectedPeriod === 'month' || selectedPeriod === 'week') {
       for (let i = 1; i <= 5; i++) {
         const weekId = `S${i}`;
+
+        // Ruta: historySummary/{mon}/weeks/{Sx}/days
         const daysRef = collection(db, 'users', userId, 'historySummary', mon, 'weeks', weekId, 'days');
+
+        // Me suscribo a los documentos de cada día de esa semana
         const unsubDays = onSnapshot(daysRef, snap => {
           console.log(`[ANALYSIS] Snapshot días para ${mon}/weeks/${weekId}:`, snap.docs.length);
+
           for (const doc of snap.docs) {
-            const fullKey = `${mon}/weeks/${weekId}/${doc.id}`; // clave única por día
+            const fullKey = `${mon}/weeks/${weekId}/${doc.id}`; // identificador único del día
             daysOfCurrentWeek.set(fullKey, doc.data());
           }
+
+          // ⚡ Re-renderizo cada vez que llegan nuevos días
           renderAnalysis();
         });
+
+        // Registro la función para poder desuscribirme luego
         unsubscribeFns.push(unsubDays);
       }
     }
   });
 }
 
+// ───── Limpia todos los listeners previos antes de nuevas suscripciones ─────
 function clearPreviousSubscriptions() {
   console.log('[ANALYSIS] Limpiando suscripciones anteriores');
+
+  // Llamo a cada función de desuscripción activa
   unsubscribeFns.forEach(unsub => unsub());
+
+  // Reinicio los arrays y sets de control
   unsubscribeFns = [];
   subscribedWeeks.clear();
 }
 
+// ───── Suscribe a los datos de categorías agregadas para un mes concreto ─────
 function subscribeToMonth(mon, userId) {
   console.log('[ANALYSIS] Subscribiendo a mes (solo categorías):', mon);
 
-  // Categorías (sí se mantiene)
   const catDocRef = doc(db, 'users', userId, 'historyCategorias', mon);
+
+  // Escucho el documento de categorías para el mes dado
   const unsubCat = onSnapshot(catDocRef, snap => {
     console.log('[ANALYSIS] Snapshot categorías:', mon, snap.exists());
+
     if (snap.exists()) {
       const data = snap.data();
-      delete data.updatedAt;
+      delete data.updatedAt; // No necesito este campo para renderizar
       catByMonth.set(mon, data);
     }
-    renderAnalysis(); // se renderiza siempre
-  });
-  unsubscribeFns.push(unsubCat);
 
+    // 🔁 Actualizo la visualización al recibir nuevos datos
+    renderAnalysis();
+  });
+
+  // Guardo el listener para desuscribirlo después
+  unsubscribeFns.push(unsubCat);
 }
 
-
-
+// ───── Función principal de renderizado de análisis financiero ─────
 export function renderAnalysis() {
   console.log('[ANALYSIS] Renderizando análisis...');
 
+  // Si estamos en modo semana o mes pero no tenemos datos diarios, no tiene sentido continuar
   if ((selectedPeriod === 'month' || selectedPeriod === 'week') && daysOfCurrentWeek.size === 0) {
     console.log('[ANALYSIS] No hay datos diarios disponibles');
     return;
   }
 
+  // Inicializo las estructuras de datos base
   let xLabels = [], revenue = [], spend = [], netIncome = [];
 
+  // ───── Agrupación por semanas (cuando el periodo es mensual) ─────
   if (selectedPeriod === 'month') {
     const semanas = ['S1', 'S2', 'S3', 'S4', 'S5'];
     xLabels = semanas;
@@ -255,32 +311,37 @@ export function renderAnalysis() {
     spend = new Array(5).fill(0);
 
     for (const [key, entry] of daysOfCurrentWeek.entries()) {
-        if (!key || typeof key !== 'string') continue;
+      if (!key || typeof key !== 'string') continue;
 
-        const parts = key.split('/');
-        const weekIdx = semanas.indexOf(parts[2]);
-        if (weekIdx === -1) continue;
+      const parts = key.split('/');
+      const weekIdx = semanas.indexOf(parts[2]); // Ej: key = "2025-07/weeks/S3/2025-07-15"
+      if (weekIdx === -1) continue;
 
-        revenue[weekIdx] += entry?.totalIncomes || 0;
-        spend[weekIdx] += entry?.totalExpenses || 0;
+      // Sumo ingresos/gastos en la semana correspondiente
+      revenue[weekIdx] += entry?.totalIncomes || 0;
+      spend[weekIdx] += entry?.totalExpenses || 0;
     }
 
+  }
 
-  } else if (selectedPeriod === 'week') {
+  // ───── Agrupación por días (cuando el periodo es semanal) ─────
+  else if (selectedPeriod === 'week') {
     const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
     xLabels = dias;
     revenue = new Array(7).fill(0);
     spend = new Array(7).fill(0);
 
     for (const [key, entry] of daysOfCurrentWeek.entries()) {
-      const dateStr = key.split('/').at(-1);
+      const dateStr = key.split('/').at(-1); // Extraigo la fecha
       const date = new Date(dateStr);
-      const idx = (date.getDay() + 6) % 7;
+      const idx = (date.getDay() + 6) % 7; // Ajuste para que Lunes sea 0
       revenue[idx] += entry?.totalIncomes || 0;
       spend[idx] += entry?.totalExpenses || 0;
     }
+  }
 
-  } else if (selectedPeriod === 'year') {
+  // ───── Agrupación por meses (cuando el periodo es anual) ─────
+  else if (selectedPeriod === 'year') {
     const year = new Date().getFullYear().toString();
     const months = [...summaryByMonth.keys()].filter(k => k.startsWith(year)).sort();
 
@@ -289,25 +350,27 @@ export function renderAnalysis() {
       return;
     }
 
-    xLabels = months.map(m => m.split('-')[1]);
+    xLabels = months.map(m => m.split('-')[1]); // Extraigo número de mes
     revenue = months.map(m => summaryByMonth.get(m)?.totalIncomes || 0);
     spend = months.map(m => summaryByMonth.get(m)?.totalExpenses || 0);
   }
 
+  // ───── Evito renders innecesarios si los datos no han cambiado ─────
   if (selectedPeriod !== 'week' && arraysEqual(revenue, lastRevenue) && arraysEqual(spend, lastSpend)) {
     console.log('[ANALYSIS] No hay cambios en ingresos/gastos. Render omitido.');
     return;
   }
 
-
+  // Calculo el saldo neto como diferencia ingreso - gasto
   netIncome = revenue.map((r, i) => r - spend[i]);
   const totalRev = revenue.reduce((a, b) => a + b, 0);
   const totalSpd = spend.reduce((a, b) => a + b, 0);
 
+  // Actualizo KPIs absolutos
   document.getElementById('kpi-revenue').textContent = `€${totalRev.toFixed(2)}`;
   document.getElementById('kpi-spend').textContent = `€${totalSpd.toFixed(2)}`;
 
-  // ───── Cálculo del cambio porcentual según el periodo ─────
+  // ───── Cálculo del % de variación respecto al periodo anterior ─────
   let revChange = 0, spdChange = 0;
 
   if (selectedPeriod === 'year' || selectedPeriod === 'month') {
@@ -330,15 +393,17 @@ export function renderAnalysis() {
     console.log('[KPI] Comparando mes actual:', currentMonthKey, 'vs anterior:', prevMonthKey);
     console.log('[KPI] Ingresos: actual', currRev, ', anterior', prevRev);
     console.log('[KPI] Gastos: actual', currSpd, ', anterior', prevSpd);
+  }
 
-  } else if (selectedPeriod === 'week') {
+  // ───── Lógica alternativa para comparación semanal ─────
+  else if (selectedPeriod === 'week') {
     function getWeekDates(baseDate = new Date()) {
       const weekday = baseDate.getDay();
       const startCurrentWeek = new Date(baseDate);
-      startCurrentWeek.setDate(baseDate.getDate() - ((weekday + 6) % 7));
+      startCurrentWeek.setDate(baseDate.getDate() - ((weekday + 6) % 7)); // Lunes actual
 
       const startPrevWeek = new Date(startCurrentWeek);
-      startPrevWeek.setDate(startPrevWeek.getDate() - 7);
+      startPrevWeek.setDate(startPrevWeek.getDate() - 7); // Lunes anterior
 
       const thisWeekDates = [], lastWeekDates = [];
       for (let i = 0; i < 7; i++) {
@@ -370,11 +435,13 @@ export function renderAnalysis() {
     console.log('[KPI] Gastos: actual', thisWeekSpd, ', anterior', lastWeekSpd);
   }
 
+  // Actualizo los elementos de cambio de KPI (con signo + o -)
   document.getElementById('kpi-revenue-change').textContent = `${revChange >= 0 ? '+' : ''}${revChange.toFixed(1)}% vs periodo anterior`;
   document.getElementById('kpi-spend-change').textContent = `${spdChange >= 0 ? '+' : ''}${spdChange.toFixed(1)}% vs periodo anterior`;
 
   console.log('[ANALYSIS] KPI actualizados. Redibujando gráficas...');
 
+  // ───── Renderizo las gráficas de ingresos/gastos y saldo neto ─────
   trendChart.updateOptions({
     series: [
       { name: 'Ingresos', data: revenue },
@@ -388,13 +455,14 @@ export function renderAnalysis() {
     xaxis: { categories: xLabels }
   });
 
+  // Guardo los datos actuales para detectar futuros cambios
   lastRevenue = [...revenue];
   lastSpend = [...spend];
 
+  //Renderizo el gráfico de pastel para el periodo actual
   renderPieChartForCurrentPeriod();
 
-  console.log('[RENDER] renderAnalysis completado.'); // [DEBUG]
-
+  console.log('[RENDER] renderAnalysis completado.');
 }
 
 
@@ -408,18 +476,21 @@ function arraysEqual(a, b) {
   return true;
 }
 
+// ───── Función para inicializar todos los gráficos de la pestaña de análisis ─────
 export function initCharts() {
   console.log('[ANALYSIS] Inicializando gráficos');
+
+  // ───── Gráfico de línea: Ingresos vs Gastos ─────
   trendChart = new ApexCharts(document.querySelector('#trendChart'), {
     chart: {
-      type: 'line',
-      height: 240,
-      toolbar: { show: false }
+      type: 'line',           // Tipo línea para mostrar evolución temporal
+      height: 240,            // Altura del gráfico
+      toolbar: { show: false } // Oculto el menú interactivo
     },
-    series: [],
+    series: [],               // Se llenará dinámicamente con datos reales
     xaxis: {
-      categories: [],
-      tickPlacement: 'between', // Alineación centrada entre ticks
+      categories: [],         // Ejes X (semanas, días o meses)
+      tickPlacement: 'between', // Para que los puntos se alineen bien
       labels: {
         style: {
           fontSize: '12px'
@@ -428,81 +499,111 @@ export function initCharts() {
     },
     yaxis: {
       labels: {
-        formatter: val => Math.round(val)
+        formatter: val => Math.round(val) // Simplifico etiquetas Y
       }
     },
-    colors: ['#4ADE80', '#F87171'], // Ingresos (verde), Gastos (rojo)
+    colors: ['#4ADE80', '#F87171'], // Verde (Ingresos) y Rojo (Gastos)
     stroke: {
-      curve: 'smooth',
+      curve: 'smooth',       // Línea suave
       width: 2
     },
     grid: {
-      borderColor: '#eee',
+      borderColor: '#eee',   // Color suave para cuadrícula
       padding: {
-        left: 20,  // 👈 Añadido margen para que no se corte el primer valor
+        left: 20,            // Añadido margen para que no se corte el valor más a la izquierda
         right: 10
       }
     },
     legend: {
-      show: false
+      show: false // Oculto leyenda del gráfico, se pone manual más abajo
     }
   });
 
-
-
+  // Renderizo el gráfico de línea en pantalla
   trendChart.render();
 
+  // ───── Leyenda personalizada para Ingresos y Gastos ─────
   const trendLegend = document.getElementById('trendLegend');
-    if (trendLegend) {
-      trendLegend.innerHTML = `
-        <div class="legend-item">
-          <span class="legend-color" style="background:#4ADE80"></span> Ingresos
-        </div>
-        <div class="legend-item">
-          <span class="legend-color" style="background:#F87171"></span> Gastos
-        </div>
-      `;
-    }
+  if (trendLegend) {
+    trendLegend.innerHTML = `
+      <div class="legend-item">
+        <span class="legend-color" style="background:#4ADE80"></span> Ingresos
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background:#F87171"></span> Gastos
+      </div>
+    `;
+  }
 
+  // ───── Gráfico de barras: Saldo neto (Ingresos - Gastos) ─────
   barChart = new ApexCharts(document.querySelector('#barChart'), {
-    chart: { type: 'bar', height: 200, toolbar: { show: false } },
-    series: [], xaxis: { categories: [] },
-    yaxis: { labels: { formatter: val => Math.round(val) } },
+    chart: {
+      type: 'bar',
+      height: 200,
+      toolbar: { show: false }
+    },
+    series: [],
+    xaxis: { categories: [] },
+    yaxis: {
+      labels: {
+        formatter: val => Math.round(val)
+      }
+    },
     plotOptions: {
       bar: {
         borderRadius: 4,
         colors: {
           ranges: [
-            { from: -Infinity, to: 0, color: '#F87171' },
-            { from: 0.01, to: Infinity, color: '#4ADE80' }
+            { from: -Infinity, to: 0, color: '#F87171' },  // Negativo → rojo
+            { from: 0.01, to: Infinity, color: '#4ADE80' } // Positivo → verde
           ]
         }
       }
     },
     dataLabels: { enabled: false },
-    tooltip: { y: { formatter: val => `€${val.toFixed(2)}` } },
-    grid: { borderColor: '#eee' }
-  });
-  barChart.render();
-
-  pieChart = new ApexCharts(document.querySelector('#pieChart'), {
-    chart: { type: 'pie', height: 220, animations: { enabled: false } },
-    series: [], labels: [], colors: [],
-    legend: { position: 'bottom' },
-    noData: {
-      text: 'Cargando datos...',
-      align: 'center',
-      verticalAlign: 'middle',
-      style: { color: '#999', fontSize: '14px' }
+    tooltip: {
+      y: {
+        formatter: val => `€${val.toFixed(2)}`
+      }
+    },
+    grid: {
+      borderColor: '#eee'
     }
   });
+
+  // Renderizo gráfico de barras
+  barChart.render();
+
+  // ───── Gráfico de pastel: Distribución por categoría ─────
+  pieChart = new ApexCharts(document.querySelector('#pieChart'), {
+    chart: {
+      type: 'pie',
+      height: 220,
+      animations: { enabled: false } // Evito animaciones para que no se rompa al cambiar de pestaña
+    },
+    series: [],   // Se rellenará según los datos de categoría disponibles
+    labels: [],
+    colors: [],
+    legend: {
+      position: 'bottom' // Coloco leyenda abajo para facilitar lectura en móviles
+    },
+    noData: {
+      text: 'Cargando datos...', // Mensaje por defecto mientras no hay datos
+      align: 'center',
+      verticalAlign: 'middle',
+      style: {
+        color: '#999',
+        fontSize: '14px'
+      }
+    }
+  });
+
+  // Renderizo gráfico de pastel
   pieChart.render();
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Devuelve la semana del mes actual ('S1' a 'S5') según el día del mes
-// ─────────────────────────────────────────────────────────────────────────────
 function getCurrentWeekInMonth() {
   const today = new Date();
   const day = today.getDate();
@@ -528,7 +629,7 @@ async function renderPieChartForCurrentPeriod() {
   const semanas = ['S1', 'S2', 'S3', 'S4', 'S5'];
 
   if (selectedPeriod === 'month') {
-    // ✅ Leer directamente el doc mensual
+    // Leer directamente el doc mensual
     const monthRef = doc(db, 'users', userId, 'historyCategorias', prefix);
     try {
       const snap = await getDoc(monthRef);
@@ -723,7 +824,10 @@ export function loadGeneral(userId, selectedPeriod) {
 
 
   initCharts();
-  renderAnalysis();
+  reactiveAnalysis(userId).then(() => {
+    renderAnalysis(); // ✅ Solo renderizas una vez los datos están listos
+  });
+
 }
 
 

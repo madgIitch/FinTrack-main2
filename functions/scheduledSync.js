@@ -1,12 +1,16 @@
-// functions/scheduledSync.js
-// Cloud Function HTTP para sincronizar Plaid, recalcular datos y enviar notificaciones push vía FCM y almacenarlas en Firestore
+// ─────functions/scheduledSync.js ─────
+// Esta Cloud Function se ejecuta automáticamente (por ejemplo desde Cloud Scheduler).
+// Se encarga de sincronizar transacciones con Plaid, recalcular datos agregados en Firestore,
+// y enviar notificaciones push vía FCM si se superan límites presupuestarios.
 
 require('dotenv').config();
 const functions = require('firebase-functions');
 const axios = require('axios');
 const { admin, db } = require('./firebaseAdmin');
 
+// Exporto la función HTTP para que Cloud Scheduler la pueda disparar
 exports.scheduledSync = functions.https.onRequest(async (req, res) => {
+  // ─── Cabeceras CORS ───
   res.set('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') {
     res.set('Access-Control-Allow-Methods', 'POST');
@@ -23,6 +27,7 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
   const apiBaseUrl = `https://us-central1-${projectId}.cloudfunctions.net`;
 
   try {
+    // ─── Recorro todos los usuarios de la colección 'users' ───
     const usersSnap = await db.collection('users').get();
 
     for (const userDoc of usersSnap.docs) {
@@ -47,8 +52,8 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         .doc(currentMonth)
         .collection('groups');
 
-      let exceeded = [];
-      let gastosPorCategoria = {};
+      let exceeded = [];  // Lista de categorías con exceso
+      let gastosPorCategoria = {};  // Mapa auxiliar para comparación posterior
 
       try {
         const limitsSnap = await limitsColRef.get();
@@ -74,6 +79,7 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
           .doc(userId)
           .collection('notifications');
 
+        // Busco si ya había una notificación para este mes
         const existingSnap = await notifRef
           .where('data.period', '==', currentMonth)
           .limit(1)
@@ -84,17 +90,18 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         if (!existingSnap.empty) {
           const prev = existingSnap.docs[0];
           const prevGastos = prev.data().gastosPorCategoria || {};
+          // Comparo si los valores actuales difieren de los anteriores
           hayCambios = Object.keys(gastosPorCategoria).some(cat => gastosPorCategoria[cat] !== prevGastos[cat]);
 
           if (!hayCambios) {
             console.log('🔁 Gastos sin cambios → no se envía ni guarda nueva notificación');
             continue;
           }
-
+          // Si ha cambiado, elimino la notificación anterior
           await notifRef.doc(prev.id).delete();
           console.log('♻️ Notificación previa eliminada');
         }
-
+        // Construyo el mensaje de alerta
         const title = exceeded.length === 1
           ? `⚠️ Exceso en ${exceeded[0].group}`
           : 'Presupuesto superado en varias categorías';
@@ -102,7 +109,7 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
         const body = exceeded
           .map(e => `${e.group}: ${e.spent.toFixed(2)}€ de ${e.limit.toFixed(2)}€`)
           .join('\n');
-
+         // Guardo la nueva notificación en Firestore
         await notifRef.add({
           title,
           body,
@@ -145,6 +152,7 @@ exports.scheduledSync = functions.https.onRequest(async (req, res) => {
             console.log(`📲 Notificación enviada a ${token}:`, response);
           } catch (err) {
             console.warn(`❌ Error al enviar a ${token}:`, err.message);
+            // Elimino tokens inválidos para limpiar Firestore
             if (
               err.code === 'messaging/registration-token-not-registered' ||
               err.message.includes('Requested entity was not found')

@@ -1,37 +1,42 @@
-// seedTransactions.js
-// Ejecutable en Google Cloud con Application Default Credentials
-// Importa el cliente Firestore configurado en functions/firebaseAdmin.js
+// ───── Archivo: functions/seedTransactions.js ─────
+// Script que genera transacciones aleatorias para pruebas.
+// Puede ejecutarse tanto desde la CLI como ser llamado desde una función HTTP de Firebase.
 
-const { db } = require('./firebaseAdmin');
-const { v4: uuidv4 } = require('uuid');
+// ───── Dependencias ─────
+const { db } = require('./firebaseAdmin');        // Cliente de Firestore ya autenticado
+const { v4: uuidv4 } = require('uuid');           // Para generar transaction_id únicos
 
-// Carga tu JSON de categorías (inclúyelo en el despliegue en la carpeta functions)
+// Cargo un listado de categorías desde un JSON exportado previamente desde Firestore.
+// Este archivo debe estar incluido en la carpeta functions al desplegar.
 const categoriesData = require('./firexport_basic_1749667152478.json');
 const categoryIds = categoriesData.map(item => item['Document ID']);
 
+// ───── Generador de transacciones de prueba ─────
 /**
- * Genera un array de transacciones de prueba.
- * @param {number} count  Número de transacciones a crear.
- * @param {string} userId ID del usuario.
- * @param {number} year   Año (e.g. 2025).
- * @param {number} month  Mes (1-12).
+ * Genera un array de transacciones aleatorias.
+ * @param {number} count  Cantidad de transacciones a generar.
+ * @param {string} userId ID del usuario (se usa como account_id ficticio).
+ * @param {number} year   Año deseado (ej. 2025).
+ * @param {number} month  Mes deseado (1-12).
  */
 function generateTransactions(count, userId, year, month) {
   const transactions = [];
+
   for (let i = 0; i < count; i++) {
-    // Fecha aleatoria dentro del mes y año
+    // Genero un día aleatorio del mes
     const daysInMonth = new Date(year, month, 0).getDate();
     const day = Math.floor(Math.random() * daysInMonth) + 1;
     const date = new Date(Date.UTC(year, month - 1, day))
       .toISOString()
-      .split('T')[0];
+      .split('T')[0]; // formato YYYY-MM-DD
 
-    // Monto aleatorio entre -1000 y 1000
+    // Monto aleatorio entre -1000 (gasto) y +1000 (ingreso)
     const amount = parseFloat(((Math.random() * 2000) - 1000).toFixed(2));
 
-    // Selección aleatoria de categoría
+    // Selecciono una categoría aleatoria de las que tengo en el JSON
     const category = categoryIds[Math.floor(Math.random() * categoryIds.length)];
 
+    // Armo la transacción simulada
     transactions.push({
       account_id: userId,
       amount,
@@ -41,19 +46,21 @@ function generateTransactions(count, userId, year, month) {
       date,
       description: 'data test',
       fetchedAt: new Date().toISOString(),
-      transaction_id: uuidv4(),
+      transaction_id: uuidv4(), // identificador único
     });
   }
+
   return transactions;
 }
 
+// ───── Inserción de las transacciones generadas en Firestore ─────
 /**
- * Inserta las transacciones en Firestore en la ruta:
+ * Inserta las transacciones generadas en Firestore bajo:
  * users/{userId}/history/{YYYY-MM}/items/{transaction_id}
  */
 async function seed(userId, count, year, month) {
   const txs = generateTransactions(count, userId, year, month);
-  const batch = db.batch();
+  const batch = db.batch(); // Inserción por lotes para eficiencia
   const monthId = `${year}-${String(month).padStart(2, '0')}`;
 
   txs.forEach(tx => {
@@ -64,14 +71,17 @@ async function seed(userId, count, year, month) {
       .doc(monthId)
       .collection('items')
       .doc(tx.transaction_id);
-    batch.set(ref, tx);
+
+    batch.set(ref, tx); // Agrego al batch
   });
 
-  await batch.commit();
+  await batch.commit(); // Aplico todas las escrituras
   console.log(`✅ Insertadas ${txs.length} transacciones en users/${userId}/history/${monthId}/items`);
 }
 
-// Si se ejecuta como script desde CLI:
+// ───── Ejecución desde terminal (modo CLI) ─────
+// Permite correr el script con:
+// node seedTransactions.js <userId> <year> <month> <count>
 if (require.main === module) {
   const [userId, yearArg, monthArg, countArg] = process.argv.slice(2);
   const year = Number(yearArg);
@@ -91,5 +101,5 @@ if (require.main === module) {
     });
 }
 
-// Exporta seed para invocar desde Cloud Functions:
+// ───── Exportación para uso desde una función HTTP (ej. /seed en Express) ─────
 module.exports = { seed };

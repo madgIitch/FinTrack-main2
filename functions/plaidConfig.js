@@ -1,3 +1,7 @@
+// ───── Archivo: functions/plaidConfig.js ─────
+// Configuro y exporto el cliente de Plaid para poder usar su API en el backend.
+
+// Cargo variables de entorno desde .env
 require('dotenv').config();
 const { Configuration, PlaidApi, PlaidEnvironments } = require("plaid");
 
@@ -12,6 +16,7 @@ const config = new Configuration({
     }
   }
 });
-
+// Instancio el cliente de la API con la configuración anterior y exporto
 const client = new PlaidApi(config);
+
 module.exports = client;

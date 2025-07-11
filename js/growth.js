@@ -301,7 +301,7 @@ function renderCategoryTrendChart(months, categoryData) {
     },
     yaxis: {
       labels: {
-        formatter: val => val.toFixed(2)
+        formatter: val => Math.round(val),
       }
     },
     stroke: { curve: 'smooth', width: 2 },
@@ -386,7 +386,7 @@ function renderCategoryHeatmap(months, categoryData) {
   // ─── Paso 4: Configuración del gráfico ───────────────────────
   const options = {
   chart: {
-    height: 350,
+    height: 420,
     type: 'heatmap',
     toolbar: { show: false }
   },

@@ -1,3 +1,7 @@
+// ───── Archivo: functions/plaidRoutes.js ─────
+// Este archivo contiene todas las rutas REST relacionadas con Plaid y Firestore para mi app FinTrack.
+// Aquí gestiono la autenticación con Plaid, la sincronización y agrupación de transacciones,
+// así como los endpoints para análisis, presupuestos y notificaciones push.
 require('dotenv').config();
 const express = require('express');
 const { admin, db } = require('./firebaseAdmin'); // db = admin.firestore()
@@ -17,7 +21,7 @@ function normalizeKey(str) {
     .replace(/[^\w_]/g, '');
 }
 
-// ── CORS ────────────────────────────────────────────────────────────────────────
+// ───── Middleware CORS ─────
 router.use((req, res, next) => {
   console.log('[PLAIDROUTES] CORS middleware, method:', req.method, 'path:', req.path);
   res.header('Access-Control-Allow-Origin', '*');
@@ -26,7 +30,7 @@ router.use((req, res, next) => {
   next();
 });
 
-// ── Inicializar Plaid ──────────────────────────────────────────────────────────
+// ───── Inicializo cliente de Plaid con entorno correspondiente ─────
 const envName = process.env.PLAID_ENV || 'sandbox';
 const plaidEnv = PlaidEnvironments[envName] || PlaidEnvironments.sandbox;
 const plaidClient = new PlaidApi(new Configuration({
@@ -39,13 +43,13 @@ const plaidClient = new PlaidApi(new Configuration({
 }));
 console.log('[PLAIDROUTES] Plaid client configured for env:', envName);
 
-// ── Health Check ───────────────────────────────────────────────────────────────
+// ───── Healthcheck ─────
 router.get('/ping', (req, res) => {
   console.log('[PLAIDROUTES] GET /ping');
   res.json({ message: 'pong' });
 });
 
-// ── Create Link Token ──────────────────────────────────────────────────────────
+// ───── Crear Link Token ─────
 router.post('/create_link_token', async (req, res) => {
   console.log('[PLAIDROUTES] POST /create_link_token body:', req.body);
   const { userId } = req.body;
@@ -69,7 +73,7 @@ router.post('/create_link_token', async (req, res) => {
   }
 });
 
-// ── Exchange Public Token ──────────────────────────────────────────────────────
+// ───── Intercambiar public_token por access_token ─────
 router.post('/exchange_public_token', async (req, res) => {
   console.log('[PLAIDROUTES] POST /exchange_public_token body:', req.body);
   const { public_token, userId } = req.body;
@@ -96,7 +100,7 @@ router.post('/exchange_public_token', async (req, res) => {
   }
 });
 
-// ── Get Account Details ────────────────────────────────────────────────────────
+// ───── Obtener detalles de cuentas e institución ─────
 router.post('/get_account_details', async (req, res) => {
   console.log('[PLAIDROUTES] POST /get_account_details body:', req.body);
   const { accessToken } = req.body;
@@ -144,7 +148,7 @@ router.post('/get_account_details', async (req, res) => {
 });
 
 
-// ── Get Transactions ────────────────────────────────────────────────────────────
+// ───── Obtener transacciones entre dos fechas ─────
 router.post('/get_transactions', async (req, res) => {
   console.log('[PLAIDROUTES] POST /get_transactions body:', req.body);
   const { userId, startDate, endDate } = req.body;
@@ -190,6 +194,7 @@ router.post('/get_transactions', async (req, res) => {
   }
 });
 
+// ───── Obtener resumen diario del mes actual ─────
 router.post('/get_daily_summary', async (req, res) => {
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
@@ -247,9 +252,7 @@ router.post('/get_daily_summary', async (req, res) => {
 
 
 
-// ─────────────────────────────────────────────────────────────────────────────
-// sync_transactions_and_store con soporte para semanas y meses
-// ─────────────────────────────────────────────────────────────────────────────
+// ───── Sincronizar transacciones desde Plaid y almacenarlas agrupadas por mes, semana y día ─────
 router.post('/sync_transactions_and_store', async (req, res) => {
   console.log('[PLAIDROUTES] → sync_transactions_and_store START');
   const { userId } = req.body;
@@ -265,7 +268,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     const budgetsMap = userSnap.data().settings?.budgets || {};
     const accounts = userSnap.data().plaid?.accounts || [];
 
-    // ── Paso 1: Obtener transacciones desde Plaid ─────────────────────────
+    // ─── Paso 1: Descargo transacciones de los últimos 30 días desde Plaid ───
     let allPlaidTxs = [];
     for (const { accessToken } of accounts) {
       const resp = await plaidClient.transactionsGet({
@@ -278,7 +281,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
     }
     console.log('[PLAIDROUTES] Total Plaid transactions:', allPlaidTxs.length);
 
-    // ── Paso 2: Incluir transacciones de Firestore ─────────────────────────
+    // ─── Paso 2: Combino con transacciones ya almacenadas en Firestore ───
     const monthRefs = await userRef.collection('history').listDocuments();
     const idToTx = new Map(allPlaidTxs.map(tx => [tx.transaction_id, tx]));
 
@@ -299,7 +302,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       });
     }
 
-    // ── Paso 3: Agrupar por mes, semana y día ─────────────────────────
+    // ─── Paso 3: Agrupo por mes, semana y día ───
     const txsByMonth = {};        // YYYY-MM -> [tx]
     const txsByWeekInMonth = {};  // YYYY-MM -> { S1: [tx], S2: [tx], ... }
     const txsByDayInWeek = {};    // YYYY-MM -> { S1: { YYYY-MM-DD: [tx] }, ... }
@@ -314,20 +317,23 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       const weekNum = Math.floor((parseInt(day) - 1) / 7) + 1;
       const weekKey = `S${weekNum}`;
 
+      // Agrupación por mes
       txsByMonth[monthKey] = txsByMonth[monthKey] || [];
       txsByMonth[monthKey].push(tx);
 
+      // Agrupación por semana
       txsByWeekInMonth[monthKey] = txsByWeekInMonth[monthKey] || {};
       txsByWeekInMonth[monthKey][weekKey] = txsByWeekInMonth[monthKey][weekKey] || [];
       txsByWeekInMonth[monthKey][weekKey].push(tx);
 
+      // Agrupación por día dentro de semana
       txsByDayInWeek[monthKey] = txsByDayInWeek[monthKey] || {};
       txsByDayInWeek[monthKey][weekKey] = txsByDayInWeek[monthKey][weekKey] || {};
       txsByDayInWeek[monthKey][weekKey][dateKey] = txsByDayInWeek[monthKey][weekKey][dateKey] || [];
       txsByDayInWeek[monthKey][weekKey][dateKey].push(tx);
     }
 
-    // ── Paso 4: Cargar categorías ─────────────────────────
+    // ─── Paso 4: Mapeo de categorías a grupos desde Firestore ───
     const catGroupsSnap = await db.collection('categoryGroups').get();
     const catToGroup = {};
     catGroupsSnap.forEach(doc => {
@@ -339,35 +345,41 @@ router.post('/sync_transactions_and_store', async (req, res) => {
       });
     });
 
-    // ── Paso 5: Escribir en batch los datos agrupados ─────────────────────────
+    // ─── Paso 5: Escritura en batch ───
     const batch = db.batch();
     for (const [monthKey, txs] of Object.entries(txsByMonth)) {
       const sumRef = userRef.collection('historySummary').doc(monthKey);
       const catRef = userRef.collection('historyCategorias').doc(monthKey);
       const limGroupsRef = userRef.collection('historyLimits').doc(monthKey).collection('groups');
 
+      // Totales mensuales
       const totalExpenses = txs.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
       const totalIncomes = txs.filter(t => t.amount >= 0).reduce((s, t) => s + t.amount, 0);
 
       batch.set(sumRef, { totalExpenses, totalIncomes, updatedAt: admin.firestore.Timestamp.now() });
 
+      // Gasto por grupo
       const spentByGroup = {};
       txs.forEach(tx => {
         const key = normalizeKey(tx.personal_finance_category?.primary || tx.category || 'Otros');
         const grp = catToGroup[key] || 'Otros';
         const amt = tx.amount < 0 ? Math.abs(tx.amount) : 0;
         spentByGroup[grp] = (spentByGroup[grp] || 0) + amt;
+
+        // Detalle por transacción
         const detRef = catRef.collection(grp).doc(tx.transaction_id);
         batch.set(detRef, { amount: tx.amount, date: tx.date, description: tx.description || null }, { merge: true });
       });
       batch.set(catRef, spentByGroup, { merge: true });
 
+      // Presupuestos mensuales
       Object.entries(budgetsMap).forEach(([grp, limit]) => {
         const spent = spentByGroup[grp] || 0;
         const grpDocRef = limGroupsRef.doc(grp);
         batch.set(grpDocRef, { limit, spent }, { merge: true });
       });
 
+      // Datos semanales y diarios
       const weeksObj = txsByDayInWeek[monthKey] || {};
       for (const [weekKey, daysObj] of Object.entries(weeksObj)) {
         const weekRef = sumRef.collection('weeks').doc(weekKey);
@@ -415,11 +427,7 @@ router.post('/sync_transactions_and_store', async (req, res) => {
 
 
 
-// ─────────────────────────────────────────────────────────────────────────────
-// sync_history_limits_and_store con soporte para semanas y meses
-// Devuelve el último mes disponible con sus datos de límites y gastos
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ───── Obtener límites y gastos del último mes (para vista de presupuestos) ─────
 router.post('/sync_history_limits_and_store', async (req, res) => {
   console.log('[PLAIDROUTES] → sync_history_limits_and_store START', req.body);
   const { userId } = req.body;
@@ -478,7 +486,7 @@ router.post('/sync_history_limits_and_store', async (req, res) => {
 });
 
 
-// ── Obtener historial mensual para pestaña Crecimiento ─────────────────────────
+// ───── Obtener historial mensual de ingresos y gastos (para pestaña Crecimiento) ─────
 router.post('/get_growth_history', async (req, res) => {
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ error: 'Falta userId' });
@@ -512,7 +520,7 @@ router.post('/get_growth_history', async (req, res) => {
   }
 });
 
-// ── Obtener gastos mensuales por grupo de categorías ──────────────────────────────
+// ───── Obtener evolución de gasto mensual por grupo de categoría ─────
 router.post('/get_category_trends', async (req, res) => {
   console.log('[PLAIDROUTES] POST /get_category_trends body:', req.body);
   const { userId } = req.body;
@@ -538,7 +546,7 @@ router.post('/get_category_trends', async (req, res) => {
       const data = doc.data();
       const month = doc.id;
 
-      // Excluir campos no numéricos (como subcolecciones)
+      // Filtro: solo campos numéricos (evito subcolecciones)
       const monthlyData = {};
       for (const [group, value] of Object.entries(data)) {
         if (typeof value === 'number') {
@@ -559,7 +567,7 @@ router.post('/get_category_trends', async (req, res) => {
 });
 
 
-// ── Guardar Push Subscription ──────────────────────────────────────────────────
+// ───── Guardar suscripción push del navegador del usuario (para FCM) ─────
 router.post('/save_push_subscription', async (req, res) => {
   console.log('[PLAIDROUTES] POST /save_push_subscription body:', req.body);
   const { userId, subscription } = req.body;
@@ -583,7 +591,7 @@ router.post('/save_push_subscription', async (req, res) => {
   }
 });
 
-// ── Eliminar Push Subscription ────────────────────────────────────────────────
+// ───── Eliminar suscripción push cuando el usuario la desactiva ─────
 router.post('/delete_push_subscription', async (req, res) => {
   console.log('[PLAIDROUTES] POST /delete_push_subscription body:', req.body);
   const { userId, endpoint } = req.body;
@@ -607,6 +615,7 @@ router.post('/delete_push_subscription', async (req, res) => {
   }
 });
 
+// ───── Guardar token FCM para notificaciones push desde Firebase Admin ─────
 router.post('/save_fcm_token', async (req, res) => {
   const { userId, token } = req.body;
   if (!userId || !token) return res.status(400).json({ error: 'Faltan userId o token' });

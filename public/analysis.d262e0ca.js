@@ -662,9 +662,13 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"l1WLd":[function(require,module,exports,__globalThis) {
+// ───── Archivo: analysis.js ─────
+// Este archivo gestiona la vista de análisis financiero en FinTrack.
+// Maneja pestañas (General, Crecimiento, Comparación), escucha al usuario autenticado,
+// coordina la carga de datos desde Firestore y destruye/reinicializa los gráficos al cambiar de pestaña.
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
-// ───── Utilidad: Ejecutar cuando visible ─────
+// ───── Utilidad: ejecutar callback cuando un elemento es visible y activo ─────
 parcelHelpers.export(exports, "whenVisible", ()=>whenVisible);
 var _firebaseJs = require("./firebase.js");
 var _auth = require("firebase/auth");
@@ -686,28 +690,32 @@ function whenVisible(el, callback) {
             if (isVisible) {
                 console.log(`[Observer] ${el.id} visible y activo \u{2192} ejecutando callback`);
                 callback();
-                obs.disconnect();
+                obs.disconnect(); // Detengo la observación tras ejecutarse una vez
             }
         });
     });
     observer.observe(el);
 }
-// ───── Inicio DOM ─────
+// ───── Lógica principal: espera al DOM y prepara la vista ─────
 document.addEventListener('DOMContentLoaded', ()=>{
     const sidebar = document.getElementById('sidebar');
     const periodSelect = document.getElementById('period-select');
+    // Eventos para abrir/cerrar el sidebar
     document.getElementById('open-sidebar').addEventListener('click', ()=>sidebar.classList.add('open'));
     document.getElementById('close-sidebar').addEventListener('click', ()=>sidebar.classList.remove('open'));
+    // Logout
     document.getElementById('logout-link').addEventListener('click', async (e)=>{
         e.preventDefault();
         await (0, _auth.signOut)((0, _firebaseJs.auth));
         window.location.href = '../index.html';
     });
+    // Cambio de periodo en el selector de "Este mes", "Esta semana", etc.
     periodSelect.addEventListener('change', (e)=>{
         selectedPeriod = e.target.value;
         localStorage.setItem('selectedPeriod', selectedPeriod);
-        if (userUid) (0, _generalJs.loadGeneral)(userUid, selectedPeriod);
+        if (userUid) (0, _generalJs.loadGeneral)(userUid, selectedPeriod); // recarga la pestaña General con el nuevo periodo
     });
+    // Navegación entre pestañas
     document.querySelectorAll('.filter-btn').forEach((btn)=>{
         btn.addEventListener('click', async ()=>{
             const selected = btn.dataset.filter;
@@ -717,24 +725,27 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 console.warn(`[UI] No se encontr\xf3 panel para: ${selected}`);
                 return;
             }
+            // Reseteo estilo activo de todas las pestañas
             document.querySelectorAll('.filter-btn').forEach((b)=>b.classList.remove('active'));
             document.querySelectorAll('.tab-panel').forEach((p)=>p.classList.remove('active'));
             btn.classList.add('active');
             panel.classList.add('active');
+            // Solo la pestaña General muestra el selector de periodo
             periodSelect.style.display = selected === 'overview' ? 'block' : 'none';
             if (!userUid) return;
+            // Cambio de lógica y render según pestaña activa
             switch(selected){
                 case 'overview':
                     console.log("[UI] \u2192 Mostrando pesta\xf1a General");
-                    destroyGrowthCharts();
-                    (0, _generalJs.initCharts)();
-                    (0, _generalJs.renderAnalysis)();
+                    destroyGrowthCharts(); // limpio si vengo de crecimiento
+                    (0, _generalJs.initCharts)(); // inicializo contenedores de gráficos
+                    (0, _generalJs.renderAnalysis)(); // cargo KPIs + gráficas
                     break;
                 case 'growth':
                     console.log("[UI] \u2192 Mostrando pesta\xf1a Crecimiento");
-                    destroyGeneralCharts();
+                    destroyGeneralCharts(); // limpio si vengo de otra pestaña
                     try {
-                        await (0, _growthJs.loadGrowth)();
+                        await (0, _growthJs.loadGrowth)(); // renderizo datos de crecimiento
                     } catch (e) {
                         console.error('[GROWTH] Error al cargar crecimiento:', e);
                     }
@@ -745,6 +756,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
             }
         });
     });
+    // ───── Detecta usuario autenticado y activa pestaña por defecto ─────
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
         if (user) {
             userUid = user.uid;
@@ -752,11 +764,12 @@ document.addEventListener('DOMContentLoaded', ()=>{
             const savedPeriod = localStorage.getItem('selectedPeriod') || 'month';
             document.getElementById('period-select').value = savedPeriod;
             selectedPeriod = savedPeriod;
+            // Forzo click en la pestaña General para iniciar render por defecto
             document.querySelector('.filter-btn[data-filter="overview"]').click();
-        } else window.location.href = '../index.html';
+        } else window.location.href = '../index.html'; // Si no está logueado, lo saco
     });
 });
-// ───── Destrucción segura de gráficas ─────
+// ───── Destrucción de gráficas anteriores para evitar overlays ─────
 function destroyChart(instance, name) {
     if (instance && typeof instance.destroy === 'function') try {
         instance.destroy();
@@ -765,6 +778,7 @@ function destroyChart(instance, name) {
         console.warn(`[CLEAN] Error al destruir ${name}:`, e);
     }
 }
+// Gráficas de la pestaña General (línea, barras, pastel)
 function destroyGeneralCharts() {
     destroyChart(window.trendChart, 'trendChart');
     destroyChart(window.barChart, 'barChart');
@@ -773,10 +787,11 @@ function destroyGeneralCharts() {
     window.barChart = null;
     window.pieChart = null;
 }
+// Gráficas de la pestaña Crecimiento (evolución mensual, heatmap, stack)
 function destroyGrowthCharts() {
     destroyChart(window.growthChart, 'growthChart');
     destroyChart(window.categoryTrendChart, 'categoryTrendChart');
-    destroyChart(window.categoryHeatmap, 'categoryHeatmap'); // ✅ añade esto
+    destroyChart(window.categoryHeatmap, 'categoryHeatmap'); // importante: esto se renderiza al final
     window.growthChart = null;
     window.categoryTrendChart = null;
     window.categoryHeatmap = null;
@@ -785,28 +800,34 @@ function destroyGrowthCharts() {
 },{"./firebase.js":"24zHi","firebase/auth":"4ZBbi","./general.js":"lGg7R","./growth.js":"4z1LS","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"lGg7R":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
-// ───── Utilidad: Ejecutar cuando visible ─────
+// ───── Utilidad: Ejecutar una función cuando un elemento sea visible en el viewport ─────
+// La uso para asegurar que los gráficos se renderizan solo cuando la pestaña está activa
 parcelHelpers.export(exports, "whenVisible", ()=>whenVisible);
+// ───── Función principal de renderizado de análisis financiero ─────
 parcelHelpers.export(exports, "renderAnalysis", ()=>renderAnalysis);
+// ───── Función para inicializar todos los gráficos de la pestaña de análisis ─────
 parcelHelpers.export(exports, "initCharts", ()=>initCharts);
 parcelHelpers.export(exports, "loadGeneral", ()=>loadGeneral);
 var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
 var _auth = require("firebase/auth");
 console.log('[ANALYSIS] Archivo analysis.js cargado');
+// ───── Inicializo Firestore y declaro variables globales ─────
 const db = (0, _firestore.getFirestore)((0, _firebaseJs.app));
-let trendChart, barChart, pieChart;
-let userId = null;
-let selectedPeriod = 'month';
-const monthsSet = new Set();
-let unsubscribeFns = [];
-const catByMonth = new Map();
-const daysOfCurrentWeek = new Map();
-const subscribedWeeks = new Set();
-let lastRevenue = [];
-let lastSpend = [];
-let lastCatMapStr = '';
-let summaryByMonth = new Map();
+let trendChart, barChart, pieChart; // Instancias de gráficos
+let userId = null; // UID del usuario actual
+let selectedPeriod = 'month'; // Periodo actual seleccionado
+// Estructuras auxiliares para caching y control
+const monthsSet = new Set(); // Guarda los meses ya procesados
+let unsubscribeFns = []; // Para cancelar listeners de Firebase cuando haga falta
+const catByMonth = new Map(); // Map mes → categorías con gasto
+const daysOfCurrentWeek = new Map(); // Para análisis por día en la semana actual
+const subscribedWeeks = new Set(); // Para evitar múltiples subscripciones a la misma semana
+let lastRevenue = []; // Ingresos anteriores para comparar
+let lastSpend = []; // Gastos anteriores para comparar
+let lastCatMapStr = ''; // Stringified de último mapa de categorías (para evitar renders redundantes)
+let summaryByMonth = new Map(); // Map mes → resumen de ingresos/gastos
+// ───── Colores de cada grupo de categoría para las gráficas ─────
 const groupColors = {
     'Agricultura y Medio Ambiente': '#A8D5BA',
     "Alimentos y Restauraci\xf3n": '#FFB6B9',
@@ -832,10 +853,11 @@ const groupColors = {
     "Viajes y Hosteler\xeda": '#FFC9DE',
     'Loan Payments': '#B0BEC5' // Gris azulado Material Design
 };
+// ───── Inicio del DOM: Configuro eventos y autenticación ─────
 document.addEventListener('DOMContentLoaded', ()=>{
     console.log('[ANALYSIS] DOM cargado'); // [DEBUG]
     const sidebar = document.getElementById('sidebar');
-    // Eventos UI
+    // Evento: marcar botón de filtro activo visualmente
     document.querySelectorAll('.filter-btn').forEach((btn)=>{
         btn.addEventListener('click', ()=>{
             console.log("[DEBUG] Bot\xf3n de filtro clicado:", btn.textContent);
@@ -843,6 +865,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
             btn.classList.add('active');
         });
     });
+    // Evento: cambio de periodo (semana, mes, año)
     document.getElementById('period-select').addEventListener('change', (e)=>{
         selectedPeriod = e.target.value;
         localStorage.setItem('selectedPeriod', selectedPeriod);
@@ -852,17 +875,21 @@ document.addEventListener('DOMContentLoaded', ()=>{
             applyPeriodFilter(userId, selectedPeriod);
         }
     });
+    // Evento: cuando el estado de auth cambia (login/logout)
     (0, _auth.onAuthStateChanged)((0, _firebaseJs.auth), async (user)=>{
         if (user) {
             userId = user.uid;
             console.log('[ANALYSIS] Usuario autenticado:', userId); // [DEBUG]
+            // Restaura el periodo guardado en localStorage
             const savedPeriod = localStorage.getItem('selectedPeriod') || 'month';
             selectedPeriod = savedPeriod;
             document.getElementById('period-select').value = savedPeriod;
-            console.log('[DEBUG] Periodo restaurado desde localStorage:', selectedPeriod); // [DEBUG]
+            console.log('[DEBUG] Periodo restaurado desde localStorage:', selectedPeriod);
+            // Inicio del sistema reactivo
             reactiveAnalysis(userId);
+            // Aplico filtro tras un pequeño timeout para asegurar que los datos ya están renderizados
             setTimeout(()=>{
-                console.log('[DEBUG] Ejecutando applyPeriodFilter tras timeout inicial'); // [DEBUG]
+                console.log('[DEBUG] Ejecutando applyPeriodFilter tras timeout inicial');
                 applyPeriodFilter(userId, selectedPeriod);
             }, 200);
         } else {
@@ -884,50 +911,61 @@ function whenVisible(el, callback) {
             if (isVisible) {
                 console.log(`[Observer] ${el.id} visible y activo \u{2192} ejecutando callback`);
                 callback();
-                obs.disconnect();
+                obs.disconnect(); // Una vez que se ve, dejo de observarlo
             }
         });
     });
     observer.observe(el);
 }
+// ───── Función principal reactiva: suscribe a history e historySummary ─────
 async function reactiveAnalysis(userId) {
     console.log('[RENDER] Entrando en renderAnalysis con periodo:', selectedPeriod); // [DEBUG]
     const histRef = (0, _firestore.collection)(db, 'users', userId, 'history');
     const sumRef = (0, _firestore.collection)(db, 'users', userId, 'historySummary');
+    // Inicializo las instancias de los gráficos (los vacía si ya existen)
     initCharts();
+    // Marcadores para saber cuándo ambos listeners han respondido al menos una vez
     let sourcesReady = {
         history: false,
         summary: false
     };
     return new Promise((resolve)=>{
+        // Función que se ejecuta cada vez que uno de los dos listeners responde
         const checkIfReadyToRender = ()=>{
             if (sourcesReady.history && sourcesReady.summary) {
                 console.log('[ANALYSIS] Datos cargados. Aplicando filtro de periodo...');
-                applyPeriodFilter(userId, selectedPeriod);
-                resolve(); // <- Ahora sí podemos continuar
+                applyPeriodFilter(userId, selectedPeriod); //Se renderiza solo cuando tengo ambos conjuntos
+                resolve(); // Marco la promesa como completada
             }
         };
+        // Utilidad para manejar un snapshot recibido (ya sea de history o de summary)
         const updateSubscriptionsFromSnapshot = (type, snap)=>{
             const newMonths = new Set();
+            // Si es de summary, limpio el mapa actual
             if (type === 'summary') summaryByMonth.clear();
             snap.docs.forEach((doc)=>{
                 newMonths.add(doc.id);
+                // Si es summary, guardo el documento completo para KPIs
                 if (type === 'summary') summaryByMonth.set(doc.id, doc.data());
             });
+            // Guardo en el conjunto global de meses detectados
             newMonths.forEach((m)=>monthsSet.add(m));
             sourcesReady[type] = true;
             checkIfReadyToRender();
         };
+        // Suscripción reactiva al historial de transacciones (estructura base)
         (0, _firestore.onSnapshot)(histRef, (snap)=>{
             console.log('[ANALYSIS] Snapshot recibido para history:', snap.docs.length);
             updateSubscriptionsFromSnapshot('history', snap);
         });
+        // Suscripción reactiva al resumen mensual (estructura agregada)
         (0, _firestore.onSnapshot)(sumRef, (snap)=>{
             console.log('[ANALYSIS] Snapshot recibido para summary:', snap.docs.length);
             updateSubscriptionsFromSnapshot('summary', snap);
         });
     });
 }
+// ───── Filtro según el periodo seleccionado (semana, mes, año) ─────
 function applyPeriodFilter(userId, period) {
     console.log('[ANALYSIS] Aplicando filtro para periodo:', period);
     const now = new Date();
@@ -935,59 +973,78 @@ function applyPeriodFilter(userId, period) {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const prefix = `${year}-${month}`;
     let monthsToSubscribe = [];
+    // Si el periodo es semana o mes, solo me interesa el mes actual
     if (period === 'week' || period === 'month') monthsToSubscribe = Array.from(monthsSet).filter((m)=>m.startsWith(prefix));
     else if (period === 'year') monthsToSubscribe = Array.from(monthsSet).filter((m)=>m.startsWith(`${year}-`));
     console.log('[ANALYSIS] Meses a suscribirse:', monthsToSubscribe);
+    // 🔁 Actualizo las suscripciones con los meses pertinentes
     refreshSubscriptions(monthsToSubscribe, userId);
 }
+// ───── Se encarga de limpiar y volver a suscribirse a los datos por mes y semana ─────
 function refreshSubscriptions(months, userId) {
     console.log('[ANALYSIS] Refrescando suscripciones...');
+    // Elimina listeners antiguos para evitar fugas de memoria y duplicados
     clearPreviousSubscriptions();
     months.forEach((mon)=>{
+        // Suscribo a los datos de categorías para este mes
         subscribeToMonth(mon, userId);
+        // Si el periodo es semana o mes, también me suscribo a los datos diarios de cada semana
         if (selectedPeriod === 'month' || selectedPeriod === 'week') for(let i = 1; i <= 5; i++){
             const weekId = `S${i}`;
+            // Ruta: historySummary/{mon}/weeks/{Sx}/days
             const daysRef = (0, _firestore.collection)(db, 'users', userId, 'historySummary', mon, 'weeks', weekId, 'days');
+            // Me suscribo a los documentos de cada día de esa semana
             const unsubDays = (0, _firestore.onSnapshot)(daysRef, (snap)=>{
                 console.log(`[ANALYSIS] Snapshot d\xedas para ${mon}/weeks/${weekId}:`, snap.docs.length);
                 for (const doc of snap.docs){
-                    const fullKey = `${mon}/weeks/${weekId}/${doc.id}`; // clave única por día
+                    const fullKey = `${mon}/weeks/${weekId}/${doc.id}`; // identificador único del día
                     daysOfCurrentWeek.set(fullKey, doc.data());
                 }
+                // ⚡ Re-renderizo cada vez que llegan nuevos días
                 renderAnalysis();
             });
+            // Registro la función para poder desuscribirme luego
             unsubscribeFns.push(unsubDays);
         }
     });
 }
+// ───── Limpia todos los listeners previos antes de nuevas suscripciones ─────
 function clearPreviousSubscriptions() {
     console.log('[ANALYSIS] Limpiando suscripciones anteriores');
+    // Llamo a cada función de desuscripción activa
     unsubscribeFns.forEach((unsub)=>unsub());
+    // Reinicio los arrays y sets de control
     unsubscribeFns = [];
     subscribedWeeks.clear();
 }
+// ───── Suscribe a los datos de categorías agregadas para un mes concreto ─────
 function subscribeToMonth(mon, userId) {
     console.log("[ANALYSIS] Subscribiendo a mes (solo categor\xedas):", mon);
-    // Categorías (sí se mantiene)
     const catDocRef = (0, _firestore.doc)(db, 'users', userId, 'historyCategorias', mon);
+    // Escucho el documento de categorías para el mes dado
     const unsubCat = (0, _firestore.onSnapshot)(catDocRef, (snap)=>{
         console.log("[ANALYSIS] Snapshot categor\xedas:", mon, snap.exists());
         if (snap.exists()) {
             const data = snap.data();
-            delete data.updatedAt;
+            delete data.updatedAt; // No necesito este campo para renderizar
             catByMonth.set(mon, data);
         }
-        renderAnalysis(); // se renderiza siempre
+        // 🔁 Actualizo la visualización al recibir nuevos datos
+        renderAnalysis();
     });
+    // Guardo el listener para desuscribirlo después
     unsubscribeFns.push(unsubCat);
 }
 function renderAnalysis() {
     console.log("[ANALYSIS] Renderizando an\xe1lisis...");
+    // Si estamos en modo semana o mes pero no tenemos datos diarios, no tiene sentido continuar
     if ((selectedPeriod === 'month' || selectedPeriod === 'week') && daysOfCurrentWeek.size === 0) {
         console.log('[ANALYSIS] No hay datos diarios disponibles');
         return;
     }
+    // Inicializo las estructuras de datos base
     let xLabels = [], revenue = [], spend = [], netIncome = [];
+    // ───── Agrupación por semanas (cuando el periodo es mensual) ─────
     if (selectedPeriod === 'month') {
         const semanas = [
             'S1',
@@ -1002,8 +1059,9 @@ function renderAnalysis() {
         for (const [key, entry] of daysOfCurrentWeek.entries()){
             if (!key || typeof key !== 'string') continue;
             const parts = key.split('/');
-            const weekIdx = semanas.indexOf(parts[2]);
+            const weekIdx = semanas.indexOf(parts[2]); // Ej: key = "2025-07/weeks/S3/2025-07-15"
             if (weekIdx === -1) continue;
+            // Sumo ingresos/gastos en la semana correspondiente
             revenue[weekIdx] += entry?.totalIncomes || 0;
             spend[weekIdx] += entry?.totalExpenses || 0;
         }
@@ -1021,9 +1079,9 @@ function renderAnalysis() {
         revenue = new Array(7).fill(0);
         spend = new Array(7).fill(0);
         for (const [key, entry] of daysOfCurrentWeek.entries()){
-            const dateStr = key.split('/').at(-1);
+            const dateStr = key.split('/').at(-1); // Extraigo la fecha
             const date = new Date(dateStr);
-            const idx = (date.getDay() + 6) % 7;
+            const idx = (date.getDay() + 6) % 7; // Ajuste para que Lunes sea 0
             revenue[idx] += entry?.totalIncomes || 0;
             spend[idx] += entry?.totalExpenses || 0;
         }
@@ -1036,20 +1094,23 @@ function renderAnalysis() {
             console.log("[ANALYSIS] No hay datos mensuales para el a\xf1o actual");
             return;
         }
-        xLabels = months.map((m)=>m.split('-')[1]);
+        xLabels = months.map((m)=>m.split('-')[1]); // Extraigo número de mes
         revenue = months.map((m)=>summaryByMonth.get(m)?.totalIncomes || 0);
         spend = months.map((m)=>summaryByMonth.get(m)?.totalExpenses || 0);
     }
+    // ───── Evito renders innecesarios si los datos no han cambiado ─────
     if (selectedPeriod !== 'week' && arraysEqual(revenue, lastRevenue) && arraysEqual(spend, lastSpend)) {
         console.log('[ANALYSIS] No hay cambios en ingresos/gastos. Render omitido.');
         return;
     }
+    // Calculo el saldo neto como diferencia ingreso - gasto
     netIncome = revenue.map((r, i)=>r - spend[i]);
     const totalRev = revenue.reduce((a, b)=>a + b, 0);
     const totalSpd = spend.reduce((a, b)=>a + b, 0);
+    // Actualizo KPIs absolutos
     document.getElementById('kpi-revenue').textContent = `\u{20AC}${totalRev.toFixed(2)}`;
     document.getElementById('kpi-spend').textContent = `\u{20AC}${totalSpd.toFixed(2)}`;
-    // ───── Cálculo del cambio porcentual según el periodo ─────
+    // ───── Cálculo del % de variación respecto al periodo anterior ─────
     let revChange = 0, spdChange = 0;
     if (selectedPeriod === 'year' || selectedPeriod === 'month') {
         const now = new Date();
@@ -1071,9 +1132,9 @@ function renderAnalysis() {
         function getWeekDates(baseDate = new Date()) {
             const weekday = baseDate.getDay();
             const startCurrentWeek = new Date(baseDate);
-            startCurrentWeek.setDate(baseDate.getDate() - (weekday + 6) % 7);
+            startCurrentWeek.setDate(baseDate.getDate() - (weekday + 6) % 7); // Lunes actual
             const startPrevWeek = new Date(startCurrentWeek);
-            startPrevWeek.setDate(startPrevWeek.getDate() - 7);
+            startPrevWeek.setDate(startPrevWeek.getDate() - 7); // Lunes anterior
             const thisWeekDates = [], lastWeekDates = [];
             for(let i = 0; i < 7; i++){
                 thisWeekDates.push(new Date(startCurrentWeek.getTime() + i * 86400000).toISOString().split('T')[0]);
@@ -1102,9 +1163,11 @@ function renderAnalysis() {
         console.log('[KPI] Ingresos: actual', thisWeekRev, ', anterior', lastWeekRev);
         console.log('[KPI] Gastos: actual', thisWeekSpd, ', anterior', lastWeekSpd);
     }
+    // Actualizo los elementos de cambio de KPI (con signo + o -)
     document.getElementById('kpi-revenue-change').textContent = `${revChange >= 0 ? '+' : ''}${revChange.toFixed(1)}% vs periodo anterior`;
     document.getElementById('kpi-spend-change').textContent = `${spdChange >= 0 ? '+' : ''}${spdChange.toFixed(1)}% vs periodo anterior`;
     console.log("[ANALYSIS] KPI actualizados. Redibujando gr\xe1ficas...");
+    // ───── Renderizo las gráficas de ingresos/gastos y saldo neto ─────
     trendChart.updateOptions({
         series: [
             {
@@ -1131,14 +1194,16 @@ function renderAnalysis() {
             categories: xLabels
         }
     });
+    // Guardo los datos actuales para detectar futuros cambios
     lastRevenue = [
         ...revenue
     ];
     lastSpend = [
         ...spend
     ];
+    //Renderizo el gráfico de pastel para el periodo actual
     renderPieChartForCurrentPeriod();
-    console.log('[RENDER] renderAnalysis completado.'); // [DEBUG]
+    console.log('[RENDER] renderAnalysis completado.');
 }
 function arraysEqual(a, b) {
     if (a.length !== b.length) return false;
@@ -1147,13 +1212,14 @@ function arraysEqual(a, b) {
 }
 function initCharts() {
     console.log("[ANALYSIS] Inicializando gr\xe1ficos");
+    // ───── Gráfico de línea: Ingresos vs Gastos ─────
     trendChart = new ApexCharts(document.querySelector('#trendChart'), {
         chart: {
             type: 'line',
             height: 240,
             toolbar: {
                 show: false
-            }
+            } // Oculto el menú interactivo
         },
         series: [],
         xaxis: {
@@ -1167,7 +1233,7 @@ function initCharts() {
         },
         yaxis: {
             labels: {
-                formatter: (val)=>Math.round(val)
+                formatter: (val)=>Math.round(val) // Simplifico etiquetas Y
             }
         },
         colors: [
@@ -1186,19 +1252,22 @@ function initCharts() {
             }
         },
         legend: {
-            show: false
+            show: false // Oculto leyenda del gráfico, se pone manual más abajo
         }
     });
+    // Renderizo el gráfico de línea en pantalla
     trendChart.render();
+    // ───── Leyenda personalizada para Ingresos y Gastos ─────
     const trendLegend = document.getElementById('trendLegend');
     if (trendLegend) trendLegend.innerHTML = `
-        <div class="legend-item">
-          <span class="legend-color" style="background:#4ADE80"></span> Ingresos
-        </div>
-        <div class="legend-item">
-          <span class="legend-color" style="background:#F87171"></span> Gastos
-        </div>
-      `;
+      <div class="legend-item">
+        <span class="legend-color" style="background:#4ADE80"></span> Ingresos
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background:#F87171"></span> Gastos
+      </div>
+    `;
+    // ───── Gráfico de barras: Saldo neto (Ingresos - Gastos) ─────
     barChart = new ApexCharts(document.querySelector('#barChart'), {
         chart: {
             type: 'bar',
@@ -1230,7 +1299,7 @@ function initCharts() {
                             from: 0.01,
                             to: Infinity,
                             color: '#4ADE80'
-                        }
+                        } // Positivo → verde
                     ]
                 }
             }
@@ -1247,20 +1316,22 @@ function initCharts() {
             borderColor: '#eee'
         }
     });
+    // Renderizo gráfico de barras
     barChart.render();
+    // ───── Gráfico de pastel: Distribución por categoría ─────
     pieChart = new ApexCharts(document.querySelector('#pieChart'), {
         chart: {
             type: 'pie',
             height: 220,
             animations: {
                 enabled: false
-            }
+            } // Evito animaciones para que no se rompa al cambiar de pestaña
         },
         series: [],
         labels: [],
         colors: [],
         legend: {
-            position: 'bottom'
+            position: 'bottom' // Coloco leyenda abajo para facilitar lectura en móviles
         },
         noData: {
             text: 'Cargando datos...',
@@ -1272,11 +1343,10 @@ function initCharts() {
             }
         }
     });
+    // Renderizo gráfico de pastel
     pieChart.render();
 }
-// ─────────────────────────────────────────────────────────────────────────────
 // Devuelve la semana del mes actual ('S1' a 'S5') según el día del mes
-// ─────────────────────────────────────────────────────────────────────────────
 function getCurrentWeekInMonth() {
     const today = new Date();
     const day = today.getDate();
@@ -1302,7 +1372,7 @@ async function renderPieChartForCurrentPeriod() {
         'S5'
     ];
     if (selectedPeriod === 'month') {
-        // ✅ Leer directamente el doc mensual
+        // Leer directamente el doc mensual
         const monthRef = (0, _firestore.doc)(db, 'users', userId, 'historyCategorias', prefix);
         try {
             const snap = await (0, _firestore.getDoc)(monthRef);
@@ -1462,7 +1532,9 @@ function loadGeneral(userId, selectedPeriod) {
         }
     });
     initCharts();
-    renderAnalysis();
+    reactiveAnalysis(userId).then(()=>{
+        renderAnalysis(); // ✅ Solo renderizas una vez los datos están listos
+    });
 }
 
 },{"./firebase.js":"24zHi","firebase/firestore":"3RBs1","firebase/auth":"4ZBbi","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"4z1LS":[function(require,module,exports,__globalThis) {
@@ -1754,7 +1826,7 @@ function renderCategoryTrendChart(months, categoryData) {
         },
         yaxis: {
             labels: {
-                formatter: (val)=>val.toFixed(2)
+                formatter: (val)=>Math.round(val)
             }
         },
         stroke: {
@@ -1834,7 +1906,7 @@ function renderCategoryHeatmap(months, categoryData) {
     // ─── Paso 4: Configuración del gráfico ───────────────────────
     const options = {
         chart: {
-            height: 350,
+            height: 420,
             type: 'heatmap',
             toolbar: {
                 show: false

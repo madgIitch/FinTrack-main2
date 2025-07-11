@@ -7012,27 +7012,28 @@ function wrap(value) {
 const unwrap = (value)=>reverseTransformCache.get(value);
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"an1YM":[function(require,module,exports,__globalThis) {
-// Import the functions you need from the SDKs you need
+// ───── Archivo: firebase.js ─────
+// Este archivo centraliza toda la configuración y exportación de servicios Firebase
+// para que el resto de la app (auth, Firestore, FCM, etc.) pueda usarlos de forma sencilla.
+// ───── Importación de SDKs de Firebase que realmente uso ─────
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
-// ... other imports and Firebase initialization ...
+// ───── Exporto los servicios que me interesa usar en otros módulos ─────
 parcelHelpers.export(exports, "app", ()=>app);
 parcelHelpers.export(exports, "auth", ()=>auth);
 parcelHelpers.export(exports, "db", ()=>db);
+parcelHelpers.export(exports, "messaging", ()=>messaging);
 parcelHelpers.export(exports, "onAuthStateChanged", ()=>(0, _auth.onAuthStateChanged));
 parcelHelpers.export(exports, "doc", ()=>(0, _firestore.doc));
 parcelHelpers.export(exports, "getDoc", ()=>(0, _firestore.getDoc));
 parcelHelpers.export(exports, "getFirestore", ()=>(0, _firestore.getFirestore));
-parcelHelpers.export(exports, "messaging", ()=>messaging);
 parcelHelpers.export(exports, "apiUrl", ()=>apiUrl);
 var _app = require("firebase/app");
-var _auth = require("firebase/auth"); // Import onAuthStateChanged
-var _firestore = require("firebase/firestore"); // Import Firestore functions
-var _messaging = require("firebase/messaging");
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+var _auth = require("firebase/auth"); // Autenticación y escucha de cambios
+var _firestore = require("firebase/firestore"); // Firestore y helpers
+var _messaging = require("firebase/messaging"); // Notificaciones push con FCM
+// ───── Configuración del proyecto Firebase (copiada desde la consola) ─────
+// Esta config identifica mi proyecto en Firebase. El measurementId no es obligatorio.
 const firebaseConfig = {
     apiKey: "AIzaSyCV05aIQnCR5803w-cWAKxc6U23bwF13-0",
     authDomain: "fintrack-1bced.firebaseapp.com",
@@ -7042,11 +7043,13 @@ const firebaseConfig = {
     appId: "1:576236535723:web:4276524c0c6a10a3391cee",
     measurementId: "G-J87Z3NZJ55"
 };
-// Initialize Firebase
+// ───── Inicializo la app y los servicios de Firebase ─────
 const app = (0, _app.initializeApp)(firebaseConfig);
 const auth = (0, _auth.getAuth)(app);
 const db = (0, _firestore.getFirestore)(app);
 const messaging = (0, _messaging.getMessaging)(app);
+// ───── URL base para acceder al backend según el entorno (local o deploy en Firebase) ─────
+// Me aseguro de usar la URL local solo en desarrollo
 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001/fintrack-1bced/us-central1/api' : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
 
 },{"firebase/app":"aM3Fo","firebase/auth":"79vzg","firebase/firestore":"8A4BC","firebase/messaging":"kSD74","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"aM3Fo":[function(require,module,exports,__globalThis) {
