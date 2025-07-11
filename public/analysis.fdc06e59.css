@@ -253,44 +253,19 @@
   display: flex;
 }
 
-.compare-month-selectors {
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 4px;
-  margin-bottom: 8px;
-  display: flex;
-}
-
-.compare-month-selectors select {
-  background: var(--grey-light);
-  color: var(--text);
-  cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  border: none;
-  border-radius: 16px;
-  outline: none;
-  padding: 6px 10px;
-  font-size: .85rem;
-  transition: background .2s;
-}
-
-.compare-month-selectors select:hover {
-  background: var(--primary-light);
-}
-
 .comparison-selectors {
   flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 16px;
+  margin: 12px 0 20px;
   display: flex;
 }
 
 .select-group {
   flex-direction: column;
-  gap: 4px;
-  min-width: 150px;
+  gap: 6px;
+  min-width: 160px;
   display: flex;
 }
 
@@ -302,14 +277,14 @@
 .select-group select {
   border: 1px solid var(--border);
   background: var(--surface);
+  color: var(--text);
   box-shadow: var(--shadow-xs);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
   max-height: 38px;
-  padding: 4px 8px;
+  padding: 6px 10px;
   font-size: .9rem;
   transition: border .2s;
-  overflow-y: auto;
 }
 
 .select-group select:focus {
@@ -317,27 +292,31 @@
   outline: none;
 }
 
-.chart-card.radar-chart {
+.charts-row.two-cols {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 24px;
+  margin-top: 24px;
+  display: flex;
+}
+
+.chart-card {
   background: var(--surface);
-  height: 420px;
-  max-height: 420px;
+  height: 480px;
+  min-height: 480px;
   box-shadow: var(--shadow-sm);
-  border-radius: 8px;
-  flex-direction: column;
+  border-radius: 12px;
+  flex: 1;
   justify-content: center;
   align-items: center;
   padding: 12px;
   display: flex;
-  overflow: hidden;
 }
 
-#compareRadarChart {
-  justify-content: center;
-  align-items: center;
-  display: flex;
+#compareBarChart, #compareRadarChart {
+  min-height: 440px;
   width: 100% !important;
   height: 100% !important;
-  min-height: 300px !important;
-  max-height: 100% !important;
 }
 /*# sourceMappingURL=analysis.fdc06e59.css.map */

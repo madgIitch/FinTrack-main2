@@ -299,53 +299,23 @@
   flex-wrap: wrap;
 }
 
-
-/* ────────────────────────────────────────────────────────────── */
-/* Filtros personalizados para pestaña Comparación               */
-/* ────────────────────────────────────────────────────────────── */
-.compare-month-selectors {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 4px;
-  margin-bottom: 8px;
-}
-
-.compare-month-selectors select {
-  background: var(--grey-light);
-  border: none;
-  border-radius: 16px;
-  padding: 6px 10px;
-  font-size: 0.85rem;
-  color: var(--text);
-  cursor: pointer;
-  outline: none;
-  box-shadow: var(--shadow-sm);
-  transition: background 0.2s ease;
-}
-
-.compare-month-selectors select:hover {
-  background: var(--primary-light);
-}
-
-
 /* ────────────────────────────────────────────────────────────── */
 /* Selectores de comparación                                     */
 /* ────────────────────────────────────────────────────────────── */
 .comparison-selectors {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 16px;
+  margin: 12px 0 20px;
+  justify-content: center;
   align-items: center;
 }
 
 .select-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 150px;
+  gap: 6px;
+  min-width: 160px;
 }
 
 .select-group label {
@@ -355,13 +325,13 @@
 
 .select-group select {
   font-size: 0.9rem;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--surface);
+  color: var(--text);
   box-shadow: var(--shadow-xs);
   max-height: 38px;
-  overflow-y: auto;
   cursor: pointer;
   transition: border 0.2s ease;
 }
@@ -371,29 +341,32 @@
   border-color: var(--primary);
 }
 
-
-/* Radar Chart (Comparación) */
-.chart-card.radar-chart {
-  height: 420px;
-  max-height: 420px;
-  padding: 12px;
-  background: var(--surface);
-  border-radius: 8px;
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
+.charts-row.two-cols {
   display: flex;
-  flex-direction: column;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.chart-card {
+  flex: 1;
+  min-height: 480px;
+  height: 480px;
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  padding: 12px;
+  display: flex;
   justify-content: center;
   align-items: center;
 }
 
+#compareBarChart,
 #compareRadarChart {
   width: 100% !important;
   height: 100% !important;
-  min-height: 300px !important;
-  max-height: 100% !important;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  min-height: 440px;
 }
 
