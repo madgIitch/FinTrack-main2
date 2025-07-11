@@ -214,7 +214,7 @@ function renderCompareRadarChart(currentMap, prevMap, labelActual, labelAnterior
   const options = {
     chart: {
       type: 'radar',
-      height: 650,
+      height: 680,
       dropShadow: {
         enabled: true,
         blur: 1,
@@ -242,7 +242,14 @@ function renderCompareRadarChart(currentMap, prevMap, labelActual, labelAnterior
       size: 0
     },
     legend: {
-      position: 'top'
+        position: 'bottom',
+        horizontalAlign: 'center',
+        fontSize: '14px',
+        markers: {
+            width: 12,
+            height: 12,
+            radius: 2
+        }
     },
     colors: ['#FBBF2480', '#60A5FA80'] // con opacidad 
   };
