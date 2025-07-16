@@ -1827,7 +1827,7 @@ function renderCategoryTrendChart(months, categoryData) {
                 show: false
             },
             animations: {
-                enabled: false
+                enabled: true
             }
         },
         series,
@@ -2138,6 +2138,14 @@ function renderCompareBarChart(currentMap, prevMap, labelActual, labelAnterior) 
                 }
             }
         },
+        yaxis: {
+            labels: {
+                formatter: (val)=>Math.round(val),
+                style: {
+                    fontSize: '11px'
+                }
+            }
+        },
         plotOptions: {
             bar: {
                 horizontal: false,
@@ -2206,12 +2214,31 @@ function renderCompareRadarChart(currentMap, prevMap, labelActual, labelAnterior
             }
         ],
         labels: categories,
+        xaxis: {
+            labels: {
+                show: true,
+                style: {
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    colors: '#333'
+                }
+            }
+        },
+        yaxis: {
+            labels: {
+                style: {
+                    fontWeight: 400,
+                    fontSize: '11px',
+                    colors: '#888'
+                }
+            }
+        },
         stroke: {
             width: 2,
             colors: [
                 '#FBBF24',
                 '#60A5FA'
-            ] // azul y amarillo 
+            ]
         },
         fill: {
             opacity: 0.15
@@ -2232,7 +2259,7 @@ function renderCompareRadarChart(currentMap, prevMap, labelActual, labelAnterior
         colors: [
             '#FBBF2480',
             '#60A5FA80'
-        ] // con opacidad 
+        ]
     };
     if (window.compareRadarChart) try {
         window.compareRadarChart.destroy();

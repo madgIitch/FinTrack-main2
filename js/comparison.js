@@ -171,6 +171,14 @@ function renderCompareBarChart(currentMap, prevMap, labelActual, labelAnterior) 
         style: { fontSize: '12px' }
       }
     },
+     yaxis: {
+      labels: {
+        formatter: val => Math.round(val),
+        style: {
+          fontSize: '11px'
+        }
+      }
+    },
     plotOptions: {
       bar: {
         horizontal: false,
@@ -214,7 +222,7 @@ function renderCompareRadarChart(currentMap, prevMap, labelActual, labelAnterior
   const options = {
     chart: {
       type: 'radar',
-      height: 620,
+      height: 620, 
       dropShadow: {
         enabled: true,
         blur: 1,
@@ -228,9 +236,28 @@ function renderCompareRadarChart(currentMap, prevMap, labelActual, labelAnterior
       { name: labelActual, data: dataActual }
     ],
     labels: categories,
+    xaxis: {
+      labels: {
+        show: true,
+        style: {
+          fontWeight: 600,           
+          fontSize: '13px',
+          colors: '#333'
+        }
+      }
+    },
+    yaxis: {
+      labels: {
+        style: {
+          fontWeight: 400,           
+          fontSize: '11px',
+          colors: '#888'
+        }
+      }
+    },
     stroke: {
       width: 2,
-      colors: ['#FBBF24', '#60A5FA'] // azul y amarillo 
+      colors: ['#FBBF24', '#60A5FA']
     },
     fill: {
       opacity: 0.15
@@ -239,16 +266,16 @@ function renderCompareRadarChart(currentMap, prevMap, labelActual, labelAnterior
       size: 0
     },
     legend: {
-        position: 'bottom',
-        horizontalAlign: 'center',
-        fontSize: '14px',
-        markers: {
-            width: 12,
-            height: 12,
-            radius: 2
-        }
+      position: 'bottom',
+      horizontalAlign: 'center',
+      fontSize: '14px',
+      markers: {
+        width: 12,
+        height: 12,
+        radius: 2
+      }
     },
-    colors: ['#FBBF2480', '#60A5FA80'] // con opacidad 
+    colors: ['#FBBF2480', '#60A5FA80']
   };
 
   if (window.compareRadarChart) {
@@ -267,6 +294,7 @@ function renderCompareRadarChart(currentMap, prevMap, labelActual, labelAnterior
   window.compareRadarChart.render();
   console.log('[COMPARE] 🕸️ Radar chart de comparación renderizado');
 }
+
 
 
 

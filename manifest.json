@@ -1,48 +1,114 @@
 {
   "name": "FinTrack",
   "short_name": "FinTrack",
+  "description": "FinTrack te ayuda a visualizar, categorizar y entender tus finanzas personales de forma clara y sencilla.",
   "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#e0e0e0",
   "theme_color": "#e0e0e0",
   "orientation": "portrait-primary",
   "lang": "en",
-  "permissions": [
-    "periodic-background-sync"
-  ],
-  "background": {
-    "service_worker": "service-worker.js"
+  "dir": "ltr",
+  "id": "/?source=pwa", 
+  "launch_handler": {
+    "client_mode": "focus-existing"
   },
+  "screenshots": [
+  {
+    "src": "/img/screen1.png",
+    "type": "image/png",
+    "sizes": "398x701",
+    "label": "Gráfico de crecimiento y heatmap por categorías"
+  },
+  {
+    "src": "/img/screen2.png",
+    "type": "image/png",
+    "sizes": "398x704",
+    "label": "Indicadores de crecimiento con gráfico de líneas"
+  },
+  {
+    "src": "/img/screen3.png",
+    "type": "image/png",
+    "sizes": "395x703",
+    "label": "Barras por semana y gráfico de pastel por categorías"
+  },
+  {
+    "src": "/img/screen4.png",
+    "type": "image/png",
+    "sizes": "398x705",
+    "label": "KPIs y evolución mensual de ingresos y gastos"
+  },
+  {
+    "src": "/img/screen5.png",
+    "type": "image/png",
+    "sizes": "398x703",
+    "label": "Vista de transacciones filtrables"
+  },
+  {
+    "src": "/img/screen6.png",
+    "type": "image/png",
+    "sizes": "397x705",
+    "label": "Resumen mensual e indicador de saldo actual"
+  },
+  {
+    "src": "/img/screen7.png",
+    "type": "image/png",
+    "sizes": "398x705",
+    "label": "Gráficos de barras y radar por categoría"
+  },
+  {
+    "src": "/img/screen8.png",
+    "type": "image/png",
+    "sizes": "397x705",
+    "label": "Comparativa entre dos meses: ingresos, gastos y ahorro"
+  }
+],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "scope": "/",
   "icons": [
     {
       "src": "img/icons/logoFintonic72x72.png",
       "type": "image/png",
-      "sizes": "72x72"
+      "sizes": "72x72",
+      "purpose": "any"
     },
     {
       "src": "img/icons/logoFintonic96x96.png",
       "type": "image/png",
-      "sizes": "96x96"
+      "sizes": "96x96",
+      "purpose": "any"
     },
     {
       "src": "img/icons/logoFintonic192x192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any"
     },
     {
       "src": "img/icons/logoFintonic384x384.png",
       "type": "image/png",
-      "sizes": "384x384"
+      "sizes": "384x384",
+      "purpose": "any"
     },
     {
       "src": "img/icons/logoFintonic512x512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any"
     },
     {
       "src": "img/icons/logoFintonic1280x1280.png",
       "type": "image/png",
-      "sizes": "1280x1280"
+      "sizes": "1280x1280",
+      "purpose": "any"
     }
-  ]
+  ],
+  "permissions": [
+    "periodic-background-sync",
+    "notifications"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  }
 }

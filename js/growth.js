@@ -291,7 +291,7 @@ function renderCategoryTrendChart(months, categoryData) {
       height: 320,
       stacked: true,
       toolbar: { show: false },
-      animations: { enabled: false }
+      animations: { enabled: true }
     },
     series,
     colors,
