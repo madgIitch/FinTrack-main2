@@ -1,12 +1,11 @@
 // ───── Archivo: functions/reportController.js ─────
 // Lógica para generar y subir informes PDF a Firebase Storage en Firebase Functions
 
-const { db, admin } = require('./firebaseAdmin');
+const { db, storage } = require('./firebaseAdmin');
 const chromium = require('chrome-aws-lambda'); // puppeteer-core ya viene dentro
 const { v4: uuidv4 } = require('uuid');
 const { generateHtmlForReport } = require('./generateHtml');
 
-const storage = admin.storage().bucket();
 
 exports.generateAndUploadPdfReport = async (req, res) => {
   const { uid, period } = req.body;
