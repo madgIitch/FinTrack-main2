@@ -1,7 +1,7 @@
 // ───── Archivo: functions/generateHtml.js ─────
 // Función auxiliar para generar el HTML del informe financiero PDF
 
-function generateHtmlForReport(period, summary = {}, categories = {}, user = {}) {
+function generateHtmlForReport(period, summary = {}, categories = {}, limits = {}, user = {}) {
   const fullName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || 'Sin nombre';
 
   return `
@@ -52,8 +52,24 @@ function generateHtmlForReport(period, summary = {}, categories = {}, user = {})
             <tr><th>Categoría</th><th>Total (€)</th></tr>
           </thead>
           <tbody>
-            ${Object.entries(categories.groups || {}).map(([cat, value]) =>
-              `<tr><td>${cat}</td><td>${value}</td></tr>`
+            ${Object.entries(categories || {}).filter(([k, v]) => typeof v === 'number').map(([cat, value]) =>
+              `<tr><td>${cat}</td><td>${value.toFixed(2)}</td></tr>`
+            ).join('')}
+          </tbody>
+        </table>
+
+        <h2>Presupuestos y Límites</h2>
+        <table>
+          <thead>
+            <tr><th>Grupo</th><th>Gasto (€)</th><th>Límite (€)</th></tr>
+          </thead>
+          <tbody>
+            ${Object.entries(limits).map(([group, data]) =>
+              `<tr>
+                <td>${group}</td>
+                <td>${data.spent.toFixed(2)}</td>
+                <td>${data.limit.toFixed(2)}</td>
+              </tr>`
             ).join('')}
           </tbody>
         </table>
@@ -61,6 +77,5 @@ function generateHtmlForReport(period, summary = {}, categories = {}, user = {})
     </html>
   `;
 }
-
 
 module.exports = { generateHtmlForReport };
