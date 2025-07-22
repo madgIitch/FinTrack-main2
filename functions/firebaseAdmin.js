@@ -1,13 +1,10 @@
-// functions/firebaseAdmin.js
-// Inicializamos Firebase Admin SDK para poder acceder a Firestore y Auth desde el backend.
-// Este archivo se usa para centralizar la configuración y reutilizarla en otros módulos.
-
 const admin = require('firebase-admin');
 
-// No pasamos nada: usa las credenciales de servicio que GCP inyecta
-admin.initializeApp();
+// ✅ Añade el nombre explícito del bucket
+admin.initializeApp({
+  storageBucket: 'fintrack-1bced.appspot.com'
+});
 
-// Exporta sólo lo que necesites
 const db = admin.firestore();
 const authAdmin = admin.auth();
 

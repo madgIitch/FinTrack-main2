@@ -2,7 +2,7 @@
 // Lógica para generar y subir informes PDF a Firebase Storage en Firebase Functions
 
 const { db, admin } = require('./firebaseAdmin');
-const chromium = require('chrome-aws-lambda');
+const chromium = require('chrome-aws-lambda'); // puppeteer-core ya viene dentro
 const { v4: uuidv4 } = require('uuid');
 const { generateHtmlForReport } = require('./generateHtml');
 
@@ -16,11 +16,15 @@ exports.generateAndUploadPdfReport = async (req, res) => {
   }
 
   try {
+    console.log(`[PDF] Generando informe para uid=${uid}, periodo=${period}`);
+
     // ───── Leer datos del usuario y sus históricos ─────
     const userRef = db.collection('users').doc(uid);
 
     const userSnap = await userRef.get();
     const user = userSnap.exists ? userSnap.data() : {};
+    const userName = user.displayName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Sin nombre';
+    console.log('[PDF] Usuario cargado:', userName);
 
     const summarySnap = await userRef.collection('historySummary').doc(period).get();
     const summary = summarySnap.exists ? summarySnap.data() : {};
@@ -45,8 +49,9 @@ exports.generateAndUploadPdfReport = async (req, res) => {
 
     // ───── Generar HTML para el informe ─────
     const html = generateHtmlForReport(period, summary, categories, limits, user);
+    console.log('[PDF] HTML generado correctamente');
 
-    // ───── Generar PDF usando chrome-aws-lambda ─────
+    // ───── Lanzar navegador con chrome-aws-lambda (Cloud Functions) ─────
     const browser = await chromium.puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
@@ -58,6 +63,7 @@ exports.generateAndUploadPdfReport = async (req, res) => {
     await page.setContent(html, { waitUntil: 'networkidle0' });
     const pdfBuffer = await page.pdf({ format: 'A4' });
     await browser.close();
+    console.log('[PDF] PDF generado correctamente');
 
     // ───── Subir el PDF generado a Firebase Storage ─────
     const filePath = `users/${uid}/reports/${period}.pdf`;
@@ -73,12 +79,15 @@ exports.generateAndUploadPdfReport = async (req, res) => {
       }
     });
 
+    console.log('[PDF] PDF subido a Storage:', filePath);
+
     // ───── Generar URL pública de descarga ─────
     const downloadURL = `https://firebasestorage.googleapis.com/v0/b/${storage.name}/o/${encodeURIComponent(filePath)}?alt=media&token=${token}`;
 
     res.json({ success: true, url: downloadURL });
   } catch (error) {
-    console.error('❌ Error generando o subiendo PDF:', error);
-    res.status(500).json({ error: 'Error al generar o subir el PDF.' });
+    console.error('❌ Error generando o subiendo PDF:', error.message);
+    console.error('❌ Stacktrace:', error.stack);
+    res.status(500).json({ error: error.message || 'Error al generar o subir el PDF.' });
   }
 };

@@ -1,33 +1,31 @@
 // ───── Archivo: functions/index.js ─────
-// Este es el punto de entrada principal del backend en Firebase Functions.
-// Solo contiene definiciones de rutas y lógica mínima. Todo lo demás va en controladores externos.
 
 require('dotenv').config();
 
-const functions     = require('firebase-functions');
-const express       = require('express');
-const cors          = require('cors');
-const plaidRoutes   = require('./plaidRoutes');
-const { seed }      = require('./seedTransactions');
+const express = require('express');
+const cors = require('cors');
+const { onRequest } = require('firebase-functions/v2/https');
+const { setGlobalOptions } = require('firebase-functions/v2');
+
+const plaidRoutes = require('./plaidRoutes');
+const { seed } = require('./seedTransactions');
 const { scheduledSync } = require('./scheduledSync');
 const { generateAndUploadPdfReport } = require('./reportController');
 
+// 🔧 Opción global para aumentar memoria si hace falta
+setGlobalOptions({ timeoutSeconds: 60 });
+
+// ───── Inicializar Express App ─────
 const app = express();
 
 // ───── Configuración CORS ─────
-const corsOptions = {
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type'],
-};
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+app.use(cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Content-Type'] }));
+app.options('*', cors());
 app.use(express.json());
 
-// ───── Rutas API ─────
+// ───── Rutas ─────
 app.use('/plaid', plaidRoutes);
 
-// ───── Ruta: Sembrar transacciones de prueba ─────
 app.post('/seed', async (req, res, next) => {
   try {
     const { userId, year, month, count } = req.body;
@@ -36,21 +34,19 @@ app.post('/seed', async (req, res, next) => {
     }
 
     await seed(userId, count, year, month);
-    return res.json({ success: true, inserted: count });
+    res.json({ success: true, inserted: count });
   } catch (err) {
     next(err);
   }
 });
 
-// ───── Ruta: Generar informe PDF y subirlo ─────
 app.post('/generate_pdf_report', generateAndUploadPdfReport);
 
-// ───── Middleware de errores ─────
 app.use((err, req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.status(err.status || 500).json({ error: err.message });
+  console.error('[ERROR]', err);
+  res.status(err.status || 500).json({ error: err.message || 'Error interno del servidor.' });
 });
 
-// ───── Exportaciones Firebase Functions ─────
-exports.api = functions.https.onRequest(app);
+// ───── Exportar funciones ─────
+exports.api = onRequest({ memory: '512MiB', timeoutSeconds: 60 }, app);
 exports.scheduledSync = scheduledSync;
