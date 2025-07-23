@@ -5,7 +5,11 @@ const { db, storage } = require('./firebaseAdmin');
 const chromium = require('chrome-aws-lambda');
 const { v4: uuidv4 } = require('uuid');
 const { generateHtmlForReport } = require('./generateHtml');
-const { generatePieChartSVG } = require('./generateChart');
+const {
+  generatePieChartBase64,
+  generateBarChartBase64,
+  generateLineChartBase64
+} = require('./generateChart');
 
 exports.generateAndUploadPdfReport = async (req, res) => {
   const { uid, period } = req.body;
@@ -55,12 +59,29 @@ exports.generateAndUploadPdfReport = async (req, res) => {
       };
     });
 
-    // ───── Generar gráfica SVG con quickchart.js ─────
-    const pieChartSVG = await generatePieChartSVG(categories);
-    console.log('🖼️ [PDF] SVG del gráfico generado correctamente');
+    // ───── Generar imágenes base64 de los gráficos ─────
+    const pieChartImg = await generatePieChartBase64(categories);
+    const barChartImg = await generateBarChartBase64(categories);
+    const lineChartImg = await generateLineChartBase64(
+      [period],                             // solo un mes, o podrías meter 3 anteriores
+      [summary.totalIncomes ?? 0],
+      [summary.totalExpenses ?? 0]
+    );
 
-    // ───── Crear HTML del informe con todos los datos y el gráfico ─────
-    const html = generateHtmlForReport(period, summary, categories, limits, user, pieChartSVG);
+    console.log('🖼️ [PDF] Imágenes base64 generadas correctamente');
+
+    // ───── Crear HTML del informe con todos los datos y los gráficos ─────
+    const html = generateHtmlForReport(
+      period,
+      summary,
+      categories,
+      limits,
+      user,
+      pieChartImg,
+      barChartImg,
+      lineChartImg
+    );
+
     console.log('✅ [PDF] HTML del informe generado');
 
     // ───── Renderizar PDF con Puppeteer (Chrome headless) ─────
