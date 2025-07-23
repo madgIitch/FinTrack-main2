@@ -58,6 +58,33 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.href = '../index.html';
   });
 
+  // Generar informe PDF
+document.getElementById('generate-report-btn').addEventListener('click', async () => {
+  if (!userUid) return alert('Usuario no autenticado');
+  const period = new Date().toISOString().slice(0, 7); // formato YYYY-MM
+
+  console.log('[REPORT] Generando informe para', userUid, period);
+  try {
+    const res = await fetch('https://us-central1-fintrack-1bced.cloudfunctions.net/api/generate_pdf_report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid: userUid, period })
+    });
+
+    const data = await res.json();
+    if (data.success && data.url) {
+      window.open(data.url, '_blank');
+    } else {
+      console.error('[REPORT] Error al generar informe:', data.error);
+      alert('No se pudo generar el informe.');
+    }
+  } catch (err) {
+    console.error('[REPORT] Error de red:', err);
+    alert('Error al generar el informe.');
+  }
+});
+
+
   // Cambio de periodo en el selector de "Este mes", "Esta semana", etc.
   periodSelect.addEventListener('change', e => {
     selectedPeriod = e.target.value;

@@ -372,3 +372,19 @@
   height: 100% !important;
   max-height: 100% !important;
 }
+
+
+  .report-button {
+    background-color: #74787b;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    margin-right: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+  }
+  .report-button:hover {
+    background-color: #2980b9;
+  }
