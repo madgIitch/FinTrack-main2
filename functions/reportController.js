@@ -1,11 +1,11 @@
 // ───── Archivo: functions/reportController.js ─────
-// Lógica para generar y subir informes PDF a Firebase Storage en Firebase Functions
+// Genera un informe PDF para un usuario y lo sube a Firebase Storage
 
 const { db, storage } = require('./firebaseAdmin');
-const chromium = require('chrome-aws-lambda'); // puppeteer-core ya viene dentro
+const chromium = require('chrome-aws-lambda');
 const { v4: uuidv4 } = require('uuid');
 const { generateHtmlForReport } = require('./generateHtml');
-
+const { generatePieChartSVG } = require('./generateChart');
 
 exports.generateAndUploadPdfReport = async (req, res) => {
   const { uid, period } = req.body;
@@ -14,23 +14,32 @@ exports.generateAndUploadPdfReport = async (req, res) => {
     return res.status(400).json({ error: 'Faltan uid o period en la petición.' });
   }
 
+  console.log(`📄 [PDF] Iniciando generación para uid=${uid}, periodo=${period}`);
+
   try {
-    console.log(`[PDF] Generando informe para uid=${uid}, periodo=${period}`);
-
-    // ───── Leer datos del usuario y sus históricos ─────
+    // ───── Obtener datos del usuario ─────
     const userRef = db.collection('users').doc(uid);
-
     const userSnap = await userRef.get();
     const user = userSnap.exists ? userSnap.data() : {};
-    const userName = user.displayName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Sin nombre';
-    console.log('[PDF] Usuario cargado:', userName);
 
+    const userName =
+      user.displayName ||
+      `${user.firstName || ''} ${user.lastName || ''}`.trim() ||
+      'Sin nombre';
+
+    console.log(`👤 [PDF] Usuario cargado: ${userName}`);
+
+    // ───── Obtener resumen financiero ─────
     const summarySnap = await userRef.collection('historySummary').doc(period).get();
     const summary = summarySnap.exists ? summarySnap.data() : {};
 
+    // ───── Obtener distribución por categoría ─────
     const categoriesSnap = await userRef.collection('historyCategorias').doc(period).get();
     const categories = categoriesSnap.exists ? categoriesSnap.data() : {};
 
+    console.log('📊 [PDF] Categorías cargadas:', categories);
+
+    // ───── Obtener límites de gasto por grupo ─────
     const limitsSnap = await userRef
       .collection('historyLimits')
       .doc(period)
@@ -46,11 +55,15 @@ exports.generateAndUploadPdfReport = async (req, res) => {
       };
     });
 
-    // ───── Generar HTML para el informe ─────
-    const html = generateHtmlForReport(period, summary, categories, limits, user);
-    console.log('[PDF] HTML generado correctamente');
+    // ───── Generar gráfica SVG con quickchart.js ─────
+    const pieChartSVG = await generatePieChartSVG(categories);
+    console.log('🖼️ [PDF] SVG del gráfico generado correctamente');
 
-    // ───── Lanzar navegador con chrome-aws-lambda (Cloud Functions) ─────
+    // ───── Crear HTML del informe con todos los datos y el gráfico ─────
+    const html = generateHtmlForReport(period, summary, categories, limits, user, pieChartSVG);
+    console.log('✅ [PDF] HTML del informe generado');
+
+    // ───── Renderizar PDF con Puppeteer (Chrome headless) ─────
     const browser = await chromium.puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
@@ -62,9 +75,10 @@ exports.generateAndUploadPdfReport = async (req, res) => {
     await page.setContent(html, { waitUntil: 'networkidle0' });
     const pdfBuffer = await page.pdf({ format: 'A4' });
     await browser.close();
-    console.log('[PDF] PDF generado correctamente');
 
-    // ───── Subir el PDF generado a Firebase Storage ─────
+    console.log('📎 [PDF] PDF generado correctamente');
+
+    // ───── Subir PDF a Firebase Storage ─────
     const filePath = `users/${uid}/reports/${period}.pdf`;
     const file = storage.file(filePath);
     const token = uuidv4();
@@ -78,15 +92,15 @@ exports.generateAndUploadPdfReport = async (req, res) => {
       }
     });
 
-    console.log('[PDF] PDF subido a Storage:', filePath);
+    console.log(`☁️ [PDF] PDF subido a Storage: ${filePath}`);
 
-    // ───── Generar URL pública de descarga ─────
+    // ───── Construir URL pública de descarga ─────
     const downloadURL = `https://firebasestorage.googleapis.com/v0/b/${storage.name}/o/${encodeURIComponent(filePath)}?alt=media&token=${token}`;
 
     res.json({ success: true, url: downloadURL });
   } catch (error) {
-    console.error('❌ Error generando o subiendo PDF:', error.message);
-    console.error('❌ Stacktrace:', error.stack);
+    console.error('❌ [PDF] Error generando o subiendo el PDF:', error.message);
+    console.error('❌ [PDF] Stacktrace:', error.stack);
     res.status(500).json({ error: error.message || 'Error al generar o subir el PDF.' });
   }
 };
