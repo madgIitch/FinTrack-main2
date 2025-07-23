@@ -87,72 +87,21 @@ async function generatePieChartBase64(categoryData) {
   }
 }
 
-async function generateBarChartBase64(categoryData) {
-  const labels = Object.keys(categoryData);
-  const values = Object.values(categoryData).map(v => Math.round(v));
-  const backgroundColor = labels.map(cat => groupColors[cat] || '#D9D9D9');
-
+// INGRESOS vs GASTOS por semana
+async function generateLineChartBase64(weeks, incomeValues, expenseValues) {
   const chart = new QuickChart();
-  chart.setWidth(480);
-  chart.setHeight(320);
-  chart.setFormat('png');
-
-  chart.setConfig({
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Gasto (€)',
-          data: values,
-          backgroundColor,
-        }
-      ]
-    },
-    options: {
-      indexAxis: 'y',
-      plugins: {
-        legend: { display: false },
-        title: { display: true, text: 'Gasto por Categoría' },
-        tooltip: {
-          callbacks: {
-            label: ctx => `€${ctx.raw}`
-          }
-        }
-      },
-      scales: {
-        x: {
-          ticks: { stepSize: 1 }
-        }
-      }
-    }
-  });
-
-  try {
-    const buffer = await chart.toBinary();
-    return `data:image/png;base64,${buffer.toString('base64')}`;
-  } catch (err) {
-    console.error('[CHART] ❌ Error generando gráfico de barras:', err.message);
-    return '';
-  }
-}
-
-
-async function generateLineChartBase64(months, incomeValues, expenseValues) {
-  const chart = new QuickChart();
-  chart.setWidth(540);
-  chart.setHeight(300);
-  chart.setFormat('png');
+  chart.setWidth(600).setHeight(320).setFormat('png');
 
   chart.setConfig({
     type: 'line',
     data: {
-      labels: months,
+      labels: weeks,
       datasets: [
         {
           label: 'Ingresos',
           data: incomeValues.map(v => Math.round(v)),
           borderColor: '#4ADE80',
+          backgroundColor: '#4ADE80',
           fill: false,
           tension: 0.4
         },
@@ -160,6 +109,7 @@ async function generateLineChartBase64(months, incomeValues, expenseValues) {
           label: 'Gastos',
           data: expenseValues.map(v => Math.round(v)),
           borderColor: '#F87171',
+          backgroundColor: '#F87171',
           fill: false,
           tension: 0.4
         }
@@ -167,10 +117,7 @@ async function generateLineChartBase64(months, incomeValues, expenseValues) {
     },
     options: {
       plugins: {
-        title: {
-          display: true,
-          text: 'Evolución de Ingresos y Gastos'
-        },
+        title: { display: true, text: 'Evolución semanal de Ingresos y Gastos' },
         tooltip: {
           callbacks: {
             label: ctx => `${ctx.dataset.label}: €${ctx.raw}`
@@ -178,9 +125,7 @@ async function generateLineChartBase64(months, incomeValues, expenseValues) {
         }
       },
       scales: {
-        y: {
-          beginAtZero: true
-        }
+        y: { beginAtZero: true }
       }
     }
   });
@@ -189,7 +134,57 @@ async function generateLineChartBase64(months, incomeValues, expenseValues) {
     const buffer = await chart.toBinary();
     return `data:image/png;base64,${buffer.toString('base64')}`;
   } catch (err) {
-    console.error('[CHART] ❌ Error generando gráfico de líneas:', err.message);
+    console.error('[CHART] ❌ Error generando gráfico de línea:', err);
+    return '';
+  }
+}
+
+// SALARIO NETO = Ingresos - Gastos por semana
+async function generateBarChartBase64(weeks, incomeValues, expenseValues) {
+  // Validación de arrays
+  if (!Array.isArray(weeks) || !Array.isArray(incomeValues) || !Array.isArray(expenseValues)) {
+    console.error('[CHART] ❌ Parámetros inválidos para generateBarChartBase64:', {
+      weeks, incomeValues, expenseValues
+    });
+    return '';
+  }
+
+  const neto = incomeValues.map((val, i) => Math.round(val - (expenseValues[i] || 0)));
+
+  const chart = new QuickChart();
+  chart.setWidth(600).setHeight(320).setFormat('png');
+
+  chart.setConfig({
+    type: 'bar',
+    data: {
+      labels: weeks,
+      datasets: [{
+        label: 'Salario Neto',
+        data: neto,
+        backgroundColor: '#60A5FA'
+      }]
+    },
+    options: {
+      plugins: {
+        title: { display: true, text: 'Salario Neto por Semana' },
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `€${ctx.raw}`
+          }
+        }
+      },
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+
+  try {
+    const buffer = await chart.toBinary();
+    return `data:image/png;base64,${buffer.toString('base64')}`;
+  } catch (err) {
+    console.error('[CHART] ❌ Error generando gráfico de barras (neto):', err);
     return '';
   }
 }

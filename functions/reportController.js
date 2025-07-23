@@ -59,14 +59,20 @@ exports.generateAndUploadPdfReport = async (req, res) => {
       };
     });
 
+    // ───── Validar datos para gráficos de línea y barra ─────
+    const weeks = [period];
+    const incomes = [summary.totalIncomes ?? 0];
+    const expenses = [summary.totalExpenses ?? 0];
+
+    if (!Array.isArray(incomes) || !Array.isArray(expenses)) {
+      console.error('[PDF] ❌ Datos inválidos para ingresos o gastos');
+      return res.status(500).json({ error: 'Datos inválidos para ingresos o gastos.' });
+    }
+
     // ───── Generar imágenes base64 de los gráficos ─────
     const pieChartImg = await generatePieChartBase64(categories);
-    const barChartImg = await generateBarChartBase64(categories);
-    const lineChartImg = await generateLineChartBase64(
-      [period],                             // solo un mes, o podrías meter 3 anteriores
-      [summary.totalIncomes ?? 0],
-      [summary.totalExpenses ?? 0]
-    );
+    const barChartImg = await generateBarChartBase64(weeks, incomes, expenses);
+    const lineChartImg = await generateLineChartBase64(weeks, incomes, expenses);
 
     console.log('🖼️ [PDF] Imágenes base64 generadas correctamente');
 
