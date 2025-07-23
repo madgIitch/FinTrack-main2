@@ -134,8 +134,9 @@ function generateHtmlForReport(
             ? `<img src="${lineChartImg}" alt="Gráfico de Líneas Ingresos/Gastos" />`
             : '<p>No se pudo generar el gráfico de líneas.</p>'}
         </div>
+        <div style="page-break-before: always;"></div>
 
-        <h2 style="page-break-before: always;">📉 Salario Neto</h2>
+        <h2>📉 Salario Neto</h2>
         <div class="chart-container">
           ${barChartImg
             ? `<img src="${barChartImg}" alt="Gráfico de Barras por Grupo" />`
