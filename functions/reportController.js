@@ -33,9 +33,44 @@ exports.generateAndUploadPdfReport = async (req, res) => {
 
     console.log(`👤 [PDF] Usuario cargado: ${userName}`);
 
-    // ───── Obtener resumen financiero ─────
+    // ───── Obtener resumen mensual ─────
     const summarySnap = await userRef.collection('historySummary').doc(period).get();
     const summary = summarySnap.exists ? summarySnap.data() : {};
+
+    // ───── Obtener resumen semanal desde los días de cada semana ─────
+    const allPossibleWeeks = ['S1', 'S2', 'S3', 'S4', 'S5'];
+    const weeks = [];
+    const incomes = [];
+    const expenses = [];
+
+    for (const weekId of allPossibleWeeks) {
+      weeks.push(weekId);
+      let totalWeekIncomes = 0;
+      let totalWeekExpenses = 0;
+
+      const daysSnap = await userRef
+        .collection('historySummary')
+        .doc(period)
+        .collection('weeks')
+        .doc(weekId)
+        .collection('days')
+        .get();
+
+      if (!daysSnap.empty) {
+        daysSnap.forEach(doc => {
+          const data = doc.data();
+          totalWeekIncomes += data.totalIncomes || 0;
+          totalWeekExpenses += data.totalExpenses || 0;
+        });
+      }
+
+      incomes.push(totalWeekIncomes);
+      expenses.push(totalWeekExpenses);
+    }
+
+    console.log('[PDF] Semanas:', weeks);
+    console.log('[PDF] Ingresos semanales:', incomes);
+    console.log('[PDF] Gastos semanales:', expenses);
 
     // ───── Obtener distribución por categoría ─────
     const categoriesSnap = await userRef.collection('historyCategorias').doc(period).get();
@@ -58,16 +93,6 @@ exports.generateAndUploadPdfReport = async (req, res) => {
         spent: data.spent ?? 0
       };
     });
-
-    // ───── Validar datos para gráficos de línea y barra ─────
-    const weeks = [period];
-    const incomes = [summary.totalIncomes ?? 0];
-    const expenses = [summary.totalExpenses ?? 0];
-
-    if (!Array.isArray(incomes) || !Array.isArray(expenses)) {
-      console.error('[PDF] ❌ Datos inválidos para ingresos o gastos');
-      return res.status(500).json({ error: 'Datos inválidos para ingresos o gastos.' });
-    }
 
     // ───── Generar imágenes base64 de los gráficos ─────
     const pieChartImg = await generatePieChartBase64(categories);
