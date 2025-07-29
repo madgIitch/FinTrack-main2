@@ -17,7 +17,27 @@ messaging.onBackgroundMessage((payload) => {
   const notificationOptions = {
     body: payload.notification?.body || '',
     icon: payload.notification?.icon || '/favicon.ico',
-    data: payload.data || {}
+    data: payload.data || {} // <-- necesario para acceder a reportUrl luego
   };
   self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+// ⬇️ Capturamos el clic en la notificación
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  const data = event.notification.data;
+
+  console.log('[SW] Notification click con data:', data);
+
+  if (data?.alertType === 'monthly_report' && data?.reportUrl) {
+    // Redirigir a la URL del informe PDF
+    event.waitUntil(
+      clients.openWindow(data.reportUrl)
+    );
+  } else {
+    // Por defecto: abrir la app
+    event.waitUntil(
+      clients.openWindow('/')
+    );
+  }
 });

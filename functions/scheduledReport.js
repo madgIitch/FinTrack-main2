@@ -1,9 +1,9 @@
-// ───── Cloud Function para generar PDFs mensuales y guardar notificación en Firestore ─────
+// ───── Cloud Function para generar PDFs mensuales y enviar notificación push ─────
 
 require('dotenv').config();
 const functions = require('firebase-functions');
 const axios = require('axios');
-const { db } = require('./firebaseAdmin');
+const { admin, db } = require('./firebaseAdmin');
 
 // Exporto la función HTTP para que pueda ser ejecutada por Cloud Scheduler
 exports.scheduledReport = functions.https.onRequest(async (req, res) => {
@@ -42,23 +42,76 @@ exports.scheduledReport = functions.https.onRequest(async (req, res) => {
           console.log(`✅ PDF generado y subido para ${userId}: ${pdfUrl}`);
 
           // ─── Crear notificación de tipo "report" ───
+          const title = `📎 Informe financiero disponible`;
+          const body = `Tu informe de ${currentMonth} ya está listo. Puedes consultarlo desde la app.`;
+
           const notifRef = db
             .collection('users')
             .doc(userId)
             .collection('notifications');
 
           await notifRef.add({
-            title: `📎 Informe financiero disponible`,
-            body: `Tu informe de ${currentMonth} ya está listo. Puedes consultarlo desde la app.`,
+            title,
+            body,
             type: 'report',
             data: {
               period: currentMonth,
               url: pdfUrl,
-              timestamp: functions.firestore.FieldValue.serverTimestamp()
+              timestamp: admin.firestore.FieldValue.serverTimestamp()
             }
           });
 
           console.log(`📌 Notificación de informe creada para ${userId}`);
+
+          // ─── Verificar si el usuario quiere recibir push de informes ───
+          const settings = userDoc.data();
+          const wantsPush = settings?.reports?.push === true;
+
+          if (!wantsPush) {
+            console.log(`🔕 Usuario ${userId} tiene push desactivado para informes`);
+            continue;
+          }
+
+          // ─── Enviar notificación push ───
+          const tokensSnap = await db
+            .collection('users')
+            .doc(userId)
+            .collection('fcmTokens')
+            .get();
+
+          const tokens = tokensSnap.docs.map(d => d.id);
+
+          for (const token of tokens) {
+            const message = {
+              token,
+              notification: { title, body },
+              android: { priority: 'high' },
+              apns: { headers: { 'apns-priority': '10' } },
+              data: {
+                period: currentMonth,
+                userId,
+                reportUrl: pdfUrl,
+                alertType: 'monthly_report',
+                title,
+                body
+              }
+            };
+
+            try {
+              const response = await admin.messaging().send(message);
+              console.log(`📲 Notificación push de informe enviada a ${token}:`, response);
+            } catch (err) {
+              console.warn(`❌ Error al enviar push de informe a ${token}:`, err.message);
+              if (
+                err.code === 'messaging/registration-token-not-registered' ||
+                err.message.includes('Requested entity was not found')
+              ) {
+                await db.collection('users').doc(userId).collection('fcmTokens').doc(token).delete();
+                console.log(`🗑️ Token inválido eliminado: ${token}`);
+              }
+            }
+          }
+
         } else {
           console.warn(`⚠️ Respuesta sin éxito para ${userId}:`, response.data);
         }

@@ -662,7 +662,6 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"6SdsI":[function(require,module,exports,__globalThis) {
-// public/js/settings.js
 var _firebaseJs = require("./firebase.js");
 var _firestore = require("firebase/firestore");
 var _auth = require("firebase/auth");
@@ -709,9 +708,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     // Referencias UI
     const backBtn = document.getElementById('back-btn');
     const chkNotifPush = document.getElementById('notif-push');
-    const chkNotifEmail = document.getElementById('notif-email');
     const chkReportPush = document.getElementById('report-push');
-    const chkReportEmail = document.getElementById('report-email');
     const btnSave = document.getElementById('save-settings-btn');
     const budgetsContainer = document.getElementById('budgets-container');
     const addCategoryBtn = document.getElementById('add-category-btn');
@@ -751,9 +748,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
         }
         // Inicializar checkboxes según lo cargado
         chkNotifPush.checked = Boolean(loaded.notifications?.push);
-        chkNotifEmail.checked = Boolean(loaded.notifications?.email);
         chkReportPush.checked = Boolean(loaded.reports?.push);
-        chkReportEmail.checked = Boolean(loaded.reports?.email);
         // Poblamos filas de presupuesto
         budgetsContainer.innerHTML = '';
         const map = loaded.budgets || {};
@@ -772,12 +767,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
         // Construir objeto settings
         const settings = {
             notifications: {
-                push: chkNotifPush.checked,
-                email: chkNotifEmail.checked
+                push: chkNotifPush.checked
             },
             reports: {
-                push: chkReportPush.checked,
-                email: chkReportEmail.checked
+                push: chkReportPush.checked
             },
             budgets: {}
         };
@@ -850,10 +843,8 @@ const nav = document.getElementById('bottom-nav');
 window.addEventListener('scroll', ()=>{
     const currentScroll = window.scrollY;
     if (!nav) return;
-    if (currentScroll > lastScrollTop && currentScroll > 60) // Scroll hacia abajo
-    nav.classList.add('hide');
-    else // Scroll hacia arriba
-    nav.classList.remove('hide');
+    if (currentScroll > lastScrollTop && currentScroll > 60) nav.classList.add('hide');
+    else nav.classList.remove('hide');
     lastScrollTop = currentScroll <= 0 ? 0 : currentScroll;
 }, {
     passive: true

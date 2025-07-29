@@ -1,5 +1,3 @@
-// public/js/settings.js
-
 import { auth, app } from './firebase.js';
 import {
   getFirestore,
@@ -7,8 +5,7 @@ import {
   getDoc,
   updateDoc,
   collection,
-  getDocs,
-  serverTimestamp
+  getDocs
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -18,7 +15,6 @@ const db = getFirestore(app);
 const apiUrl = window.location.hostname === 'localhost'
   ? 'http://localhost:5001/fintrack-1bced/us-central1/api'
   : 'https://us-central1-fintrack-1bced.cloudfunctions.net/api';
-
 
 // ── Crea una fila de presupuesto dinámicamente ──────────────────────────────
 function createBudgetRow(selectedCategory = '', amount = '') {
@@ -70,9 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Referencias UI
   const backBtn          = document.getElementById('back-btn');
   const chkNotifPush     = document.getElementById('notif-push');
-  const chkNotifEmail    = document.getElementById('notif-email');
   const chkReportPush    = document.getElementById('report-push');
-  const chkReportEmail   = document.getElementById('report-email');
   const btnSave          = document.getElementById('save-settings-btn');
   const budgetsContainer = document.getElementById('budgets-container');
   const addCategoryBtn   = document.getElementById('add-category-btn');
@@ -118,10 +112,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Inicializar checkboxes según lo cargado
-    chkNotifPush.checked   = Boolean(loaded.notifications?.push);
-    chkNotifEmail.checked  = Boolean(loaded.notifications?.email);
-    chkReportPush.checked  = Boolean(loaded.reports?.push);
-    chkReportEmail.checked = Boolean(loaded.reports?.email);
+    chkNotifPush.checked  = Boolean(loaded.notifications?.push);
+    chkReportPush.checked = Boolean(loaded.reports?.push);
 
     // Poblamos filas de presupuesto
     budgetsContainer.innerHTML = '';
@@ -145,12 +137,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Construir objeto settings
     const settings = {
       notifications: {
-        push:  chkNotifPush.checked,
-        email: chkNotifEmail.checked
+        push: chkNotifPush.checked
       },
       reports: {
-        push:  chkReportPush.checked,
-        email: chkReportEmail.checked
+        push: chkReportPush.checked
       },
       budgets: {}
     };
@@ -224,16 +214,11 @@ const nav = document.getElementById('bottom-nav');
 
 window.addEventListener('scroll', () => {
   const currentScroll = window.scrollY;
-
   if (!nav) return;
-
   if (currentScroll > lastScrollTop && currentScroll > 60) {
-    // Scroll hacia abajo
     nav.classList.add('hide');
   } else {
-    // Scroll hacia arriba
     nav.classList.remove('hide');
   }
-
   lastScrollTop = currentScroll <= 0 ? 0 : currentScroll;
 }, { passive: true });
