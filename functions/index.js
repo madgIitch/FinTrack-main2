@@ -10,6 +10,7 @@ const { setGlobalOptions } = require('firebase-functions/v2');
 const plaidRoutes = require('./plaidRoutes');
 const { seed } = require('./seedTransactions');
 const { scheduledSync } = require('./scheduledSync');
+const { scheduledReport } = require('./scheduledReport');
 const { generateAndUploadPdfReport } = require('./reportController');
 
 // 🔧 Opción global para aumentar memoria si hace falta
@@ -42,6 +43,7 @@ app.post('/seed', async (req, res, next) => {
 
 app.post('/generate_pdf_report', generateAndUploadPdfReport);
 
+// ───── Middleware de manejo de errores ─────
 app.use((err, req, res, next) => {
   console.error('[ERROR]', err);
   res.status(err.status || 500).json({ error: err.message || 'Error interno del servidor.' });
@@ -50,3 +52,4 @@ app.use((err, req, res, next) => {
 // ───── Exportar funciones ─────
 exports.api = onRequest({ memory: '512MiB', timeoutSeconds: 60 }, app);
 exports.scheduledSync = scheduledSync;
+exports.scheduledReport = scheduledReport;

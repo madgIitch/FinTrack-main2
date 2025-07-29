@@ -67,6 +67,34 @@ body, html {
   font-weight: 600;
 }
 
+.notification-tabs {
+  justify-content: center;
+  gap: .75rem;
+  margin: 1rem 0 .5rem;
+  display: flex;
+}
+
+.tab-button {
+  color: #333;
+  cursor: pointer;
+  background-color: #e0e0e0;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: .95rem;
+  transition: all .2s ease-in-out;
+}
+
+.tab-button:hover {
+  background-color: #d5d5d5;
+}
+
+.tab-button.active {
+  color: #fff;
+  background-color: #1976d2;
+  font-weight: 500;
+}
+
 .notifications-list {
   flex-direction: column;
   gap: 20px;
@@ -90,6 +118,10 @@ body, html {
 .notification-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px #0000001f;
+}
+
+.notification-card.report:hover {
+  cursor: pointer;
 }
 
 .notification-icon {

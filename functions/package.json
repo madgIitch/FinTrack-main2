@@ -13,6 +13,7 @@
   },
   "main": "index.js",
   "dependencies": {
+    "@sendgrid/mail": "^8.1.5",
     "apexcharts": "^4.7.0",
     "canvas": "^3.1.2",
     "chart.js": "^4.4.9",
