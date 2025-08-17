@@ -25,17 +25,6 @@
 
 ---
 
-## 🖼️ Screenshots
-
-> _Add screenshots or GIFs of your app in action here._  
-
-Suggested examples:  
-
-- **Login screen**  
-- **Dashboard with accounts and balances**  
-- **Transactions & analytics view**  
-
----
 
 ## 🛠️ Tech Stack
 
@@ -60,24 +49,9 @@ Suggested examples:
 ## 🚀 Demo
 
 🔗 [Live demo](https://your-demo-url.com)  
-*(deploy via Firebase Hosting or Vercel)*  
+*(deployed on Firebase Hosting)*  
 
----
+### Test credentials
+- **Email:** peorrr9@gmail.com  
+- **Password:** porjor00  
 
-## ⚙️ Local Setup
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/madgIitch/FinTrack-main2.git
-cd FinTrack-main2
-
-# 2. Install dependencies
-npm install
-
-# 3. Configure environment variables
-#   - Firebase API keys
-#   - Plaid API keys
-#   (see .env.example)
-
-# 4. Run in development
-npm run dev
