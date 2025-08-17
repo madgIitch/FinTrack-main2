@@ -6,78 +6,78 @@
 ![Frontend](https://img.shields.io/badge/frontend-HTML%2FCSS%2FJS-yellow)
 ![Backend](https://img.shields.io/badge/backend-Node.js%20%2B%20Express-green)
 
-> **FinTrack** es una Progressive Web App (PWA) que ayuda a los usuarios a **gestionar sus finanzas personales**, conectando cuentas bancarias reales mediante **Plaid API** y almacenando los datos en **Firebase**.  
-> Proyecto desarrollado como **Trabajo Fin de Grado en Ingeniería Informática**.
+> **FinTrack** is a Progressive Web App (PWA) that helps users **manage their personal finances**, by connecting real bank accounts via **Plaid API** and storing data in **Firebase**.  
+> Developed as my **Computer Engineering Bachelor's Thesis**.
 
 ---
 
-## ✨ Funcionalidades principales
+## ✨ Key Features
 
-- 🔐 **Autenticación segura** con Firebase Auth.  
-- 🏦 **Vinculación de cuentas bancarias** con Plaid API.  
-- 📊 **Visualización de transacciones** (cronológica y por categorías).  
-- 📈 **Análisis financiero** con gráficas interactivas (ingresos, gastos, presupuestos).  
-- 📅 **Gestión de presupuestos mensuales** con alertas de exceso de gasto.  
-- 🔔 **Notificaciones push** (ej. avisos de presupuesto).  
-- 📑 **Generación automática de informes PDF** con resumen financiero.  
-- 📱 **Soporte offline** mediante IndexedDB y Service Workers.  
-- 💻 **PWA instalable** en escritorio o móvil.
-
----
-
-## 🖼️ Capturas de pantalla
-
-> _Añade aquí imágenes o GIFs de tu app en funcionamiento._  
-
-Ejemplo de estructura:  
-
-- **Pantalla de login**  
-- **Dashboard con cuentas y saldos**  
-- **Vista de transacciones y análisis**  
+- 🔐 **Secure authentication** with Firebase Auth.  
+- 🏦 **Bank account linking** through Plaid API.  
+- 📊 **Transaction visualization** (chronological & categorized views).  
+- 📈 **Financial analysis** with interactive charts (income, expenses, budgets).  
+- 📅 **Monthly budget management** with overspending alerts.  
+- 🔔 **Push notifications** (e.g., budget alerts).  
+- 📑 **Automated PDF report generation** with financial summaries.  
+- 📱 **Offline support** using IndexedDB & Service Workers.  
+- 💻 **Installable PWA** for desktop and mobile.  
 
 ---
 
-## 🛠️ Stack Tecnológico
+## 🖼️ Screenshots
+
+> _Add screenshots or GIFs of your app in action here._  
+
+Suggested examples:  
+
+- **Login screen**  
+- **Dashboard with accounts and balances**  
+- **Transactions & analytics view**  
+
+---
+
+## 🛠️ Tech Stack
 
 **Frontend**
 - HTML5, CSS3, JavaScript ES6+
-- ApexCharts (visualizaciones)
+- ApexCharts (data visualizations)
 - Service Workers + IndexedDB (offline support)
 - Responsive design + PWA
 
 **Backend**
 - Node.js + Express
-- Firebase Functions (Cloud backend)
+- Firebase Cloud Functions
 - Firebase Firestore (NoSQL DB)
 - Firebase Messaging (push notifications)
 
-**Integraciones externas**
-- Plaid API (conexión bancaria)
-- Puppeteer (generación de PDFs)
+**External integrations**
+- Plaid API (bank connectivity)
+- Puppeteer (PDF generation)
 
 ---
 
 ## 🚀 Demo
 
-🔗 [Prueba la aplicación en vivo](https://tu-demo-url.com)  
-*(si lo despliegas en Firebase Hosting o Vercel)*  
+🔗 [Live demo](https://your-demo-url.com)  
+*(deploy via Firebase Hosting or Vercel)*  
 
 ---
 
-## ⚙️ Instalación local
+## ⚙️ Local Setup
 
 ```bash
-# 1. Clonar el repositorio
+# 1. Clone the repository
 git clone https://github.com/madgIitch/FinTrack-main2.git
 cd FinTrack-main2
 
-# 2. Instalar dependencias
+# 2. Install dependencies
 npm install
 
-# 3. Configurar variables de entorno
+# 3. Configure environment variables
 #   - Firebase API keys
 #   - Plaid API keys
-#   (ver archivo .env.example)
+#   (see .env.example)
 
-# 4. Ejecutar en desarrollo
+# 4. Run in development
 npm run dev
