@@ -48,7 +48,7 @@
 
 ## 🚀 Demo
 
-🔗 [Live demo](https://your-demo-url.com)  
+🔗 [Live demo]([https://your-demo-url.com](https://fintrack-1bced.web.app/index.html))  
 *(deployed on Firebase Hosting)*  
 
 ### Test credentials
