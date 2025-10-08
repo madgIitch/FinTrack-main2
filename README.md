@@ -1,5 +1,7 @@
 # 💸 FinTrack — Personal Finance PWA
 
+Wiki--> https://deepwiki.com/madgIitch/FinTrack-main2
+
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Made with](https://img.shields.io/badge/made%20with-Firebase-orange)
